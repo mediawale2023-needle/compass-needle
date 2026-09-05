@@ -124,15 +124,23 @@ modules/data/govt_portals.json's `live_session_supported`, deliberately
 left false pending that separate check). See that file's source_note for
 this portal for the full, dated evidence trail.
 
-PERSISTENCE: process-local, in-memory only — same precedent as
-karnataka_ipgrs.py's `_attempts` dict and, further back,
-browser_session.py's `_sessions` dict. NOT govt_otp_sessions, no DB table,
-no Redis. A stalled/abandoned attempt is swept on next access past its TTL
-(tracked from LAST activity, not just creation — a genuine three-human-step
-flow needs more real wall-clock time than Karnataka's single step, so an
-idle-based TTL is used here rather than Karnataka's simpler creation-based
-one). Does not survive a backend restart — staff would need to start over
-from stage 0.
+PERSISTENCE (updated — Karnataka/Maharashtra _attempts -> Postgres
+migration): attempt state (a genuine three-human-step flow, tracked across
+up to 3 advance() calls) lives in `govt_status_check_attempts` via
+modules/govt_sync/status_attempts.py — NOT a process-local dict anymore.
+This was previously an in-memory-only `_attempts` dict (same precedent as
+karnataka_ipgrs.py's own, and further back, browser_session.py's
+`_sessions`), which required start() and every advance() for the same
+attempt to land on the same backend worker — true only under
+browser_session.py's single-worker `backend_govt_live` routing. Moving this
+state to Postgres removes that requirement without changing the CAPTCHA/OTP
+flow, CSRF handling, the portal request/response contract, or any
+externally observable behavior. TTL is still tracked from LAST activity,
+not creation (a genuine three-human-step flow needs more real wall-clock
+time than Karnataka's single step) — a stalled/abandoned attempt is simply
+invisible past its TTL (see _ATTEMPT_TTL_SECONDS), not swept by a
+background loop. A failure at any stage still clears the attempt; staff
+still starts over from stage 0.
 
 SECURITY / DATA HANDLING: CAPTCHA text, CAPTCHA images (incl. base64), OTP
 codes, session cookies, and the portal contact number are never logged,
@@ -140,8 +148,10 @@ anywhere in this module, under any code path. The OTP's human-facing
 description shown to staff never includes the mobile/email it was sent to.
 Only the case reference number and generic failure descriptions appear in
 log lines. Cookies/csrf/token/cid never appear in any API response — they
-exist only inside the process-local `_attempts` dict, addressed by an
-opaque attempt_id.
+exist only in govt_status_check_attempts, addressed by an opaque
+attempt_id, with the same never-exposed/never-logged discipline
+modules/govt_sync/otp_sessions.py already established for Rajasthan's
+govt_otp_sessions.
 
 NOT EXTRACTED FROM THE RESULT PAGE: District, Source, Grievance token
 (portal's own, not Needle's reference), Department, Office, Officer,
@@ -153,11 +163,10 @@ to carry the rest, per explicit instruction.
 import base64
 import logging
 import re
-import time
 import uuid
-from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlparse
 
+from ..status_attempts import create_attempt, delete_attempt, load_attempt, update_attempt_stage
 from .base import StatusResult, normalize_status_keywords
 from .manual import ManualAssistedAdapter
 from .status_flow import (
@@ -192,10 +201,20 @@ _OTP_HUMAN_DESCRIPTION = "OTP sent to the portal contact number on file — ente
 
 
 class _MaharashtraStageFailure(Exception):
-    """Internal control-flow only — never escapes advance()."""
-    def __init__(self, note: str):
+    """Internal control-flow only — never escapes advance().
+
+    preserve_attempt=True marks the specific case where update_attempt_stage()
+    returned False because a concurrent advance() already won the race and
+    moved the row past the stage this call expected — NOT a genuine terminal
+    failure. The dispatcher's except-handler must not delete_attempt() in
+    that case: the row it would delete is the concurrent winner's freshly-
+    advanced state, not this (losing) call's own — deleting it unconditionally
+    would corrupt the winner's persisted progress rather than just failing
+    this caller cleanly."""
+    def __init__(self, note: str, preserve_attempt: bool = False):
         super().__init__(note)
         self.note = note
+        self.preserve_attempt = preserve_attempt
 
 
 def _extract_hidden_field(html: str, name: str) -> str | None:
@@ -287,38 +306,6 @@ def _parse_result_html(html: str) -> dict | None:
     return result
 
 
-@dataclass
-class _MaharashtraAttemptState:
-    """Process-local only — never serialized, never returned through any
-    API response, never logged. Holds exactly what each advance() call
-    needs to continue the same live session."""
-    attempt_id: str
-    case_id: int
-    tenant_id: int
-    reference_number: str
-    mobile_or_email: str
-    cookies: dict
-    csrf_token: str
-    stage: int  # 0, 1, 2 — index into describe_flow()'s stages
-    token: str | None = None   # from stage 0's redirect, needed to re-reach stage 1's URL
-    cid: str | None = None     # from stage 1's success, needed by stage 2
-    created_at: float = field(default_factory=time.time)
-    last_activity_at: float = field(default_factory=time.time)
-
-
-# Process-local, in-memory only — same precedent as karnataka_ipgrs.py's
-# `_attempts` dict. NOT govt_otp_sessions, not a DB table, not Redis. Does
-# not survive a backend restart/process replacement.
-_attempts: dict[str, _MaharashtraAttemptState] = {}
-
-
-def _gc_expired() -> None:
-    now = time.time()
-    expired = [aid for aid, a in _attempts.items() if now - a.last_activity_at > _ATTEMPT_TTL_SECONDS]
-    for aid in expired:
-        del _attempts[aid]
-
-
 def _fetch_captcha_b64(session, cookies_source=None) -> str:
     resp = session.get(_BASE_URL + _CAPTCHA_PATH, timeout=_REQUEST_TIMEOUT_SECONDS)
     resp.raise_for_status()
@@ -402,12 +389,12 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
             logger.warning(f"Maharashtra Aaple Sarkar: no _csrfToken found on entry page for ref={reference_number}")
             raise RuntimeError("Could not reach the Maharashtra portal — try again in a moment.")
 
-        _gc_expired()
         attempt_id = uuid.uuid4().hex
-        _attempts[attempt_id] = _MaharashtraAttemptState(
+        create_attempt(
             attempt_id=attempt_id,
-            case_id=case_id,
             tenant_id=tenant_id,
+            case_id=case_id,
+            adapter_key="maharashtra_aaplesarkar",
             reference_number=reference_number,
             mobile_or_email=mobile_or_email,
             cookies=dict(session.cookies.get_dict()),
@@ -427,9 +414,12 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
 
     def advance(self, attempt: StatusCheckAttempt, verification_answers: dict,
                 next_inputs: dict | None = None) -> StatusCheckAttempt:
-        _gc_expired()
-        stored = _attempts.get(attempt.attempt_id)
-        if not stored or stored.tenant_id != attempt.tenant_id or stored.case_id != attempt.case_id:
+        # Tenant/case scoping enforced inside load_attempt()'s own WHERE
+        # clause, same discipline as every other tenant-scoped lookup in
+        # this codebase — an unrecognised, mismatched, or expired attempt_id
+        # all return None identically.
+        stored = load_attempt(attempt.attempt_id, attempt.tenant_id, attempt.case_id, _ATTEMPT_TTL_SECONDS)
+        if not stored:
             attempt.state = StatusCheckAttemptState.FAILED
             attempt.result = StatusResult(
                 status="", checked=False,
@@ -438,13 +428,14 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
             return attempt
 
         try:
-            if stored.stage == 0:
+            if stored["stage"] == 0:
                 return self._advance_stage0(attempt, stored, verification_answers or {})
-            if stored.stage == 1:
+            if stored["stage"] == 1:
                 return self._advance_stage1(attempt, stored, verification_answers or {})
             return self._advance_stage2(attempt, stored, verification_answers or {})
         except _MaharashtraStageFailure as fail:
-            _attempts.pop(attempt.attempt_id, None)
+            if not fail.preserve_attempt:
+                delete_attempt(attempt.attempt_id)
             attempt.state = StatusCheckAttemptState.FAILED
             attempt.result = StatusResult(status="", checked=False, raw_portal_status=fail.note)
             return attempt
@@ -452,7 +443,7 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
     # ─── Stage transitions — each POSTs, re-scrapes fresh state, and
     # either advances to the next AWAITING_HUMAN_INPUT or completes ───
 
-    def _advance_stage0(self, attempt: StatusCheckAttempt, stored: _MaharashtraAttemptState,
+    def _advance_stage0(self, attempt: StatusCheckAttempt, stored: dict,
                          verification_answers: dict) -> StatusCheckAttempt:
         captcha_text = (verification_answers.get("captcha") or "").strip()
         if not captcha_text:
@@ -463,15 +454,15 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
 
         session = requests.Session()
         session.headers.update({"User-Agent": _USER_AGENT})
-        session.cookies.update(stored.cookies)
+        session.cookies.update(stored["cookies"])
 
         try:
             resp = session.post(
                 _BASE_URL + _VERIFY_PATH,
                 data={
                     "_method": "POST",
-                    "_csrfToken": stored.csrf_token,
-                    "verification_id": stored.mobile_or_email,
+                    "_csrfToken": stored["csrf_token"],
+                    "verification_id": stored["mobile_or_email"],
                     "registration_no": "",  # hidden (d-none) at this stage but a real browser still submits it
                     "securitycode": captcha_text,
                 },
@@ -479,7 +470,7 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
             )
             resp.raise_for_status()
         except Exception as e:
-            logger.warning(f"Maharashtra Aaple Sarkar stage-0 submit failed for ref={stored.reference_number}: {e}")
+            logger.warning(f"Maharashtra Aaple Sarkar stage-0 submit failed for ref={stored['reference_number']}: {e}")
             raise _MaharashtraStageFailure("Portal check failed — try again.")
 
         token = _extract_token_from_url(resp.url)
@@ -497,14 +488,24 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
         try:
             challenge_uri = _fetch_captcha_b64(session)
         except Exception as e:
-            logger.warning(f"Maharashtra Aaple Sarkar stage-1 captcha fetch failed for ref={stored.reference_number}: {e}")
+            logger.warning(f"Maharashtra Aaple Sarkar stage-1 captcha fetch failed for ref={stored['reference_number']}: {e}")
             raise _MaharashtraStageFailure("Portal check failed — try again.")
 
-        stored.cookies = dict(session.cookies.get_dict())
-        stored.csrf_token = fresh_csrf
-        stored.token = token
-        stored.stage = 1
-        stored.last_activity_at = time.time()
+        advanced = update_attempt_stage(
+            attempt.attempt_id,
+            expected_stage=0,
+            stage=1,
+            cookies=dict(session.cookies.get_dict()),
+            csrf_token=fresh_csrf,
+            token=token,
+        )
+        if not advanced:
+            # Someone else (a concurrent duplicate advance()) already moved
+            # this attempt past stage 0 — fail closed rather than presenting
+            # a CAPTCHA challenge for a stage that's no longer current.
+            # preserve_attempt=True: the row now holds that concurrent
+            # winner's state, not this call's — must not be deleted here.
+            raise _MaharashtraStageFailure("Status check expired or not found — start again.", preserve_attempt=True)
 
         attempt.current_stage_index = 1
         attempt.collected_values["token"] = token
@@ -515,7 +516,7 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
         ]
         return attempt
 
-    def _advance_stage1(self, attempt: StatusCheckAttempt, stored: _MaharashtraAttemptState,
+    def _advance_stage1(self, attempt: StatusCheckAttempt, stored: dict,
                          verification_answers: dict) -> StatusCheckAttempt:
         otp_text = (verification_answers.get("otp") or "").strip()
         captcha_text = (verification_answers.get("captcha") or "").strip()
@@ -527,15 +528,15 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
 
         session = requests.Session()
         session.headers.update({"User-Agent": _USER_AGENT})
-        session.cookies.update(stored.cookies)
+        session.cookies.update(stored["cookies"])
 
         try:
             resp = session.post(
-                f"{_BASE_URL}{_VERIFY_PATH}?token={stored.token}",
+                f"{_BASE_URL}{_VERIFY_PATH}?token={stored['token']}",
                 data={
                     "_method": "POST",
-                    "_csrfToken": stored.csrf_token,
-                    "verification_id": stored.mobile_or_email,
+                    "_csrfToken": stored["csrf_token"],
+                    "verification_id": stored["mobile_or_email"],
                     "otp": otp_text,
                     "registration_no": "",  # still hidden at this stage
                     "securitycode": captcha_text,
@@ -544,7 +545,7 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
             )
             resp.raise_for_status()
         except Exception as e:
-            logger.warning(f"Maharashtra Aaple Sarkar stage-1 submit failed for ref={stored.reference_number}: {e}")
+            logger.warning(f"Maharashtra Aaple Sarkar stage-1 submit failed for ref={stored['reference_number']}: {e}")
             raise _MaharashtraStageFailure("Portal check failed — try again.")
 
         # CONFIRMED via live trace: success lands on /track-grievance (a
@@ -564,14 +565,21 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
         try:
             challenge_uri = _fetch_captcha_b64(session)
         except Exception as e:
-            logger.warning(f"Maharashtra Aaple Sarkar stage-2 captcha fetch failed for ref={stored.reference_number}: {e}")
+            logger.warning(f"Maharashtra Aaple Sarkar stage-2 captcha fetch failed for ref={stored['reference_number']}: {e}")
             raise _MaharashtraStageFailure("Portal check failed — try again.")
 
-        stored.cookies = dict(session.cookies.get_dict())
-        stored.csrf_token = fresh_csrf
-        stored.cid = cid
-        stored.stage = 2
-        stored.last_activity_at = time.time()
+        advanced = update_attempt_stage(
+            attempt.attempt_id,
+            expected_stage=1,
+            stage=2,
+            cookies=dict(session.cookies.get_dict()),
+            csrf_token=fresh_csrf,
+            cid=cid,
+        )
+        if not advanced:
+            # Same concurrent-loss case as stage 0's guard above —
+            # preserve_attempt=True so the winner's stage-2 state survives.
+            raise _MaharashtraStageFailure("Status check expired or not found — start again.", preserve_attempt=True)
 
         attempt.current_stage_index = 2
         attempt.collected_values["cid"] = cid
@@ -579,7 +587,7 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
         attempt.pending_human_verification = [HumanVerificationRequirement(kind="captcha", challenge=challenge_uri)]
         return attempt
 
-    def _advance_stage2(self, attempt: StatusCheckAttempt, stored: _MaharashtraAttemptState,
+    def _advance_stage2(self, attempt: StatusCheckAttempt, stored: dict,
                          verification_answers: dict) -> StatusCheckAttempt:
         captcha_text = (verification_answers.get("captcha") or "").strip()
         if not captcha_text:
@@ -590,30 +598,30 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
 
         session = requests.Session()
         session.headers.update({"User-Agent": _USER_AGENT})
-        session.cookies.update(stored.cookies)
+        session.cookies.update(stored["cookies"])
 
         try:
             resp = session.post(
                 _BASE_URL + _TRACK_PATH,
                 data={
                     "_method": "POST",
-                    "_csrfToken": stored.csrf_token,
-                    "registration_no": stored.reference_number,  # Needle-known, never asked of staff — see module docstring
+                    "_csrfToken": stored["csrf_token"],
+                    "registration_no": stored["reference_number"],  # Needle-known, never asked of staff — see module docstring
                     "securitycode": captcha_text,
-                    "cid": stored.cid,
+                    "cid": stored["cid"],
                 },
                 timeout=_REQUEST_TIMEOUT_SECONDS,
             )
             resp.raise_for_status()
         except Exception as e:
-            logger.warning(f"Maharashtra Aaple Sarkar stage-2 submit failed for ref={stored.reference_number}: {e}")
+            logger.warning(f"Maharashtra Aaple Sarkar stage-2 submit failed for ref={stored['reference_number']}: {e}")
             raise _MaharashtraStageFailure("Portal check failed — try again.")
 
         parsed = _parse_result_html(resp.text)
         if parsed is None:
             raise _MaharashtraStageFailure("Verification failed — check the CAPTCHA and try again from the start.")
 
-        _attempts.pop(attempt.attempt_id, None)
+        delete_attempt(attempt.attempt_id)
 
         raw_status = parsed["status_text"]
         normalized = normalize_status_keywords(raw_status)

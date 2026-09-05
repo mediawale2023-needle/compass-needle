@@ -236,6 +236,42 @@ class GovtOtpSession(Base):
     last_check_failed = Column(Boolean, nullable=False, default=False)
 
 
+class GovtStatusCheckAttempt(Base):
+    """Transient, single-flow correlation state for an InteractiveStatusCheckMixin
+    portal (currently Karnataka iPGRS and Maharashtra Aaple Sarkar) — the
+    same job the process-local `_attempts` dict in each adapter used to do,
+    moved here so a status-check attempt survives across whichever backend
+    worker handles start() vs. advance(), without needing the single-worker
+    affinity modules/govt_sync/browser_session.py's live sessions require.
+
+    One row per in-progress attempt; deleted on completion or failure (see
+    modules/govt_sync/status_attempts.py). cookies/csrf_token/token/cid are
+    short-lived, portal-issued correlation state — the same sensitivity
+    class GovtOtpSession's transaction_number/session_id already are: never
+    exposed to the frontend, never logged verbatim, never returned by any
+    API response. Not tied to a citizen's identity — mobile_or_email is
+    always this tenant's own portal_contact_number."""
+    __tablename__ = "govt_status_check_attempts"
+    __table_args__ = (
+        Index("idx_govt_status_check_attempts_tenant_case", "tenant_id", "case_id"),
+        Index("idx_govt_status_check_attempts_last_activity", "last_activity_at"),
+    )
+
+    attempt_id = Column(String, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    adapter_key = Column(String, nullable=False)
+    reference_number = Column(String, nullable=False)
+    mobile_or_email = Column(String, nullable=False)
+    cookies = Column(JSON, nullable=False)
+    csrf_token = Column(String, nullable=True)
+    stage = Column(Integer, nullable=False, default=0)
+    token = Column(String, nullable=True)
+    cid = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_activity_at = Column(DateTime, default=datetime.utcnow)
+
+
 class GovtStatusSnapshot(Base):
     """Point-in-time government portal status read, stored beside current state."""
     __tablename__ = "govt_status_snapshots"

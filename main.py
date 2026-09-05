@@ -1247,6 +1247,36 @@ try:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_govt_otp_sessions_tenant_portal "
             "ON govt_otp_sessions (tenant_id, portal_id)"
         ))
+        # Transient interactive status-check attempt state (currently
+        # Karnataka iPGRS and Maharashtra Aaple Sarkar) — was a process-local
+        # in-memory dict per adapter; moved to Postgres so start()/advance()
+        # can land on different backend workers. See
+        # modules/govt_sync/status_attempts.py and sansadx_backend.db.GovtStatusCheckAttempt.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS govt_status_check_attempts (
+                attempt_id VARCHAR PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+                adapter_key VARCHAR NOT NULL,
+                reference_number VARCHAR NOT NULL,
+                mobile_or_email VARCHAR NOT NULL,
+                cookies JSONB NOT NULL,
+                csrf_token VARCHAR,
+                stage INTEGER NOT NULL DEFAULT 0,
+                token VARCHAR,
+                cid VARCHAR,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_activity_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_govt_status_check_attempts_tenant_case "
+            "ON govt_status_check_attempts (tenant_id, case_id)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_govt_status_check_attempts_last_activity "
+            "ON govt_status_check_attempts (last_activity_at)"
+        ))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS govt_status_snapshots (
                 id SERIAL PRIMARY KEY,

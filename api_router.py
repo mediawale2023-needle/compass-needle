@@ -4102,11 +4102,12 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
     from modules.govt_sync.adapters.status_flow import StatusCheckAttempt, StatusCheckAttemptState
 
     # StatusCheckAttempt itself is not persisted between requests — only the
-    # adapter's own process-local, ephemeral store is (see
-    # karnataka_ipgrs.py's module docstring). This reconstructs the minimal
-    # shell the adapter needs (attempt_id to look itself up, tenant_id/
-    # case_id for scoping) — everything else the adapter needs (cookies,
-    # reference number, mobile/email) lives only in its own private store.
+    # adapter's own attempt state is, in govt_status_check_attempts (see
+    # modules/govt_sync/status_attempts.py and karnataka_ipgrs.py's module
+    # docstring). This reconstructs the minimal shell the adapter needs
+    # (attempt_id to look itself up, tenant_id/case_id for scoping) —
+    # everything else the adapter needs (cookies, reference number,
+    # mobile/email) lives only in that store, addressed by attempt_id.
     attempt = StatusCheckAttempt(
         attempt_id=attempt_id, case_id=case_id, tenant_id=tid,
         reference_number=case["govt_reference_number"],

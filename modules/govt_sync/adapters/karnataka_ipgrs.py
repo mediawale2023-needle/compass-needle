@@ -40,26 +40,29 @@ docstring and modules/govt_sync/adapters/__init__.py's investigation map for
 the full reasoning — this module does not use, import, or touch
 govt_otp_sessions or OtpGatedStatusMixin.
 
-PERSISTENCE: attempts (a requests.Session()'s cookie jar, reduced to a plain
-dict, plus a few bookkeeping fields) live ONLY in the process-local
-`_attempts` dict below — the same precedent already established by
-modules/govt_sync/browser_session.py's `_sessions` dict for live filing
-sessions. No DB table, no Redis, no govt_otp_sessions. This means an
-in-flight attempt (staff has seen the CAPTCHA but not yet submitted an
-answer) DOES NOT SURVIVE a backend restart or process replacement — staff
-would need to click "Check status" again and get a fresh CAPTCHA. This is
-an accepted, deliberate limitation, not an oversight: building anything more
-durable for a single-shot, minutes-lived, non-reusable CAPTCHA prompt would
-be exactly the kind of workflow-engine over-engineering this design was
-told to avoid.
+PERSISTENCE (updated — Karnataka/Maharashtra _attempts -> Postgres
+migration): attempts (a requests.Session()'s cookie jar, reduced to a plain
+dict, plus a few bookkeeping fields) live in `govt_status_check_attempts`
+via modules/govt_sync/status_attempts.py — NOT a process-local dict anymore.
+This was previously an in-memory-only `_attempts` dict (same precedent as
+modules/govt_sync/browser_session.py's `_sessions`), which required
+start() and advance() to land on the same backend worker — true only under
+browser_session.py's single-worker `backend_govt_live` routing. Moving this
+state to Postgres removes that requirement without changing the CAPTCHA
+flow, the portal request/response contract, or any externally observable
+behavior: an in-flight attempt still does not survive past its TTL if
+abandoned (see _ATTEMPT_TTL_SECONDS), staff still gets a fresh CAPTCHA by
+starting over — only the storage location changed.
 
 SECURITY / DATA HANDLING: CAPTCHA text, the CAPTCHA image (including its
 base64 form), session cookies, and the portal contact number are never
 logged, anywhere in this module, under any code path — only the case
 reference number (already logged elsewhere throughout govt_sync) and
 generic failure descriptions appear in log lines. Session cookies are never
-returned through any API response — they exist only inside the process-local
-_attempts dict, addressed by an opaque attempt_id.
+returned through any API response — they exist only in
+govt_status_check_attempts, addressed by an opaque attempt_id, with the
+same never-exposed/never-logged discipline modules/govt_sync/otp_sessions.py
+already established for Rajasthan's govt_otp_sessions.
 
 EXTRACTED FROM THE PORTAL RESPONSE: only non-sensitive status-position
 fields the office needs to understand where the complaint is now:
@@ -69,10 +72,9 @@ CAPTCHA values, the portal contact number, or any raw response envelope.
 """
 import base64
 import logging
-import time
 import uuid
-from dataclasses import dataclass, field
 
+from ..status_attempts import create_attempt, delete_attempt, load_attempt
 from .base import StatusResult, normalize_status_keywords
 from .manual import ManualAssistedAdapter
 from .status_flow import (
@@ -100,34 +102,6 @@ _USER_AGENT = "Mozilla/5.0 (compatible; NeedleGovtSync/1.0)"
 # no background sweep — the smallest reasonable mechanism, matching
 # browser_session.py's SESSION_IDLE_SECONDS precedent in spirit, not in code.
 _ATTEMPT_TTL_SECONDS = 300
-
-
-@dataclass
-class _KarnatakaAttemptSession:
-    """Process-local only — never serialized, never returned through any API
-    response, never logged. Holds exactly what advance() needs to replay the
-    same session the CAPTCHA image was issued on."""
-    attempt_id: str
-    case_id: int
-    tenant_id: int
-    reference_number: str
-    mobile_or_email: str
-    cookies: dict
-    created_at: float = field(default_factory=time.time)
-
-
-# Process-local, in-memory only — same precedent as
-# modules/govt_sync/browser_session.py's `_sessions` dict. NOT govt_otp_sessions,
-# not a DB table, not Redis. Does not survive a backend restart/process
-# replacement — an in-flight attempt is simply lost; staff starts over.
-_attempts: dict[str, _KarnatakaAttemptSession] = {}
-
-
-def _gc_expired() -> None:
-    now = time.time()
-    expired = [aid for aid, a in _attempts.items() if now - a.created_at > _ATTEMPT_TTL_SECONDS]
-    for aid in expired:
-        del _attempts[aid]
 
 
 class KarnatakaAPIAdapter(InteractiveStatusCheckMixin, ManualAssistedAdapter):
@@ -180,12 +154,12 @@ class KarnatakaAPIAdapter(InteractiveStatusCheckMixin, ManualAssistedAdapter):
         content_type = captcha_resp.headers.get("Content-Type", "image/png")
         challenge_uri = f"data:{content_type};base64,{base64.b64encode(captcha_resp.content).decode('ascii')}"
 
-        _gc_expired()
         attempt_id = uuid.uuid4().hex
-        _attempts[attempt_id] = _KarnatakaAttemptSession(
+        create_attempt(
             attempt_id=attempt_id,
-            case_id=case_id,
             tenant_id=tenant_id,
+            case_id=case_id,
+            adapter_key="karnataka_ipgrs",
             reference_number=reference_number,
             mobile_or_email=mobile_or_email,
             cookies=dict(session.cookies.get_dict()),
@@ -202,13 +176,13 @@ class KarnatakaAPIAdapter(InteractiveStatusCheckMixin, ManualAssistedAdapter):
 
     def advance(self, attempt: StatusCheckAttempt, verification_answers: dict,
                 next_inputs: dict | None = None) -> StatusCheckAttempt:
-        _gc_expired()
-        stored = _attempts.get(attempt.attempt_id)
-        # Tenant/case scoping, same discipline as every other tenant-scoped
-        # lookup in this codebase — an unrecognised or mismatched attempt_id
-        # is indistinguishable from an expired one, never leaks which case
-        # it belonged to.
-        if not stored or stored.tenant_id != attempt.tenant_id or stored.case_id != attempt.case_id:
+        # Tenant/case scoping enforced inside load_attempt()'s own WHERE
+        # clause, same discipline as every other tenant-scoped lookup in
+        # this codebase — an unrecognised, mismatched, or expired attempt_id
+        # all return None identically, never leaking which case it belonged
+        # to or whether it exists for another tenant.
+        stored = load_attempt(attempt.attempt_id, attempt.tenant_id, attempt.case_id, _ATTEMPT_TTL_SECONDS)
+        if not stored:
             attempt.state = StatusCheckAttemptState.FAILED
             attempt.result = StatusResult(
                 status="", checked=False,
@@ -229,14 +203,14 @@ class KarnatakaAPIAdapter(InteractiveStatusCheckMixin, ManualAssistedAdapter):
 
         session = requests.Session()
         session.headers.update({"User-Agent": _USER_AGENT})
-        session.cookies.update(stored.cookies)
+        session.cookies.update(stored["cookies"])
 
         try:
             resp = session.post(
                 _BASE_URL + _VERIFY_PATH,
                 data={
-                    "GrievanceId": stored.reference_number,
-                    "MobileOrEmail": stored.mobile_or_email,
+                    "GrievanceId": stored["reference_number"],
+                    "MobileOrEmail": stored["mobile_or_email"],
                     "Captcha": captcha_text,
                 },
                 timeout=_REQUEST_TIMEOUT_SECONDS,
@@ -244,8 +218,8 @@ class KarnatakaAPIAdapter(InteractiveStatusCheckMixin, ManualAssistedAdapter):
             resp.raise_for_status()
             payload = resp.json()
         except Exception as e:
-            logger.warning(f"Karnataka iPGRS status-check advance failed for ref={stored.reference_number}: {e}")
-            del _attempts[attempt.attempt_id]
+            logger.warning(f"Karnataka iPGRS status-check advance failed for ref={stored['reference_number']}: {e}")
+            delete_attempt(attempt.attempt_id)
             attempt.state = StatusCheckAttemptState.FAILED
             attempt.result = StatusResult(status="", checked=False, raw_portal_status="Portal check failed — try again.")
             return attempt
@@ -254,7 +228,7 @@ class KarnatakaAPIAdapter(InteractiveStatusCheckMixin, ManualAssistedAdapter):
         # CAPTCHA on every attempt (see refreshCaptchaImage() in its own
         # page), so a failed attempt is not silently retryable with the same
         # challenge; staff starts over via start() for a new one.
-        del _attempts[attempt.attempt_id]
+        delete_attempt(attempt.attempt_id)
 
         if not payload.get("success"):
             attempt.state = StatusCheckAttemptState.FAILED

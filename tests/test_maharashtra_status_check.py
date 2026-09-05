@@ -551,6 +551,200 @@ def test_advance_wrong_tenant_or_case_fails_closed(mock_session_cls):
     assert result.state == StatusCheckAttemptState.FAILED
 
 
+@patch("requests.Session")
+def test_advance_after_ttl_expiry_from_last_activity_fails_closed(mock_session_cls):
+    """Maharashtra's TTL (600s) is measured from last_activity_at, not
+    created_at — advancing stage 0 refreshes it. Age the row directly (as
+    a stand-in for real elapsed wall-clock time) to prove expiry is
+    enforced from the most recent activity, matching the pre-migration
+    `_gc_expired()` semantics exactly."""
+    from modules.govt_sync.adapters.maharashtra_aaplesarkar import _ATTEMPT_TTL_SECONDS
+
+    _seed_database()
+    sessions = _full_success_session_sequence()
+    mock_session_cls.side_effect = sessions
+
+    adapter = MaharashtraAapleSarkarAdapter({"id": 1})
+    attempt = adapter.start("DEP/RDDE/0001/2026/001", tenant_id=1, initial_inputs={"mobile_or_email": "919650787758", "case_id": 30})
+    attempt = adapter.advance(attempt, {"captcha": "CAP1"})  # stage 0 -> 1, refreshes last_activity_at
+    assert attempt.state == StatusCheckAttemptState.AWAITING_HUMAN_INPUT
+
+    with test_engine.begin() as conn:
+        conn.execute(
+            text("UPDATE govt_status_check_attempts SET last_activity_at = :old WHERE attempt_id = :aid"),
+            {"old": _utcnow() - timedelta(seconds=_ATTEMPT_TTL_SECONDS + 1), "aid": attempt.attempt_id},
+        )
+
+    result = adapter.advance(attempt, {"otp": "654321", "captcha": "CAP2"})
+    assert result.state == StatusCheckAttemptState.FAILED
+    assert result.result.checked is False
+
+
+@patch("requests.Session")
+def test_stage_advance_still_fresh_just_under_ttl_succeeds(mock_session_cls):
+    """Regression guard alongside the expiry test above: a row just under
+    the TTL boundary must remain usable — proving the cutoff comparison
+    isn't accidentally off-by-one in the strict direction."""
+    from modules.govt_sync.adapters.maharashtra_aaplesarkar import _ATTEMPT_TTL_SECONDS
+
+    _seed_database()
+    sessions = _full_success_session_sequence()
+    mock_session_cls.side_effect = sessions
+
+    adapter = MaharashtraAapleSarkarAdapter({"id": 1})
+    attempt = adapter.start("DEP/RDDE/0001/2026/001", tenant_id=1, initial_inputs={"mobile_or_email": "919650787758", "case_id": 30})
+    attempt = adapter.advance(attempt, {"captcha": "CAP1"})
+
+    with test_engine.begin() as conn:
+        conn.execute(
+            text("UPDATE govt_status_check_attempts SET last_activity_at = :recent WHERE attempt_id = :aid"),
+            {"recent": _utcnow() - timedelta(seconds=_ATTEMPT_TTL_SECONDS - 5), "aid": attempt.attempt_id},
+        )
+
+    result = adapter.advance(attempt, {"otp": "654321", "captcha": "CAP2"})
+    assert result.state == StatusCheckAttemptState.AWAITING_HUMAN_INPUT
+
+
+@patch("requests.Session")
+def test_concurrent_duplicate_stage0_advance_only_one_succeeds(mock_session_cls):
+    """The core Maharashtra concurrency proof: two near-simultaneous
+    advance() calls both believing the attempt is still at stage 0 (e.g. a
+    doubled client request) must not both move it forward. Both callers'
+    load_attempt() sees stage 0 and both proceed through the (mocked)
+    portal round trip identically — the only place they can differ is
+    update_attempt_stage()'s atomic expected_stage guard, so this patches
+    that single call site to return False for this caller, exactly what a
+    real concurrent winner elsewhere would cause. The loser must fail
+    closed, never crash, and never silently re-present a stale CAPTCHA as
+    if it were still current."""
+    from modules.govt_sync.status_attempts import load_attempt
+
+    _seed_database()
+    sessions = _full_success_session_sequence()
+    mock_session_cls.side_effect = sessions
+
+    adapter = MaharashtraAapleSarkarAdapter({"id": 1})
+    attempt = adapter.start("DEP/RDDE/0001/2026/001", tenant_id=1, initial_inputs={"mobile_or_email": "919650787758", "case_id": 30})
+
+    with patch("modules.govt_sync.adapters.maharashtra_aaplesarkar.update_attempt_stage", return_value=False) as mock_update:
+        result = adapter.advance(attempt, {"captcha": "CAP1"})
+    mock_update.assert_called_once()
+    assert mock_update.call_args.kwargs["expected_stage"] == 0
+
+    assert result.state == StatusCheckAttemptState.FAILED
+    assert result.result.checked is False
+
+    # A lost stage-transition race is NOT treated as a terminal failure for
+    # cleanup purposes: the row is left untouched rather than deleted,
+    # because in a real race it would hold the concurrent winner's freshly-
+    # advanced state — deleting it here would corrupt that winner's
+    # progress rather than just failing this (losing) caller cleanly.
+    row = load_attempt(attempt.attempt_id, 1, 30, ttl_seconds=600)
+    assert row is not None
+    assert row["stage"] == 0
+
+
+@patch("requests.Session")
+def test_completion_removes_attempt_row(mock_session_cls):
+    _seed_database()
+    sessions = _full_success_session_sequence()
+    mock_session_cls.side_effect = sessions
+
+    adapter = MaharashtraAapleSarkarAdapter({"id": 1})
+    attempt = adapter.start("DEP/RDDE/0001/2026/001", tenant_id=1, initial_inputs={"mobile_or_email": "919650787758", "case_id": 30})
+    attempt = adapter.advance(attempt, {"captcha": "CAP1"})
+    attempt = adapter.advance(attempt, {"otp": "654321", "captcha": "CAP2"})
+    result = adapter.advance(attempt, {"captcha": "CAP3"})
+    assert result.state == StatusCheckAttemptState.COMPLETE
+
+    with test_engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT attempt_id FROM govt_status_check_attempts WHERE attempt_id = :aid"),
+            {"aid": attempt.attempt_id},
+        ).first()
+    assert row is None
+
+
+@patch("requests.Session")
+def test_stage2_failure_removes_attempt_row_requiring_fresh_start(mock_session_cls):
+    _seed_database()
+    start_session, stage0_session, stage1_session, _ = _full_success_session_sequence()
+    stage2_session = MagicMock()
+    stage2_session.post.return_value = _mock_page_response(_FAILURE_PAGE_NO_STATUS)
+    mock_session_cls.side_effect = [start_session, stage0_session, stage1_session, stage2_session]
+
+    adapter = MaharashtraAapleSarkarAdapter({"id": 1})
+    attempt = adapter.start("DEP/RDDE/0001/2026/001", tenant_id=1, initial_inputs={"mobile_or_email": "919650787758", "case_id": 30})
+    attempt = adapter.advance(attempt, {"captcha": "CAP1"})
+    attempt = adapter.advance(attempt, {"otp": "654321", "captcha": "CAP2"})
+    result = adapter.advance(attempt, {"captcha": "WRONG3"})
+    assert result.state == StatusCheckAttemptState.FAILED
+
+    with test_engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT attempt_id FROM govt_status_check_attempts WHERE attempt_id = :aid"),
+            {"aid": attempt.attempt_id},
+        ).first()
+    assert row is None  # gone — a retry must start() fresh, not resume this attempt_id
+
+
+@patch("requests.Session")
+def test_last_activity_at_refreshes_on_each_stage_advance(mock_session_cls):
+    _seed_database()
+    sessions = _full_success_session_sequence()
+    mock_session_cls.side_effect = sessions
+
+    adapter = MaharashtraAapleSarkarAdapter({"id": 1})
+    attempt = adapter.start("DEP/RDDE/0001/2026/001", tenant_id=1, initial_inputs={"mobile_or_email": "919650787758", "case_id": 30})
+
+    with test_engine.connect() as conn:
+        after_start = conn.execute(
+            text("SELECT last_activity_at FROM govt_status_check_attempts WHERE attempt_id = :aid"),
+            {"aid": attempt.attempt_id},
+        ).scalar_one()
+
+    # Backdate it, then advance — the stage-0 advance must bump
+    # last_activity_at forward again, not merely leave the original value.
+    with test_engine.begin() as conn:
+        conn.execute(
+            text("UPDATE govt_status_check_attempts SET last_activity_at = :old WHERE attempt_id = :aid"),
+            {"old": _utcnow() - timedelta(seconds=100), "aid": attempt.attempt_id},
+        )
+    adapter.advance(attempt, {"captcha": "CAP1"})
+
+    with test_engine.connect() as conn:
+        after_advance = conn.execute(
+            text("SELECT last_activity_at FROM govt_status_check_attempts WHERE attempt_id = :aid"),
+            {"aid": attempt.attempt_id},
+        ).scalar_one()
+    if isinstance(after_advance, str):
+        after_advance = datetime.fromisoformat(after_advance)
+    assert after_advance > _utcnow() - timedelta(seconds=10)
+
+
+def test_no_sensitive_fields_are_logged_across_stages(caplog):
+    """Security invariant: session cookies, CSRF token, CAPTCHA answers,
+    OTP, cid/token correlation values, and the tenant's portal contact
+    number must never appear in any log line this module emits."""
+    import logging as _logging
+
+    _seed_database()
+    with patch("requests.Session") as mock_session_cls, caplog.at_level(_logging.DEBUG, logger="needle.govt_sync.adapter.maharashtra_aaplesarkar"):
+        sessions = _full_success_session_sequence()
+        sessions[0].cookies.get_dict.return_value = {"MAHASESS": "top-secret-cookie"}
+        mock_session_cls.side_effect = sessions
+
+        adapter = MaharashtraAapleSarkarAdapter({"id": 1})
+        attempt = adapter.start("DEP/RDDE/0001/2026/001", tenant_id=1, initial_inputs={"mobile_or_email": "919650787758", "case_id": 30})
+        attempt = adapter.advance(attempt, {"captcha": "SECRETCAP1"})
+        attempt = adapter.advance(attempt, {"otp": "999888", "captcha": "SECRETCAP2"})
+        adapter.advance(attempt, {"captcha": "SECRETCAP3"})
+
+    log_text = caplog.text
+    for secret in ("top-secret-cookie", "SECRETCAP1", "SECRETCAP2", "SECRETCAP3", "999888", "919650787758"):
+        assert secret not in log_text
+
+
 def test_result_html_fixture_parses_expected_status():
     # Parser test against the REAL captured fixture (see module docstring) —
     # validates both the original Status extraction and the newer
@@ -728,6 +922,33 @@ def test_endpoint_start_reports_503_portal_unavailable_on_connection_failure(moc
 # Karnataka's own existing request/response contract (no `otp` field sent
 # at all) is regression-tested directly by tests/test_karnataka_status_check.py
 # itself, run alongside this file — not duplicated here.
+
+
+@patch("requests.Session")
+def test_endpoint_responses_never_expose_cookies_or_correlation_state(mock_session_cls):
+    """Security invariant, migration-specific: cookies/csrf_token/token/cid
+    now live in govt_status_check_attempts rather than a process-local
+    dict — proves none of the 3 request/response round trips leak them."""
+    _seed_database()
+    sessions = _full_success_session_sequence()
+    sessions[0].cookies.get_dict.return_value = {"MAHASESS": "top-secret-cookie-value"}
+    mock_session_cls.side_effect = sessions
+
+    start_resp = client.post("/api/cases/30/govt/status-check/start", headers=_auth_headers())
+    attempt_id = start_resp.json()["attempt_id"]
+    assert "top-secret-cookie-value" not in start_resp.text
+    assert "MAHASESS" not in start_resp.text
+
+    stage0_resp = client.post(f"/api/cases/30/govt/status-check/{attempt_id}/advance", json={"captcha": "CAP1"}, headers=_auth_headers())
+    stage1_resp = client.post(f"/api/cases/30/govt/status-check/{attempt_id}/advance", json={"captcha": "CAP2", "otp": "654321"}, headers=_auth_headers())
+    stage2_resp = client.post(f"/api/cases/30/govt/status-check/{attempt_id}/advance", json={"captcha": "CAP3"}, headers=_auth_headers())
+
+    for resp in (stage0_resp, stage1_resp, stage2_resp):
+        assert "top-secret-cookie-value" not in resp.text
+        assert "MAHASESS" not in resp.text
+        assert _TOKEN not in resp.text
+        for forbidden_key in ("cookies", "csrf_token", "cid"):
+            assert forbidden_key not in resp.json()
 
 
 # ─── C. Poller exclusion + regression safety ─────────────────────────────

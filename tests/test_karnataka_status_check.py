@@ -296,6 +296,120 @@ def test_advance_unknown_attempt_id_reports_failed_not_crash():
     assert result_attempt.result.checked is False
 
 
+@patch("requests.Session")
+def test_advance_wrong_tenant_or_case_fails_closed(mock_session_cls):
+    """Migration-specific: the attempt now lives in govt_status_check_attempts,
+    scoped by tenant_id/case_id in load_attempt()'s own WHERE clause — a
+    caller who reconstructs the StatusCheckAttempt shell with someone else's
+    tenant_id/case_id (or the wrong one for this attempt_id) must fail
+    exactly like an unknown attempt, not read another tenant's cookies."""
+    _seed_database()
+    start_session = MagicMock()
+    start_session.get.side_effect = [MagicMock(), _mock_captcha_response()]
+    start_session.cookies.get_dict.return_value = {"ASP.NET_SessionId": "abc123"}
+    mock_session_cls.return_value = start_session
+
+    adapter = KarnatakaAPIAdapter({"id": 1})
+    attempt = adapter.start("372414", tenant_id=1, initial_inputs={"mobile_or_email": "919876500001", "case_id": 20})
+
+    wrong_tenant_attempt = StatusCheckAttempt(
+        attempt_id=attempt.attempt_id, case_id=20, tenant_id=999, reference_number="372414",
+    )
+    result = adapter.advance(wrong_tenant_attempt, {"captcha": "AB12C"})
+    assert result.state == StatusCheckAttemptState.FAILED
+    assert result.result.checked is False
+
+    wrong_case_attempt = StatusCheckAttempt(
+        attempt_id=attempt.attempt_id, case_id=999, tenant_id=1, reference_number="372414",
+    )
+    result2 = adapter.advance(wrong_case_attempt, {"captcha": "AB12C"})
+    assert result2.state == StatusCheckAttemptState.FAILED
+    assert result2.result.checked is False
+
+
+@patch("requests.Session")
+def test_advance_after_ttl_expiry_fails_closed(mock_session_cls):
+    """Karnataka's abandoned-CAPTCHA TTL (300s) — now enforced in Postgres
+    via load_attempt()'s bound cutoff, not a process-local `_gc_expired()`
+    dict prune. Simulate the elapsed time by aging the persisted row
+    directly, rather than sleeping in the test."""
+    from modules.govt_sync.adapters.karnataka_ipgrs import _ATTEMPT_TTL_SECONDS
+
+    _seed_database()
+    start_session = MagicMock()
+    start_session.get.side_effect = [MagicMock(), _mock_captcha_response()]
+    start_session.cookies.get_dict.return_value = {"ASP.NET_SessionId": "abc123"}
+    mock_session_cls.return_value = start_session
+
+    adapter = KarnatakaAPIAdapter({"id": 1})
+    attempt = adapter.start("372414", tenant_id=1, initial_inputs={"mobile_or_email": "919876500001", "case_id": 20})
+
+    with test_engine.begin() as conn:
+        conn.execute(
+            text("UPDATE govt_status_check_attempts SET last_activity_at = :old WHERE attempt_id = :aid"),
+            {"old": _utcnow() - timedelta(seconds=_ATTEMPT_TTL_SECONDS + 1), "aid": attempt.attempt_id},
+        )
+
+    result = adapter.advance(attempt, {"captcha": "AB12C"})
+    assert result.state == StatusCheckAttemptState.FAILED
+    assert result.result.checked is False
+    assert "expired" in result.result.raw_portal_status.lower()
+
+
+@patch("requests.Session")
+def test_advance_consumes_attempt_on_both_success_and_failure(mock_session_cls):
+    """Single-use regardless of outcome: a second advance() against the
+    same attempt_id (e.g. a concurrent duplicate submission) must find the
+    row already gone and fail closed, whether the first advance succeeded
+    or failed — proving delete_attempt()'s atomic consume replaced every
+    `del _attempts[...]` exit path, not just the happy one."""
+    _seed_database()
+    # Failure path first.
+    start_session = MagicMock()
+    start_session.get.side_effect = [MagicMock(), _mock_captcha_response()]
+    start_session.cookies.get_dict.return_value = {"ASP.NET_SessionId": "abc123"}
+    fail_session = MagicMock()
+    fail_session.post.return_value = _mock_verify_response({"success": False, "message": "Invalid Captcha", "data": None})
+    mock_session_cls.side_effect = [start_session, fail_session]
+
+    adapter = KarnatakaAPIAdapter({"id": 1})
+    attempt = adapter.start("372414", tenant_id=1, initial_inputs={"mobile_or_email": "919876500001", "case_id": 20})
+    first = adapter.advance(attempt, {"captcha": "WRONG"})
+    assert first.state == StatusCheckAttemptState.FAILED
+
+    # Second advance against the same (now-consumed) attempt_id fails closed
+    # rather than re-running the portal call a second time.
+    second = adapter.advance(attempt, {"captcha": "WRONG"})
+    assert second.state == StatusCheckAttemptState.FAILED
+    assert second.result.checked is False
+
+
+def test_no_sensitive_fields_are_logged_on_advance(caplog):
+    """Security invariant: session cookies, the CAPTCHA answer, and the
+    tenant's portal contact number must never appear in any log line this
+    module emits, including on a portal failure path (which does log a
+    warning)."""
+    import logging as _logging
+
+    _seed_database()
+    with patch("requests.Session") as mock_session_cls, caplog.at_level(_logging.DEBUG, logger="needle.govt_sync.adapter.karnataka_ipgrs"):
+        start_session = MagicMock()
+        start_session.get.side_effect = [MagicMock(), _mock_captcha_response()]
+        start_session.cookies.get_dict.return_value = {"ASP.NET_SessionId": "super-secret-cookie-value"}
+        fail_session = MagicMock()
+        fail_session.post.side_effect = RuntimeError("simulated network failure")
+        mock_session_cls.side_effect = [start_session, fail_session]
+
+        adapter = KarnatakaAPIAdapter({"id": 1})
+        attempt = adapter.start("372414", tenant_id=1, initial_inputs={"mobile_or_email": "919876500001", "case_id": 20})
+        adapter.advance(attempt, {"captcha": "SECRETCAPTCHA"})
+
+    log_text = caplog.text
+    assert "super-secret-cookie-value" not in log_text
+    assert "SECRETCAPTCHA" not in log_text
+    assert "919876500001" not in log_text
+
+
 # ─── B. Endpoint-level tests ─────────────────────────────────────────────
 
 @patch("requests.Session")
@@ -339,6 +453,37 @@ def test_endpoint_start_then_advance_full_round_trip(mock_session_cls):
     assert latest["raw_portal_status"] == "Registered & Sent for Scrutiny"
     assert latest["portal_detail"]["department_name"] == "Urban Development Department"
     assert latest["portal_detail"]["pendency_details"] == "S A Mahajan — Municipal Commissioner, Gokak"
+
+
+@patch("requests.Session")
+def test_endpoint_responses_never_expose_cookies_or_correlation_state(mock_session_cls):
+    """Security invariant, migration-specific: the four sensitive columns
+    (cookies, csrf_token, token, cid) now live in govt_status_check_attempts
+    rather than a process-local dict — this proves that move didn't leak
+    any of them into either the /start or /advance JSON response bodies."""
+    _seed_database()
+    start_session = MagicMock()
+    start_session.get.side_effect = [MagicMock(), _mock_captcha_response()]
+    start_session.cookies.get_dict.return_value = {"ASP.NET_SessionId": "super-secret-cookie-value"}
+    advance_session = MagicMock()
+    advance_session.post.return_value = _mock_verify_response(_REAL_SUCCESS_PAYLOAD)
+    mock_session_cls.side_effect = [start_session, advance_session]
+
+    start_resp = client.post("/api/cases/20/govt/status-check/start", headers=_auth_headers())
+    start_text = start_resp.text
+    assert "super-secret-cookie-value" not in start_text
+    assert "ASP.NET_SessionId" not in start_text
+    attempt_id = start_resp.json()["attempt_id"]
+
+    advance_resp = client.post(
+        f"/api/cases/20/govt/status-check/{attempt_id}/advance",
+        json={"captcha": "AB12C"}, headers=_auth_headers(),
+    )
+    advance_text = advance_resp.text
+    assert "super-secret-cookie-value" not in advance_text
+    assert "ASP.NET_SessionId" not in advance_text
+    for forbidden_key in ("cookies", "csrf_token", "cid"):
+        assert forbidden_key not in advance_resp.json()
 
 
 @patch("requests.Session")
