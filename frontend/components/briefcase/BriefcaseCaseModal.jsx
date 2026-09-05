@@ -1741,6 +1741,24 @@ export function isTamilNaduResolvedPortal(portalName, state) {
     return name.includes('tamil nadu') || name.includes('mudhalvarin mugavari');
 }
 
+// GovtSync filing simplification, PR2: government FILING is now universally
+// external — every portal's Escalate action opens the real government portal
+// in a new local browser tab (the existing manual_redirect path) rather than
+// ever choosing Needle's remote Playwright/browser-session infrastructure.
+// This always returns 'manual_redirect', deliberately ignoring
+// `live_session_supported` and `live_automation_enabled` for the filing
+// decision — those fields remain valid, unchanged parts of the /api/govt-portal
+// response (still read elsewhere, e.g. by the still-live, not-yet-retired
+// /govt/session/start endpoint and browser_session.py infrastructure) and are
+// left in place for a later, separate cleanup PR. `data` is whatever
+// /api/govt-portal returned (or null/undefined before that resolves) —
+// exported as a pure function so the "every portal resolves externally"
+// contract is directly unit-testable, matching this file's existing
+// isTamilNaduLiveSessionActive/isTamilNaduResolvedPortal pattern.
+export function resolveGovtEscalateMode(_data) {
+    return 'manual_redirect';
+}
+
 const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted, onGovtStateChange }, ref) {
     const toast = useToast();
     // The portal a tenant can use is derived server-side from tenant -> constituency
@@ -1820,14 +1838,18 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         onGovtStateChange?.(caseId, govtState?.case || null);
     }, [caseId, govtState, onGovtStateChange]);
 
-    // Whether this tenant's config actually turns on live browser automation
-    // (only meaningful once /api/govt-portal has answered — see
-    // resolveEscalateMode below, which is what callers should use).
+    // Whether this tenant's config actually turns on live browser automation.
+    // GovtSync filing simplification, PR2: no longer consulted by the filing
+    // decision (see resolveGovtEscalateMode — filing is now always external),
+    // but the field itself is untouched and this local derivation is left in
+    // place for the still-live /govt/session/start infrastructure this file
+    // doesn't otherwise reference by name; retiring it is a later cleanup PR.
     const liveAutomationEnabled = resolvedPortal?.live_automation_enabled === true;
     // False once we've confirmed this specific portal can't be reached from a
     // live session (e.g. Maharashtra — a network-level block on our EC2 IP,
     // 2026-08-19: see PROJECT_MEMORY.md). Independent of the global automation
-    // switch above; a portal-level fact, not an ops toggle.
+    // switch above; a portal-level fact, not an ops toggle. Same PR2 note as
+    // liveAutomationEnabled above — no longer consulted for the filing decision.
     const portalSupportsLiveSession = resolvedPortal?.portal?.live_session_supported !== false;
     // True only for portals whose status check needs a live, staff-present,
     // per-lookup CAPTCHA/OTP (currently Karnataka iPGRS) — distinct from
@@ -1835,20 +1857,13 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const interactiveStatusCheck = resolvedPortal?.portal?.interactive_status_check === true;
 
     // Awaits the real /api/govt-portal answer instead of guessing at one still
-    // in flight (a fast click could otherwise race ahead of the fetch). Three
-    // outcomes:
-    //  'live'            — open a live browser session inside Needle, as usual.
-    //  'manual_redirect' — this portal can't do live sessions at all. Escalate
-    //                      opens the real portal in a NEW BROWSER TAB (the
-    //                      staff's own network, not EC2's, so it isn't subject
-    //                      to whatever's blocking our infrastructure) and shows
-    //                      the AI worksheet in Needle to copy from.
-    //  'manual_worksheet'— global automation is off. Worksheet only, same as
-    //                      before; staff navigates to the portal themselves.
+    // in flight (a fast click could otherwise race ahead of the fetch).
+    // GovtSync filing simplification, PR2: the actual mode decision now
+    // always resolves to 'manual_redirect' — see resolveGovtEscalateMode()
+    // above for why 'live' is no longer a reachable outcome here.
     async function resolveEscalateMode() {
         const data = resolvedPortal != null ? resolvedPortal : await portalFetchRef.current;
-        if (data?.portal?.live_session_supported === false) return 'manual_redirect';
-        return data?.live_automation_enabled === true ? 'live' : 'manual_worksheet';
+        return resolveGovtEscalateMode(data);
     }
 
     // window.open must happen as close to synchronously-within-the-click as
@@ -2279,8 +2294,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                         <div style={{ fontSize: 11, color: C.ink3, marginTop: 2 }}>
                             Will file via <strong style={{ color: C.ink2 }}>{resolvedPortal.portal.portal_name}</strong>
                             {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} once escalated.
-                            {!portalSupportsLiveSession && ' This portal can\'t be reached from a live session right now — Escalate will open it in a new tab and prepare the AI worksheet here to copy from.'}
-                            {portalSupportsLiveSession && !liveAutomationEnabled && ' Automated filing is off for this tenant, so Escalate will prepare the AI worksheet for copy-paste filing instead of a live session.'}
+                            {' '}Escalate opens the official portal in a new tab and prepares the AI worksheet here to copy from.
                         </div>
                     )}
                     {!supported && (
@@ -2360,10 +2374,11 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                             {worksheet?.staff_action_note && (
                                 <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
                             )}
-                            {!portalSupportsLiveSession && (resolvedPortal?.portal?.entry_url || resolvedPortal?.portal?.base_url) && (
-                                // This portal has no live session to reopen (unlike hostedSessions
-                                // above) — Escalate already opened it in a new tab once, but if
-                                // staff closed that tab there's otherwise no way back in.
+                            {(resolvedPortal?.portal?.entry_url || resolvedPortal?.portal?.base_url) && (
+                                // Filing is always external now (PR2) — Escalate already opened
+                                // this portal in a new tab once, but if staff closed that tab
+                                // there's otherwise no way back in for ANY portal, not just the
+                                // ones that historically had no live session to reopen.
                                 <a
                                     href={resolvedPortal.portal.entry_url || resolvedPortal.portal.base_url}
                                     target="_blank" rel="noopener noreferrer"
@@ -3062,11 +3077,12 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         ? 'Confirm category & assign'
         : (isResolved ? 'Mark resolved' : 'Resolve');
 
-    // Escalate always scrolls to the filing section and (re)opens the live
-    // government-portal session on Needle — whether this is the first
-    // escalation or the complaint was already escalated and staff is
-    // coming back to continue filing. Once it's actually been filed
-    // (a reference number is on record), there's no session to open —
+    // Escalate always scrolls to the filing section and (re)opens the real
+    // government portal in a new local tab (PR2: universally external, never
+    // Needle's own remote browser session) — whether this is the first
+    // escalation or the complaint was already escalated and staff is coming
+    // back to continue filing. Once it's actually been filed (a reference
+    // number is on record), there's no portal tab to reopen automatically —
     // just bring the existing submission into view.
     function handleEscalateClick() {
         setGovtOpenSignal((n) => n + 1);
