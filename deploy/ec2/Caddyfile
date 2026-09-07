@@ -59,7 +59,16 @@ api.theneedle.in {
 	# backend_govt_live) could never see, and the live browser view hung on
 	# "Connecting..." forever instead of showing the portal. Every new
 	# govt/session route must be added here, not just the WebSocket one.
-	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close
+	#
+	# Tamil Nadu HTTP-migration diagnostic (2026-09-07, disabled by default
+	# via GOVT_SYNC_TN_HTTP_DIAGNOSTIC_ENABLED — see
+	# modules/govt_sync/status/tn_network_diagnostic.py): reads the SAME
+	# process-local LiveSession the routes above depend on, so it needs the
+	# same single-worker affinity. Two wildcards (case_id, session_id) with
+	# literal segments after both — per the wildcard rule documented above,
+	# each matches exactly one path segment, so this pattern matches only
+	# this exact diagnostic route, nothing broader.
+	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/cases/*/govt/session/*/tamil-nadu/diagnostic/http-replay-proof /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close
 	reverse_proxy @govt_live backend_govt_live:8000
 
 	reverse_proxy backend:8000

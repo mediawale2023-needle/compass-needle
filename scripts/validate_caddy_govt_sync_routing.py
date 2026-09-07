@@ -89,12 +89,19 @@ CASES = [
     # dict, needing the same single-worker affinity as live browser sessions,
     # but commit c49371e6 moved that state into PostgreSQL
     # (govt_status_check_attempts) so any worker can serve start()/advance() —
-    # these two routes now belong on the plain multi-worker `backend`.
+    # these two routes now belong on the plain multi-worker `backend`. Both
+    # Karnataka and Maharashtra share this exact route shape (the path
+    # carries no portal name), so these two cases cover both states.
     ("POST", "/api/cases/20/govt/status-check/start", "backend"),
     ("POST", "/api/cases/20/govt/status-check/4a5f3b99ce874e798024ed16f846784a/advance", "backend"),
     ("POST", "/api/cases/20/govt/session/start", "backend_govt_live"),
     ("POST", "/api/cases/20/govt/poll", "backend"),
     ("POST", "/api/cases/20/govt/submit", "backend"),
+    # Rajasthan's OTP-gated status check never used @govt_live at all —
+    # confirming that stays true (its own regression case, not just implied
+    # by the generic /govt/poll case above).
+    ("POST", "/api/govt/otp/send", "backend"),
+    ("POST", "/api/govt/otp/verify", "backend"),
     # K6 — every govt/session live-session action, real Caddy semantics only
     ("GET", "/api/govt/sessions", "backend_govt_live"),
     ("POST", "/api/govt/sessions/close-all", "backend_govt_live"),
@@ -110,6 +117,12 @@ CASES = [
     # live browser view never found its own session and hung on "Connecting…".
     ("POST", "/api/cases/20/govt/session/start-status-check", "backend_govt_live"),
     ("POST", "/api/cases/20/govt/session/abc123/tamil-nadu/check-status", "backend_govt_live"),
+    # Tamil Nadu HTTP-migration diagnostic (2026-09-07, disabled by default —
+    # see GOVT_SYNC_TN_HTTP_DIAGNOSTIC_ENABLED) — reads the same process-local
+    # LiveSession as the routes above, so it needs the same single-worker
+    # affinity. Not enabled in production by this change; only its routing
+    # is verified here.
+    ("POST", "/api/cases/20/govt/session/abc123/tamil-nadu/diagnostic/http-replay-proof", "backend_govt_live"),
 ]
 
 
