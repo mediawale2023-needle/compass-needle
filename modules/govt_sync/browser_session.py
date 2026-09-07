@@ -426,6 +426,35 @@ def get_live_session(session_id: str) -> LiveSession | None:
     return _sessions.get(session_id)
 
 
+def find_live_session_for_case(tenant_id: int, case_id: int) -> LiveSession | None:
+    """Resolve a LiveSession by (tenant_id, case_id) alone, without the
+    caller needing to already know its session_id.
+
+    Added for the case-scoped TN HTTP-diagnostic endpoint
+    (api_router.py's govt_tamil_nadu_diagnostic_run_for_case), so an
+    operator can request "run the diagnostic for this case" without the raw
+    session_id ever needing to cross an HTTP boundary. Every other accessor
+    in this module (get_live_session, get_session_meta, close_session, ...)
+    is keyed by session_id for exactly that reason — this is the one
+    deliberate exception, scoped as narrowly as those are: exact tenant_id
+    AND exact case_id match, nothing fuzzy.
+
+    Read-only: never mutates, closes, or touches the lifecycle of any
+    session it inspects — it only reads the same tenant_id/case_id fields
+    list_session_metas() already reads for the exact same purpose.
+
+    Fails closed (returns None) rather than guessing if more than one
+    session matches — this should not normally happen (one case is
+    typically one in-flight session), but if it ever does, silently picking
+    one would be exactly the kind of arbitrary behavior every other
+    fail-closed lookup in this codebase avoids.
+    """
+    matches = [s for s in _sessions.values() if s.tenant_id == tenant_id and s.case_id == case_id]
+    if len(matches) != 1:
+        return None
+    return matches[0]
+
+
 async def sweep_idle_sessions():
     """Close any session idle longer than SESSION_IDLE_SECONDS. Run on a timer from main.py."""
     now = time.time()

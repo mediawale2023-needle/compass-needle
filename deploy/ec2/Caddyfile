@@ -77,7 +77,20 @@ api.theneedle.in {
 	# this arm/disarm route needs the identical single-worker affinity —
 	# same two-wildcards-with-literal-segments-after-both shape as every
 	# other route on this line.
-	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/cases/*/govt/session/*/tamil-nadu/diagnostic/http-replay-proof /api/cases/*/govt/session/*/tamil-nadu/diagnostic/arm /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close
+	#
+	# Tamil Nadu HTTP-diagnostic, case-scoped invocation (2026-09-07, see
+	# api_router.py's govt_tamil_nadu_diagnostic_run_for_case and
+	# browser_session.find_live_session_for_case): resolves the LiveSession
+	# internally from tenant_id+case_id so the raw session_id never needs
+	# to appear in a URL at all — this route has no session_id segment,
+	# only case_id. It still reads the SAME process-local LiveSession the
+	# routes above depend on, so it needs the same single-worker affinity.
+	# Only ONE wildcard in this pattern (case_id), followed entirely by
+	# literal segments — per the wildcard rule documented above, a single,
+	# non-trailing wildcard already matches exactly one path segment on
+	# its own, the same shape as the existing
+	# /api/cases/*/govt/session/start pattern already proves works.
+	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/cases/*/govt/session/*/tamil-nadu/diagnostic/http-replay-proof /api/cases/*/govt/session/*/tamil-nadu/diagnostic/arm /api/cases/*/govt/tamil-nadu/diagnostic/run /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close
 	reverse_proxy @govt_live backend_govt_live:8000
 
 	reverse_proxy backend:8000

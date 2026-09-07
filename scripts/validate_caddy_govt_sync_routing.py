@@ -128,6 +128,10 @@ CASES = [
     # arm/disarm route needs the same single-worker affinity as the
     # diagnostic route above.
     ("POST", "/api/cases/20/govt/session/abc123/tamil-nadu/diagnostic/arm", "backend_govt_live"),
+    # Tamil Nadu HTTP-diagnostic, case-scoped invocation (2026-09-07) — no
+    # session_id segment at all (resolved internally from case_id), but
+    # still needs the same single-worker affinity to see the LiveSession.
+    ("POST", "/api/cases/20/govt/tamil-nadu/diagnostic/run", "backend_govt_live"),
 ]
 
 

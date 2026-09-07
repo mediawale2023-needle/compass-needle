@@ -4788,6 +4788,80 @@ async def govt_tamil_nadu_http_replay_diagnostic(case_id: int, session_id: str, 
     return report.to_safe_dict()
 
 
+def _get_tamil_nadu_live_status_context_for_case(case_id: int, user: dict):
+    """Same contract as _get_tamil_nadu_live_status_context above, except
+    the live session is resolved internally from (tenant_id, case_id) via
+    browser_session.find_live_session_for_case() instead of requiring the
+    caller to already supply session_id. Used ONLY by the case-scoped
+    diagnostic endpoint below — the raw session_id never appears in this
+    function's parameters, return value, or any exception it raises."""
+    tid = get_tenant_or_fail(user)
+    from modules.govt_sync.browser_session import find_live_session_for_case
+    from modules.govt_sync.status import get_status_adapter
+
+    session = find_live_session_for_case(tid, case_id)
+    if not session:
+        raise HTTPException(404, "Live session not found")
+
+    case = _q_one(
+        "SELECT id, govt_status, govt_reference_number "
+        "FROM cases WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    reference_number = _govt_stored_reference(case.get("govt_reference_number"))
+    if not reference_number:
+        raise HTTPException(400, "No reference number recorded yet — record it first, then check status.")
+
+    adapter = get_status_adapter(session.portal)
+    if not adapter or getattr(adapter, "state_key", "") != "tamil_nadu":
+        raise HTTPException(400, "This live session does not support Tamil Nadu status checking.")
+    return tid, session, case, adapter, reference_number
+
+
+@router.post("/cases/{case_id}/govt/tamil-nadu/diagnostic/run")
+async def govt_tamil_nadu_diagnostic_run_for_case(case_id: int, user=Depends(get_current_user)):
+    """Case-scoped variant of govt_tamil_nadu_http_replay_diagnostic above,
+    for operating the Phase-1 controlled proof WITHOUT the raw session_id
+    ever crossing an HTTP boundary. Resolves tenant/case/live-session
+    ownership entirely server-side (_get_tamil_nadu_live_status_context_for_case
+    -> browser_session.find_live_session_for_case), then calls the SAME,
+    unmodified capture_tn_diagnostic() the session-ID-based endpoint above
+    calls — no new navigation, no new candidate URL, no adapter change.
+
+    Deliberately bypasses tn_diagnostic_runtime_gate.py's arm/consume
+    mechanism entirely: that gate exists for the external, session-ID
+    -addressed flow (arm once from one request, consume from a second,
+    possibly different, request) where an unauthenticated party could
+    otherwise guess at a session_id. Here, ownership is re-verified fresh,
+    end-to-end, within this single authenticated request — there is no
+    separate "arm" step to protect, and no session_id for anything external
+    to guess in the first place. GOVT_SYNC_TN_HTTP_DIAGNOSTIC_ENABLED and
+    the arm/consume endpoints are completely unaffected by this route's
+    existence.
+
+    Hard-scoped, same as every other Phase-1 diagnostic surface: reference
+    number must contain 18968314, or this 403s before touching the live
+    session at all. session_id is never read into a variable this function
+    keeps beyond the one call to capture_tn_diagnostic() below; it is never
+    logged, never included in the response, and never appears in any
+    exception message this function raises (see
+    _get_tamil_nadu_live_status_context_for_case's own docstring)."""
+    tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context_for_case(case_id, user)
+    if _TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING not in reference_number:
+        raise HTTPException(403, "This diagnostic is scoped to a single, pre-approved grievance only.")
+
+    from modules.govt_sync.status.tn_network_diagnostic import capture_tn_diagnostic
+
+    report = await capture_tn_diagnostic(session, reference_number)
+    _log_govt_action(
+        tid, case_id, "TN_HTTP_DIAGNOSTIC_RUN", user.get("username"),
+        payload={"invocation": "case_scoped", "outcome": report.outcome},
+    )
+    return report.to_safe_dict()
+
+
 @router.post("/cases/{case_id}/govt/session/{session_id}/close")
 async def govt_close_live_session(case_id: int, session_id: str, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
