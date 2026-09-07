@@ -2085,7 +2085,11 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 );
                 return;
             }
-            toast.error(result.note || 'Tamil Nadu status check was inconclusive — verify manually on the portal.');
+            // result.note is almost always set server-side with a specific
+            // message (backend falls back to the same standardized wording
+            // below if it isn't) — this local fallback matches it for
+            // consistency in the rare case the API response itself omits note.
+            toast.error(result.note || 'No status change detected. Please try again later.');
         } catch (e) {
             if (e.message === 'Live session not found') { handleSessionGone(); return; }
             toast.error(e.message || 'Tamil Nadu status check failed');

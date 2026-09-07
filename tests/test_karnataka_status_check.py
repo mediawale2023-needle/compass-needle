@@ -586,7 +586,9 @@ def test_endpoint_advance_complete_but_unrecognized_status_is_audit_logged(mock_
     assert body["success"] is True
     assert body["changed"] is False
     assert body["state"] == "complete"
-    assert body["note"] == "Portal check inconclusive — verify manually on the portal."
+    # Standardized global wording (govt-sync UX simplification) — the
+    # internal "status_check_inconclusive" audit action name is unchanged.
+    assert body["note"] == "No status change detected. Please try again later."
 
     with test_engine.connect() as conn:
         rows = list(conn.execute(
@@ -639,7 +641,9 @@ def test_endpoint_advance_complete_checked_true_empty_status_edge_is_also_logged
     assert advance_resp.status_code == 200, advance_resp.text
     body = advance_resp.json()
     assert body["state"] == "complete"
-    assert body["note"] == "Portal check inconclusive — verify manually on the portal."
+    # Standardized global wording (govt-sync UX simplification) — the
+    # internal "status_check_inconclusive" audit action name is unchanged.
+    assert body["note"] == "No status change detected. Please try again later."
 
     with test_engine.connect() as conn:
         rows = list(conn.execute(

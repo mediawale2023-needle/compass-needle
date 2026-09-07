@@ -164,7 +164,9 @@ def test_endpoint_poll_logs_inconclusive():
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["note"] == "Portal check inconclusive — verify manually on the portal."
+    # Standardized global wording (govt-sync UX simplification) — the
+    # internal "status_check_inconclusive" audit action name is unchanged.
+    assert body["note"] == "No status change detected. Please try again later."
     rows = _log_rows()
     assert len(rows) == 1
     assert rows[0][0] == "status_check_inconclusive"

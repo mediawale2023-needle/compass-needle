@@ -3327,6 +3327,17 @@ _FILED_GOVT_STATUSES = frozenset({
     "submitted", "under_review", "escalated", "resolved", "rejected",
 })
 
+# Standardized, portal-agnostic wording for "the status check completed, but
+# Needle has nothing new/meaningful to apply" — used across every govt-sync
+# status-check surface (the plain poll, Karnataka/Maharashtra's interactive
+# CAPTCHA/OTP advance, and Tamil Nadu's authenticated live-session check).
+# Deliberately does NOT replace genuinely different outcomes on the same
+# surfaces — needs_verification, CAPTCHA/OTP-required, attempt expired,
+# portal-unavailable, or any other actual failure keep their own, more
+# specific messages. Internal logging (e.g. the "status_check_inconclusive"
+# govt_submission_log action) is unrelated and unchanged by this constant.
+_GOVT_NO_STATUS_CHANGE_NOTE = "No status change detected. Please try again later."
+
 
 def _govt_stored_reference(value) -> str:
     return (value or "").strip()
@@ -3976,7 +3987,7 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
             tid, case_id, "status_check_inconclusive", user.get("username"),
             payload={"portal": case.get("portal_name"), "raw_portal_status": getattr(result, "raw_portal_status", None)},
         )
-        return {"success": True, "changed": False, "govt_status": case["govt_status"], "note": "Portal check inconclusive — verify manually on the portal."}
+        return {"success": True, "changed": False, "govt_status": case["govt_status"], "note": _GOVT_NO_STATUS_CHANGE_NOTE}
 
     changed = result.status != case["govt_status"]
     if changed:
@@ -4171,7 +4182,7 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
                 "raw_portal_status": getattr(result, "raw_portal_status", None),
             },
         )
-        return {"success": True, "changed": False, "state": "complete", "note": "Portal check inconclusive — verify manually on the portal."}
+        return {"success": True, "changed": False, "state": "complete", "note": _GOVT_NO_STATUS_CHANGE_NOTE}
 
     changed = result.status != case["govt_status"]
     if changed:
@@ -4580,7 +4591,12 @@ async def govt_tamil_nadu_check_status(case_id: int, session_id: str, user=Depen
         )
         return {
             "success": True, "changed": False, "checkpoint": False,
-            "note": result.note or "Portal check inconclusive — verify manually on the portal.",
+            # result.note is almost always set by the (protected, untouched)
+            # Tamil Nadu adapter itself with a specific, meaningful message
+            # per state (e.g. "no petition matched this reference number") —
+            # this fallback only fires if that's ever falsy, so it uses the
+            # same standardized wording as every other inconclusive surface.
+            "note": result.note or _GOVT_NO_STATUS_CHANGE_NOTE,
             **payload,
         }
 
