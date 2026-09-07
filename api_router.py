@@ -4663,6 +4663,54 @@ async def govt_tamil_nadu_check_status(case_id: int, session_id: str, user=Depen
     }
 
 
+# ─── Tamil Nadu HTTP-migration investigation — Phase 1 controlled proof ────
+#
+# NOT part of the normal TN status-check flow above. This is a diagnostic
+# only, added to determine whether TN's status check could someday be
+# migrated off the live Playwright browser onto a plain HTTP client (see
+# modules/govt_sync/status/tn_network_diagnostic.py's module docstring for
+# the full Cowork-investigation context). Disabled by default; when
+# disabled this route behaves as if it doesn't exist (404), not a
+# descriptive 403, so its presence isn't advertised. Hard-scoped to the one
+# grievance this investigation was authorized against.
+_TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING = "18968314"
+
+
+def _tn_http_diagnostic_enabled() -> bool:
+    return os.getenv("GOVT_SYNC_TN_HTTP_DIAGNOSTIC_ENABLED", "false").strip().lower() == "true"
+
+
+@router.post("/cases/{case_id}/govt/session/{session_id}/tamil-nadu/diagnostic/http-replay-proof")
+async def govt_tamil_nadu_http_replay_diagnostic(case_id: int, session_id: str, user=Depends(get_current_user)):
+    """Phase 1 controlled-proof diagnostic ONLY — not production status
+    checking. Reuses the exact same tenant/case/session-ownership and
+    Tamil-Nadu-adapter check as the real status-check endpoint above
+    (_get_tamil_nadu_live_status_context), then additionally refuses to run
+    against any reference number other than the single grievance this
+    investigation was authorized for. Drives the SAME production
+    check_status_on_page() call the real "Check Tamil Nadu status" button
+    already performs — no new navigation is added — with a read-only
+    network observer attached around it. Never returns cookies, tokens, or
+    raw headers; see tn_network_diagnostic.py for the sanitization
+    discipline. Read-only: cannot submit, edit, reply to, or create any
+    grievance."""
+    if not _tn_http_diagnostic_enabled():
+        raise HTTPException(404, "Not found")
+
+    tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context(case_id, session_id, user)
+    if _TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING not in reference_number:
+        raise HTTPException(403, "This diagnostic is scoped to a single, pre-approved grievance only.")
+
+    from modules.govt_sync.status.tn_network_diagnostic import capture_tn_diagnostic
+
+    report = await capture_tn_diagnostic(session, reference_number)
+    _log_govt_action(
+        tid, case_id, "TN_HTTP_DIAGNOSTIC_RUN", user.get("username"),
+        payload={"session_id": session_id, "outcome": report.outcome},
+    )
+    return report.to_safe_dict()
+
+
 @router.post("/cases/{case_id}/govt/session/{session_id}/close")
 async def govt_close_live_session(case_id: int, session_id: str, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
