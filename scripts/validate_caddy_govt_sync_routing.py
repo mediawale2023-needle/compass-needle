@@ -123,6 +123,11 @@ CASES = [
     # affinity. Not enabled in production by this change; only its routing
     # is verified here.
     ("POST", "/api/cases/20/govt/session/abc123/tamil-nadu/diagnostic/http-replay-proof", "backend_govt_live"),
+    # Tamil Nadu HTTP-diagnostic runtime gate (2026-09-07) — the grant it
+    # creates must live in the same process as the LiveSession, so this
+    # arm/disarm route needs the same single-worker affinity as the
+    # diagnostic route above.
+    ("POST", "/api/cases/20/govt/session/abc123/tamil-nadu/diagnostic/arm", "backend_govt_live"),
 ]
 
 

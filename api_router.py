@@ -4680,6 +4680,51 @@ def _tn_http_diagnostic_enabled() -> bool:
     return os.getenv("GOVT_SYNC_TN_HTTP_DIAGNOSTIC_ENABLED", "false").strip().lower() == "true"
 
 
+class GovtTamilNaduDiagnosticGateRequest(BaseModel):
+    action: str  # "arm" | "disarm"
+
+
+@router.post("/cases/{case_id}/govt/session/{session_id}/tamil-nadu/diagnostic/arm")
+async def govt_tamil_nadu_http_diagnostic_gate(
+    case_id: int, session_id: str, body: GovtTamilNaduDiagnosticGateRequest, user=Depends(get_current_user),
+):
+    """Process-local, single-use permission slip for the HTTP-diagnostic
+    proof below — added so that proof can be enabled for exactly one
+    controlled run WITHOUT recreating backend_govt_live (which would
+    destroy the in-memory LiveSession the diagnostic needs). This endpoint
+    NEVER runs the diagnostic itself — arming only ever grants a later
+    call to govt_tamil_nadu_http_replay_diagnostic() the right to proceed
+    once. See modules/govt_sync/status/tn_diagnostic_runtime_gate.py's
+    module docstring for the full design.
+
+    Reuses the exact same tenant/case/session-ownership and
+    Tamil-Nadu-adapter check as the diagnostic endpoint itself
+    (_get_tamil_nadu_live_status_context), plus the same hard-coded
+    single-grievance guard — a grant can never be created for any case,
+    session, or reference number the diagnostic itself wouldn't already
+    accept. GOVT_SYNC_TN_HTTP_DIAGNOSTIC_ENABLED is untouched by this
+    endpoint and keeps its existing, unrelated meaning (a deployment-wide
+    "diagnostic always on" switch)."""
+    tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context(case_id, session_id, user)
+    if _TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING not in reference_number:
+        raise HTTPException(403, "This diagnostic is scoped to a single, pre-approved grievance only.")
+
+    action = (body.action or "").strip().lower()
+    from modules.govt_sync.status import tn_diagnostic_runtime_gate
+
+    if action == "arm":
+        await tn_diagnostic_runtime_gate.arm(
+            tenant_id=tid, case_id=case_id, session_id=session_id, reference_number=reference_number,
+        )
+        _log_govt_action(tid, case_id, "TN_HTTP_DIAGNOSTIC_ARMED", user.get("username"), payload={"session_id": session_id})
+        return {"armed": True, "expires_in_seconds": tn_diagnostic_runtime_gate.TTL_SECONDS}
+    if action == "disarm":
+        await tn_diagnostic_runtime_gate.disarm(session_id=session_id)
+        _log_govt_action(tid, case_id, "TN_HTTP_DIAGNOSTIC_DISARMED", user.get("username"), payload={"session_id": session_id})
+        return {"armed": False}
+    raise HTTPException(400, "action must be 'arm' or 'disarm'")
+
+
 @router.post("/cases/{case_id}/govt/session/{session_id}/tamil-nadu/diagnostic/http-replay-proof")
 async def govt_tamil_nadu_http_replay_diagnostic(case_id: int, session_id: str, user=Depends(get_current_user)):
     """Phase 1 controlled-proof diagnostic ONLY — not production status
@@ -4693,13 +4738,45 @@ async def govt_tamil_nadu_http_replay_diagnostic(case_id: int, session_id: str, 
     network observer attached around it. Never returns cookies, tokens, or
     raw headers; see tn_network_diagnostic.py for the sanitization
     discipline. Read-only: cannot submit, edit, reply to, or create any
-    grievance."""
+    grievance.
+
+    Runs if EITHER the deployment-wide GOVT_SYNC_TN_HTTP_DIAGNOSTIC_ENABLED
+    is on, OR a process-local, single-use grant was created for this exact
+    tenant/case/session/reference via the /diagnostic/arm endpoint above
+    (see tn_diagnostic_runtime_gate.py) — the second path exists
+    specifically so a single controlled run doesn't require recreating
+    backend_govt_live. A successful grant-based run consumes the grant
+    atomically; a second call behaves exactly as if the diagnostic were
+    off (404), never a distinct error that would hint a grant ever
+    existed.
+
+    Ordering note: when the deployment flag is off, this checks for the
+    mere PRESENCE of any grant for this session_id (has_pending_grant —
+    a cheap, non-authoritative dict-key check) before doing anything else.
+    If none exists — the overwhelming common case — this 404s immediately,
+    before ever touching tenant/case ownership or the real reference
+    number, preserving the exact pre-existing "diagnostic off -> 404 for
+    everyone, no ownership check even attempted" behavior byte-for-byte.
+    Only when a grant might apply does it proceed to the real,
+    authoritative ownership + reference + exact-match-consume checks."""
     if not _tn_http_diagnostic_enabled():
-        raise HTTPException(404, "Not found")
+        from modules.govt_sync.status import tn_diagnostic_runtime_gate
+
+        if not tn_diagnostic_runtime_gate.has_pending_grant(session_id):
+            raise HTTPException(404, "Not found")
 
     tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context(case_id, session_id, user)
     if _TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING not in reference_number:
         raise HTTPException(403, "This diagnostic is scoped to a single, pre-approved grievance only.")
+
+    if not _tn_http_diagnostic_enabled():
+        from modules.govt_sync.status import tn_diagnostic_runtime_gate
+
+        granted = await tn_diagnostic_runtime_gate.consume_if_armed(
+            tenant_id=tid, case_id=case_id, session_id=session_id, reference_number=reference_number,
+        )
+        if not granted:
+            raise HTTPException(404, "Not found")
 
     from modules.govt_sync.status.tn_network_diagnostic import capture_tn_diagnostic
 

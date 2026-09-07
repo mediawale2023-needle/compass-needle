@@ -68,7 +68,16 @@ api.theneedle.in {
 	# literal segments after both — per the wildcard rule documented above,
 	# each matches exactly one path segment, so this pattern matches only
 	# this exact diagnostic route, nothing broader.
-	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/cases/*/govt/session/*/tamil-nadu/diagnostic/http-replay-proof /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close
+	#
+	# Tamil Nadu HTTP-diagnostic runtime gate (2026-09-07, see
+	# modules/govt_sync/status/tn_diagnostic_runtime_gate.py): a process-
+	# local, single-use permission the diagnostic route above can be run
+	# under without recreating backend_govt_live. The grant it creates
+	# must live in the SAME process as the LiveSession it's scoped to, so
+	# this arm/disarm route needs the identical single-worker affinity —
+	# same two-wildcards-with-literal-segments-after-both shape as every
+	# other route on this line.
+	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/cases/*/govt/session/*/tamil-nadu/diagnostic/http-replay-proof /api/cases/*/govt/session/*/tamil-nadu/diagnostic/arm /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close
 	reverse_proxy @govt_live backend_govt_live:8000
 
 	reverse_proxy backend:8000
