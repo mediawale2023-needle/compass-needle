@@ -84,8 +84,14 @@ HTTPServer(("0.0.0.0", 8000), H).serve_forever()
 
 # (method, request path, expected upstream container name)
 CASES = [
-    ("POST", "/api/cases/20/govt/status-check/start", "backend_govt_live"),
-    ("POST", "/api/cases/20/govt/status-check/4a5f3b99ce874e798024ed16f846784a/advance", "backend_govt_live"),
+    # Karnataka/Maharashtra interactive status-check attempts moved off
+    # backend_govt_live: their attempt state used to live in a process-local
+    # dict, needing the same single-worker affinity as live browser sessions,
+    # but commit c49371e6 moved that state into PostgreSQL
+    # (govt_status_check_attempts) so any worker can serve start()/advance() —
+    # these two routes now belong on the plain multi-worker `backend`.
+    ("POST", "/api/cases/20/govt/status-check/start", "backend"),
+    ("POST", "/api/cases/20/govt/status-check/4a5f3b99ce874e798024ed16f846784a/advance", "backend"),
     ("POST", "/api/cases/20/govt/session/start", "backend_govt_live"),
     ("POST", "/api/cases/20/govt/poll", "backend"),
     ("POST", "/api/cases/20/govt/submit", "backend"),

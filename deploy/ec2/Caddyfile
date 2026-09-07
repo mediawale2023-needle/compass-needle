@@ -8,24 +8,29 @@ api.theneedle.in {
 	# docker-compose.yml for why. Everything else goes to the normal
 	# multi-worker backend.
 	#
-	# Interactive status-check attempts (Karnataka/Maharashtra CAPTCHA/OTP
-	# flows) need the same single-worker affinity: their attempt state lives
-	# in a process-local dict (karnataka_ipgrs.py / maharashtra_aaplesarkar.py
-	# _attempts), and backend runs 2 workers — a start() and its following
-	# advance() could otherwise land on different processes and report a
-	# spurious "expired or not found" (confirmed via code trace, resilience
-	# review section J1/J2; fixation plan Step 4).
+	# Karnataka/Maharashtra interactive status-check attempts
+	# (/status-check/start, /status-check/{attempt_id}/advance) used to be
+	# routed here too, for the same single-worker-affinity reason: their
+	# attempt state used to live in a process-local dict
+	# (karnataka_ipgrs.py / maharashtra_aaplesarkar.py _attempts), and a
+	# start() and its following advance() landing on different backend
+	# workers would report a spurious "expired or not found". Commit
+	# c49371e6 moved that state into PostgreSQL
+	# (govt_status_check_attempts, via modules/govt_sync/status_attempts.py)
+	# specifically so any worker can read/write any attempt — the two
+	# patterns were removed from this matcher accordingly and now fall
+	# through to the plain multi-worker `backend` below like every other
+	# non-live-browser govt-sync route. Tamil Nadu's live status-check
+	# (start-status-check, tamil-nadu/check-status, the /stream WebSocket)
+	# still opens a real Playwright page via browser_session.py and keeps
+	# its single-worker affinity requirement — those routes are unaffected.
 	#
 	# Two separate, literal-anchored patterns on purpose, not one trailing
 	# wildcard: Caddy's path matcher `*` only spans one path segment, never
-	# crosses a `/`. A single `.../status-check/*` matches the 6-segment
-	# start route but NOT the 7-segment advance route
-	# (.../status-check/{attempt_id}/advance) — confirmed by sending real
-	# request paths through a real Caddy instance against dummy upstreams
-	# before writing this. Getting this wrong is worse than leaving it
-	# unfixed: start() would land on backend_govt_live while advance()
-	# stayed on backend's 2-worker pool, which never created the attempt —
-	# a 100% failure rate instead of the original ~50% one.
+	# crosses a `/`. Getting this wrong for a multi-segment route pair
+	# (see the govt/session patterns below) is worse than leaving it
+	# unfixed — confirmed by sending real request paths through a real
+	# Caddy instance against dummy upstreams before writing any of this.
 	#
 	# Every govt/session action gets its own literal-anchored pattern for
 	# the SAME reason, discovered later (production-readiness review,
@@ -54,7 +59,7 @@ api.theneedle.in {
 	# backend_govt_live) could never see, and the live browser view hung on
 	# "Connecting..." forever instead of showing the portal. Every new
 	# govt/session route must be added here, not just the WebSocket one.
-	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close /api/cases/*/govt/status-check/start /api/cases/*/govt/status-check/*/advance
+	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close
 	reverse_proxy @govt_live backend_govt_live:8000
 
 	reverse_proxy backend:8000
