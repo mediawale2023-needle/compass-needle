@@ -90,7 +90,55 @@ _MAX_EVIDENCE_ENTRIES = 200
 # "API_REQUIRED" / "SPA_SHELL" classification is built on.
 _NON_DOCUMENT_RESOURCE_TYPES = frozenset({"xhr", "fetch"})
 
+# Legacy hypothesized shape (kept as a fallback only — see
+# _discover_ticket_record_id). The first controlled proof run
+# (2026-09-07, tenant 12 / case 3563 / grievance 18968314) observed that
+# the portal's REAL ticket-detail traffic is /portal/api/tickets/{id}
+# (plural "tickets", "api" not "ta") — this pattern never matched real
+# evidence and is retained only in case some other TN flow ever does hit
+# the originally-hypothesized /portal/ta/ticket/{id} shape.
 _TICKET_DETAIL_PATH_RE = re.compile(r"/portal/ta/ticket/([^/?#]+)")
+
+# The REAL, OBSERVED shape (2026-09-07 controlled proof): a plain numeric
+# record id as the path segment immediately after /portal/api/tickets/,
+# with nothing else following it (an optional trailing slash aside). This
+# is deliberately an anchored full-path match, not a substring search, so
+# it can never accidentally match any of the sibling/child resources the
+# portal also exposes under the same prefix:
+#   /portal/api/tickets                          (list endpoint, no id)
+#   /portal/api/ticketsFields                    (different resource, no "/" before "Fields")
+#   /portal/api/ticketsCountByFieldValues         (different resource)
+#   /portal/api/tickets/count                     ("count" is not numeric)
+#   /portal/api/tickets/{id}/conversations        (sub-resource, trailing segment)
+#   /portal/api/tickets/{id}/threads/{id}         (sub-resource, trailing segments)
+#   /portal/api/tickets/{id}/attachments          (sub-resource, trailing segment)
+_TICKET_API_RECORD_ID_RE = re.compile(r"^/portal/api/tickets/(\d+)/?$")
+
+
+def _url_host(url: str) -> str:
+    try:
+        return (urlsplit(url or "").netloc or "").lower()
+    except Exception:
+        return ""
+
+
+def _match_ticket_api_record_id(url: str, expected_host: str | None) -> str | None:
+    """Matches the canonical, observed /portal/api/tickets/{numeric_id}
+    shape against a single (already-redacted) URL. `expected_host`, when
+    given, additionally requires the URL's host to match it exactly
+    (case-insensitively) — so a request to an unrelated host that happens
+    to reuse this exact path shape is never mistaken for the TN portal's
+    own ticket-detail endpoint. Never inspects headers, cookies,
+    authorization, request/response bodies, or any credential material —
+    operates purely on the already-redacted URL string."""
+    try:
+        parts = urlsplit(url or "")
+    except Exception:
+        return None
+    if expected_host is not None and (parts.netloc or "").lower() != expected_host.lower():
+        return None
+    match = _TICKET_API_RECORD_ID_RE.match(parts.path or "")
+    return match.group(1) if match else None
 
 
 def _redact_url(url: str) -> str:
@@ -199,15 +247,34 @@ class _NetworkEvidenceCollector:
             entry.response_bytes = None
 
 
-def _discover_ticket_record_id(evidence: list[_NetworkEvidenceEntry]) -> str | None:
-    """Looks for a captured request whose (already-redacted) URL path
-    matches /portal/ta/ticket/{id} — the shape scripts/tn_session_replay_poc.py's
-    second candidate URL expects. Returns the id segment straight from the
-    URL PATH (a resource identifier the portal itself put in a URL it sent
-    the browser to, not a credential) or None if no such request was
-    observed. Never guesses; a None here is a legitimate, reportable result
-    (RECORD_ID_UNRESOLVED, see _classify_outcome)."""
+def _discover_ticket_record_id(
+    evidence: list[_NetworkEvidenceEntry], expected_host: str | None = None,
+) -> str | None:
+    """Looks for a captured request that reveals the TN portal's internal
+    ticket record id. Prefers the canonical, REAL-OBSERVED shape,
+    GET /portal/api/tickets/{numeric_id} (see _TICKET_API_RECORD_ID_RE);
+    falls back to the originally-hypothesized /portal/ta/ticket/{id} shape
+    only if no canonical match was found anywhere in the evidence (belt and
+    suspenders — that shape has never actually been observed in a real run,
+    but nothing here depends on it never appearing).
+
+    `expected_host`, when given, restricts BOTH passes to requests whose
+    host matches it exactly — an unrelated host reusing the same path shape
+    is never treated as the TN portal's own record id.
+
+    Returns the id segment straight from the URL PATH (a resource
+    identifier the portal itself put in a URL it sent the browser to, not a
+    credential) or None if no such request was observed. Never guesses; a
+    None here is a legitimate, reportable result (RECORD_ID_UNRESOLVED, see
+    _classify_outcome). Never inspects headers, cookies, authorization,
+    request/response bodies, or any credential material."""
     for entry in evidence:
+        record_id = _match_ticket_api_record_id(entry.url, expected_host)
+        if record_id is not None:
+            return record_id
+    for entry in evidence:
+        if expected_host is not None and _url_host(entry.url) != expected_host.lower():
+            continue
         match = _TICKET_DETAIL_PATH_RE.search(entry.url)
         if match:
             return match.group(1)
@@ -332,7 +399,12 @@ async def capture_tn_diagnostic(session, reference_number: str) -> TnDiagnosticR
 
     evidence = collector.entries
     non_document = _non_document_evidence(evidence)
-    record_id = _discover_ticket_record_id(evidence)
+    # Scope record-id discovery to the portal's own configured host (per
+    # govt_portals.base_url) so an unrelated host that happens to reuse the
+    # same /portal/api/tickets/{id} path shape is never mistaken for the
+    # real TN portal's own ticket-detail endpoint.
+    expected_host = _url_host(str((session.portal or {}).get("base_url") or ""))
+    record_id = _discover_ticket_record_id(evidence, expected_host=expected_host or None)
 
     replay_result = None
     if record_id is not None:

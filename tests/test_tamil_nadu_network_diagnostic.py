@@ -177,6 +177,94 @@ def test_discover_ticket_record_id_never_guesses_from_query_string():
     assert _discover_ticket_record_id(evidence) is None
 
 
+# ─── /portal/api/tickets/{numeric_id} discovery (2026-09-07 controlled proof) ──
+#
+# The first live controlled proof observed the REAL ticket-detail traffic
+# as GET /portal/api/tickets/{numeric_record_id} — not the originally
+# hypothesized /portal/ta/ticket/{id} shape — and the diagnostic's
+# extraction logic didn't recognize it (RECORD_ID_UNRESOLVED). These tests
+# lock in the corrected, deterministic matching rule.
+
+_TN_HOST = "cmhelpline.tnega.org"
+
+
+def test_ticket_api_canonical_single_ticket_request_is_detected():
+    evidence = [
+        _entry(f"https://{_TN_HOST}/portal/api/tickets/35665012402750744?include=fields"),
+    ]
+    assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) == "35665012402750744"
+
+
+def test_ticket_api_prefers_canonical_over_conversations_subresource():
+    # Real evidence order from the proof run: the canonical ticket request,
+    # then its /conversations sub-resource. The canonical one must win
+    # regardless of list order.
+    evidence = [
+        _entry(f"https://{_TN_HOST}/portal/api/tickets/35665012402750744/conversations?page=1"),
+        _entry(f"https://{_TN_HOST}/portal/api/tickets/35665012402750744"),
+    ]
+    assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) == "35665012402750744"
+
+
+def test_ticket_api_list_endpoint_without_id_is_ignored():
+    evidence = [_entry(f"https://{_TN_HOST}/portal/api/tickets?viewId=abc")]
+    assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) is None
+
+
+def test_ticket_api_ticketsfields_is_ignored():
+    evidence = [_entry(f"https://{_TN_HOST}/portal/api/ticketsFields")]
+    assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) is None
+
+
+def test_ticket_api_ticketscountbyfieldvalues_is_ignored():
+    evidence = [_entry(f"https://{_TN_HOST}/portal/api/ticketsCountByFieldValues")]
+    assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) is None
+
+
+def test_ticket_api_count_endpoint_is_ignored():
+    evidence = [_entry(f"https://{_TN_HOST}/portal/api/tickets/count")]
+    assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) is None
+
+
+def test_ticket_api_conversations_subresource_alone_is_ignored():
+    evidence = [_entry(f"https://{_TN_HOST}/portal/api/tickets/35665012402750744/conversations")]
+    assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) is None
+
+
+def test_ticket_api_threads_subresource_is_ignored():
+    evidence = [_entry(f"https://{_TN_HOST}/portal/api/tickets/35665012402750744/threads/99")]
+    assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) is None
+
+
+def test_ticket_api_attachments_subresource_is_ignored():
+    evidence = [_entry(f"https://{_TN_HOST}/portal/api/tickets/35665012402750744/attachments")]
+    assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) is None
+
+
+def test_ticket_api_unrelated_host_is_ignored():
+    # Same exact canonical path shape, but on a host that is not the
+    # configured TN portal's own base_url host.
+    evidence = [_entry("https://evil.example.com/portal/api/tickets/35665012402750744")]
+    assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) is None
+
+
+def test_ticket_api_malformed_non_numeric_id_is_ignored():
+    for bad_id in ("18968314x", "abc", "18968314-suffix", "18968314/extra"):
+        evidence = [_entry(f"https://{_TN_HOST}/portal/api/tickets/{bad_id}")]
+        assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) is None, bad_id
+
+
+def test_ticket_api_discovery_respects_existing_redaction_and_never_touches_query_values():
+    # The redaction guarantee (_redact_url strips query VALUES, keeps only
+    # key names) must still hold for canonical ticket-detail evidence —
+    # discovery must work purely off the redacted URL, never a raw one.
+    raw_url = f"https://{_TN_HOST}/portal/api/tickets/35665012402750744?authToken=SUPERSECRETVALUE123"
+    redacted = _redact_url(raw_url)
+    assert "SUPERSECRETVALUE123" not in redacted
+    evidence = [_entry(redacted)]
+    assert _discover_ticket_record_id(evidence, expected_host=_TN_HOST) == "35665012402750744"
+
+
 def test_classify_outcome_record_id_unresolved_takes_priority():
     assert _classify_outcome(replay_result="REPLAY_SUCCESS", record_id=None, non_document_count=3) == OUTCOME_RECORD_ID_UNRESOLVED
 
@@ -393,6 +481,50 @@ def test_capture_diagnostic_end_to_end_success_path(mock_replay):
     for forbidden in ("Cookie", "cookie=", "Set-Cookie", "Authorization", "authtoken", "session_id=fake"):
         assert forbidden not in dumped or forbidden == "session_id=fake"  # session_id itself isn't a secret, only cookies/tokens are
     assert "http_replay_result" in safe and "network_evidence" in safe
+
+
+def _open_detail_with_ticket_api_network_evidence(ctx, page_box, *, status="Pending Action"):
+    """Same shape as _open_detail_with_network_evidence, but simulates the
+    REAL traffic observed in the 2026-09-07 controlled proof run: the
+    canonical GET /portal/api/tickets/{id} request plus its /conversations
+    sub-resource — proving the fixed discovery logic picks the canonical
+    one over the sub-resource end-to-end, not just at the unit level."""
+    def _click():
+        detail_req = _FakeRequest(
+            "GET", "https://cmhelpline.tnega.org/portal/api/tickets/35665012402750744", resource_type="xhr",
+        )
+        ctx.fire_request(detail_req)
+        ctx.fire_response(_FakeResponse(detail_req, 200, content_type="application/json", body=b"{}"))
+
+        conversations_req = _FakeRequest(
+            "GET", "https://cmhelpline.tnega.org/portal/api/tickets/35665012402750744/conversations", resource_type="xhr",
+        )
+        ctx.fire_request(conversations_req)
+        ctx.fire_response(_FakeResponse(conversations_req, 200, content_type="application/json", body=b"{}"))
+
+        page_box["page"].set_state(
+            url="https://cmhelpline.tnega.org/portal/ta/myarea",
+            body_text=_detail_body(status),
+            selectors=_detail_selectors(status),
+        )
+    return _click
+
+
+@patch("scripts.tn_session_replay_poc.tn_session_replay_experiment", new_callable=AsyncMock)
+def test_capture_diagnostic_discovers_real_observed_ticket_api_shape_end_to_end(mock_replay):
+    mock_replay.return_value = "REPLAY_SUCCESS"
+    ctx = _FakeContext()
+    page_box = {}
+    page = _list_page([_card(f"{REF} Pending Action", status_child="Pending Action",
+                              on_click=_open_detail_with_ticket_api_network_evidence(ctx, page_box))])
+    page_box["page"] = page
+    session = _FakeSession(page=page, context=ctx, portal=_tn_portal())
+
+    report = asyncio.run(capture_tn_diagnostic(session, REF))
+
+    assert report.discovered_ticket_record_id == "35665012402750744"
+    assert report.outcome == OUTCOME_HTTP_SUCCESS
+    mock_replay.assert_awaited_once_with("fake-session-1", "35665012402750744")
 
 
 def test_capture_diagnostic_record_id_unresolved_when_no_ticket_url_observed():
