@@ -8,14 +8,21 @@ request, no real government portal. capture_tn_http_replay_diagnostic()
 itself (already unit-tested in test_tamil_nadu_http_replay_diagnostic.py)
 is mocked here — this file proves the ENDPOINT's own contract: auth,
 tenant/case ownership, hard scoping to case 3563 + grievance 18968314,
-internal session resolution, primary-ticket-id discovery from
-caller-supplied evidence, that the endpoint itself never touches
-session.page/session.context or creates a new LiveSession, and that
-session_id never surfaces anywhere in a response, error, or log payload.
+internal session resolution, that the endpoint itself never touches
+session.page/session.context or creates a new LiveSession, that
+session_id never surfaces anywhere in a response, error, or log payload —
+AND (2026-09-08 provenance fix) that ticket-id provenance now comes ONLY
+from a server-signed evidence envelope, never a caller-editable
+network_evidence field: a genuine envelope from the Phase-1 endpoint is
+accepted, and ANY tampering with it (ticket ids, case id, reference,
+fabricated second ticket) is rejected before any HTTP replay is attempted.
 """
 import asyncio
+import base64
+import json
 import os
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -58,6 +65,7 @@ import sansadx_backend.db as dbmod
 from sansadx_backend.db import Base, hash_password
 
 from modules.govt_sync.browser_session import LiveSession, _sessions
+from modules.govt_sync.status.tn_phase2_evidence_envelope import issue_envelope
 from tests.test_tamil_nadu_status import REF, _tn_portal
 
 test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
@@ -159,8 +167,32 @@ def _fake_live_session(session_id, tenant_id, case_id, portal=None):
     )
 
 
-def _evidence(*record_ids):
-    return [{"url": f"https://{_TN_HOST}/portal/api/tickets/{rid}"} for rid in record_ids]
+def _envelope(case_id=3563, reference_number=REF, record_ids=(_PRIMARY_ID,), host=_TN_HOST, jwt_secret=TEST_JWT_SECRET):
+    return issue_envelope(
+        jwt_secret=jwt_secret, case_id=case_id, reference_number=reference_number,
+        observed_ticket_record_ids=list(record_ids), expected_host=host,
+    )
+
+
+def _b64url_encode(data: bytes) -> bytes:
+    return base64.urlsafe_b64encode(data).rstrip(b"=")
+
+
+def _b64url_decode(data: str) -> bytes:
+    padded = data + "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode(padded)
+
+
+def _tamper(envelope: str, mutate) -> str:
+    """Decodes the envelope's payload segment, mutates the claims dict, and
+    reassembles the token with the ORIGINAL (now-stale) signature — proves
+    the endpoint rejects tampered envelopes via signature verification,
+    not by re-trusting whatever content it's handed."""
+    header_b64, payload_b64, sig_b64 = envelope.split(".")
+    claims = json.loads(_b64url_decode(payload_b64))
+    mutate(claims)
+    new_payload_b64 = _b64url_encode(json.dumps(claims).encode()).decode()
+    return f"{header_b64}.{new_payload_b64}.{sig_b64}"
 
 
 def _fake_report(outcome="HTTP_REPLAY_AUTHENTICATED", multiple=False):
@@ -190,11 +222,16 @@ def _patched(mock_return=None):
     )
 
 
+def _post(case_id, envelope, headers=None, **extra_body):
+    body = {"envelope": envelope, **extra_body}
+    return client.post(_ENDPOINT.format(case_id=case_id), json=body, headers=headers or _auth_headers())
+
+
 # ─── 1. Authentication required ─────────────────────────────────────────────
 
 def test_authentication_required():
     _seed_database()
-    resp = client.post(_ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)})
+    resp = client.post(_ENDPOINT.format(case_id=3563), json={"envelope": _envelope()})
     assert resp.status_code in (401, 403)
 
 
@@ -204,10 +241,7 @@ def test_tenant_ownership_required_rejects_case_from_different_tenant():
     _seed_database()
     # Case 3563 belongs to tenant 1; caller here is tenant 2.
     with _patched():
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)},
-            headers=_auth_headers("mp_other"),
-        )
+        resp = _post(3563, _envelope(), headers=_auth_headers("mp_other"))
     assert resp.status_code == 404
 
 
@@ -217,10 +251,7 @@ def test_tenant_ownership_required_rejects_live_session_from_different_tenant_ev
     # belongs to tenant 1. The caller (tenant 1) must not see tenant 2's session.
     _sessions["s1"] = _fake_live_session("s1", tenant_id=2, case_id=3563)
     with _patched():
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)},
-            headers=_auth_headers("mp_priya"),
-        )
+        resp = _post(3563, _envelope(), headers=_auth_headers("mp_priya"))
     assert resp.status_code == 404
 
 
@@ -230,10 +261,7 @@ def test_case_3563_allowed():
     _seed_database()
     _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
     with _patched() as mock_capture:
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)},
-            headers=_auth_headers(),
-        )
+        resp = _post(3563, _envelope())
     assert resp.status_code == 200, resp.text
     mock_capture.assert_awaited_once()
 
@@ -245,10 +273,7 @@ def test_every_other_case_is_rejected(other_case_id):
     # still 404 — the case-id gate runs BEFORE any DB query is attempted.
     _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=other_case_id)
     with _patched() as mock_capture:
-        resp = client.post(
-            _ENDPOINT.format(case_id=other_case_id), json={"network_evidence": _evidence(_PRIMARY_ID)},
-            headers=_auth_headers(),
-        )
+        resp = _post(other_case_id, _envelope(case_id=other_case_id))
     assert resp.status_code == 404
     mock_capture.assert_not_awaited()
 
@@ -264,10 +289,7 @@ def test_reference_18968314_required_case_3563_with_wrong_reference_is_rejected(
         )
     _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
     with _patched() as mock_capture:
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)},
-            headers=_auth_headers(),
-        )
+        resp = _post(3563, _envelope(reference_number=OTHER_REF))
     assert resp.status_code == 403
     mock_capture.assert_not_awaited()
 
@@ -280,12 +302,9 @@ def test_existing_live_session_is_resolved_internally_not_a_new_one():
     _sessions["s1"] = fake_session
     with patch("modules.govt_sync.browser_session.start_session", new_callable=AsyncMock) as mock_start, \
          _patched() as mock_capture:
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)},
-            headers=_auth_headers(),
-        )
+        resp = _post(3563, _envelope())
     assert resp.status_code == 200, resp.text
-    mock_start.assert_not_called()  # 11. no new LiveSession created
+    mock_start.assert_not_called()  # no new LiveSession created
     called_session = mock_capture.await_args.args[0]
     assert called_session is fake_session  # the SAME object, not a new one
 
@@ -293,44 +312,138 @@ def test_existing_live_session_is_resolved_internally_not_a_new_one():
 def test_no_matching_live_session_returns_404_before_invoking_harness():
     _seed_database()
     with _patched() as mock_capture:
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)},
-            headers=_auth_headers(),
-        )
+        resp = _post(3563, _envelope())
     assert resp.status_code == 404
     mock_capture.assert_not_awaited()
 
 
-# ─── 9. Phase-2 harness invoked with the existing session/evidence ─────────
+# ─── 9. Phase-2 harness invoked with the trusted, envelope-derived evidence ─
 
-def test_harness_invoked_with_primary_id_discovered_from_supplied_evidence():
+def test_harness_invoked_with_primary_id_from_verified_envelope():
     _seed_database()
     fake_session = _fake_live_session("s1", tenant_id=1, case_id=3563)
     _sessions["s1"] = fake_session
-    evidence = _evidence(_PRIMARY_ID, "999888777")
+    envelope = _envelope(record_ids=(_PRIMARY_ID, "999888777"))
     with _patched() as mock_capture:
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": evidence, "previous_attempt_at": 1234.5},
-            headers=_auth_headers(),
-        )
+        resp = _post(3563, envelope, previous_attempt_at=1234.5)
     assert resp.status_code == 200, resp.text
     mock_capture.assert_awaited_once()
     args, kwargs = mock_capture.await_args
     assert args[0] is fake_session
-    assert args[1] == evidence
+    assert args[1] == [
+        {"url": f"https://{_TN_HOST}/portal/api/tickets/{_PRIMARY_ID}"},
+        {"url": f"https://{_TN_HOST}/portal/api/tickets/999888777"},
+    ]
     assert kwargs["primary_record_id"] == _PRIMARY_ID  # first observed id, never guessed
     assert kwargs["previous_attempt_at"] == 1234.5
 
 
-def test_missing_ticket_id_in_supplied_evidence_is_rejected():
+def test_envelope_with_no_ticket_ids_is_rejected():
     _seed_database()
     _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
     with _patched() as mock_capture:
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": []},
-            headers=_auth_headers(),
-        )
+        resp = _post(3563, _envelope(record_ids=()))
     assert resp.status_code == 400
+    mock_capture.assert_not_awaited()
+
+
+# ─── Genuine vs. tampered envelopes ─────────────────────────────────────────
+
+def test_genuine_envelope_from_phase1_is_accepted():
+    _seed_database()
+    _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
+    with _patched() as mock_capture:
+        resp = _post(3563, _envelope())
+    assert resp.status_code == 200, resp.text
+    mock_capture.assert_awaited_once()
+
+
+def test_modified_ticket_id_in_envelope_fails_verification_no_replay():
+    _seed_database()
+    _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
+    envelope = _envelope()
+    tampered = _tamper(envelope, lambda c: c.__setitem__("observed_ticket_record_ids", ["11111111111111111"]))
+    with _patched() as mock_capture:
+        resp = _post(3563, tampered)
+    assert resp.status_code == 400, resp.text
+    mock_capture.assert_not_awaited()
+
+
+def test_added_fabricated_second_ticket_id_fails_verification_no_replay():
+    _seed_database()
+    _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
+    envelope = _envelope()
+    tampered = _tamper(envelope, lambda c: c["observed_ticket_record_ids"].append("99999999999999999"))
+    with _patched() as mock_capture:
+        resp = _post(3563, tampered)
+    assert resp.status_code == 400, resp.text
+    mock_capture.assert_not_awaited()
+
+
+def test_modified_case_id_in_envelope_fails_verification_no_replay():
+    _seed_database()
+    _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
+    envelope = _envelope()
+    tampered = _tamper(envelope, lambda c: c.__setitem__("case_id", 4242))
+    with _patched() as mock_capture:
+        resp = _post(3563, tampered)
+    assert resp.status_code == 400, resp.text
+    mock_capture.assert_not_awaited()
+
+
+def test_modified_reference_in_envelope_fails_verification_no_replay():
+    _seed_database()
+    _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
+    envelope = _envelope()
+    tampered = _tamper(envelope, lambda c: c.__setitem__("reference_number", OTHER_REF))
+    with _patched() as mock_capture:
+        resp = _post(3563, tampered)
+    assert resp.status_code == 400, resp.text
+    mock_capture.assert_not_awaited()
+
+
+def test_expired_envelope_is_rejected_no_replay():
+    _seed_database()
+    _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
+    envelope = _envelope()
+    expired = _tamper(envelope, lambda c: (
+        c.__setitem__("iat", time.time() - 10_000), c.__setitem__("exp", time.time() - 9_000),
+    ))
+    with _patched() as mock_capture:
+        resp = _post(3563, expired)
+    assert resp.status_code == 400, resp.text
+    mock_capture.assert_not_awaited()
+
+
+def test_wrong_purpose_version_envelope_is_rejected_no_replay():
+    _seed_database()
+    _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
+    envelope = _envelope()
+    wrong_purpose = _tamper(envelope, lambda c: c.__setitem__("purpose", "something_else"))
+    with _patched() as mock_capture:
+        resp = _post(3563, wrong_purpose)
+    assert resp.status_code == 400, resp.text
+    mock_capture.assert_not_awaited()
+
+
+def test_malformed_envelope_is_rejected_no_replay():
+    _seed_database()
+    _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
+    with _patched() as mock_capture:
+        resp = _post(3563, "not-a-real-envelope")
+    assert resp.status_code == 400, resp.text
+    mock_capture.assert_not_awaited()
+
+
+def test_envelope_from_a_different_case_is_rejected_even_if_genuinely_signed():
+    _seed_database()
+    _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
+    # Genuinely signed, but for a DIFFERENT case/reference than 3563/REF —
+    # must not be accepted here just because the signature itself is valid.
+    foreign_envelope = _envelope(case_id=3564, reference_number=OTHER_REF)
+    with _patched() as mock_capture:
+        resp = _post(3563, foreign_envelope)
+    assert resp.status_code == 400, resp.text
     mock_capture.assert_not_awaited()
 
 
@@ -341,10 +454,7 @@ def test_endpoint_never_touches_page_or_context_directly():
     fake_session = _fake_live_session("s1", tenant_id=1, case_id=3563)
     _sessions["s1"] = fake_session
     with _patched():
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)},
-            headers=_auth_headers(),
-        )
+        resp = _post(3563, _envelope())
     assert resp.status_code == 200, resp.text
     # capture_tn_http_replay_diagnostic is mocked out entirely, so if the
     # endpoint itself ever called .goto/.click/.new_page, it would have to
@@ -355,6 +465,19 @@ def test_endpoint_never_touches_page_or_context_directly():
     fake_session.context.cookies.assert_not_called()
 
 
+def test_tampered_envelope_causes_zero_browser_navigation_and_zero_http_replay():
+    _seed_database()
+    fake_session = _fake_live_session("s1", tenant_id=1, case_id=3563)
+    _sessions["s1"] = fake_session
+    tampered = _tamper(_envelope(), lambda c: c.__setitem__("case_id", 9999))
+    with _patched() as mock_capture:
+        resp = _post(3563, tampered)
+    assert resp.status_code == 400
+    mock_capture.assert_not_awaited()
+    fake_session.page.goto.assert_not_called()
+    fake_session.context.cookies.assert_not_called()
+
+
 # ─── 12 & 13. Response shape — only the safe dict, nothing else ────────────
 
 def test_response_is_exactly_the_safe_dict_nothing_added():
@@ -362,10 +485,7 @@ def test_response_is_exactly_the_safe_dict_nothing_added():
     _sessions["s1"] = _fake_live_session("s1", tenant_id=1, case_id=3563)
     fake_report = _fake_report()
     with _patched(fake_report):
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)},
-            headers=_auth_headers(),
-        )
+        resp = _post(3563, _envelope())
     assert resp.status_code == 200
     assert resp.json() == fake_report.to_safe_dict.return_value
     for forbidden in ("cookie", "Cookie", "Set-Cookie", "Authorization", "session_id", "csrf", "CSRF", "jwt", "JWT"):
@@ -380,10 +500,7 @@ def test_session_id_never_appears_in_successful_response_body():
         "a-very-distinctive-session-id-12345", tenant_id=1, case_id=3563,
     )
     with _patched():
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)},
-            headers=_auth_headers(),
-        )
+        resp = _post(3563, _envelope())
     assert resp.status_code == 200
     assert "a-very-distinctive-session-id-12345" not in resp.text
 
@@ -393,10 +510,7 @@ def test_session_id_never_appears_in_error_responses():
     _sessions["a-very-distinctive-session-id-12345"] = _fake_live_session(
         "a-very-distinctive-session-id-12345", tenant_id=2, case_id=3563,  # wrong tenant vs caller
     )
-    resp = client.post(
-        _ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)},
-        headers=_auth_headers("mp_priya"),
-    )
+    resp = _post(3563, _envelope(), headers=_auth_headers("mp_priya"))
     assert resp.status_code == 404
     assert "a-very-distinctive-session-id-12345" not in resp.text
 
@@ -407,10 +521,7 @@ def test_session_id_never_appears_in_audit_log_payload():
         "a-very-distinctive-session-id-12345", tenant_id=1, case_id=3563,
     )
     with _patched(), patch("api_router._log_govt_action") as mock_log:
-        resp = client.post(
-            _ENDPOINT.format(case_id=3563), json={"network_evidence": _evidence(_PRIMARY_ID)},
-            headers=_auth_headers(),
-        )
+        resp = _post(3563, _envelope())
     assert resp.status_code == 200, resp.text
     mock_log.assert_called_once()
     logged = str(mock_log.call_args)

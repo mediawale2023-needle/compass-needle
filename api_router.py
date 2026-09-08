@@ -4847,7 +4847,16 @@ async def govt_tamil_nadu_diagnostic_run_for_case(case_id: int, user=Depends(get
     keeps beyond the one call to capture_tn_diagnostic() below; it is never
     logged, never included in the response, and never appears in any
     exception message this function raises (see
-    _get_tamil_nadu_live_status_context_for_case's own docstring)."""
+    _get_tamil_nadu_live_status_context_for_case's own docstring).
+
+    ADDITIVE (2026-09-08, per the Phase-2 evidence-provenance fix): also
+    issues and attaches a short-lived, signed `phase2_evidence_envelope`
+    to the response, binding this run's already-discovered canonical
+    ticket record ids (never the raw network_evidence blob) to this exact
+    case_id/reference_number. See
+    modules/govt_sync/status/tn_phase2_evidence_envelope.py's module
+    docstring for the full design. Every existing field in the response
+    is unchanged — this only adds one new key."""
     tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context_for_case(case_id, user)
     if _TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING not in reference_number:
         raise HTTPException(403, "This diagnostic is scoped to a single, pre-approved grievance only.")
@@ -4859,7 +4868,23 @@ async def govt_tamil_nadu_diagnostic_run_for_case(case_id: int, user=Depends(get
         tid, case_id, "TN_HTTP_DIAGNOSTIC_RUN", user.get("username"),
         payload={"invocation": "case_scoped", "outcome": report.outcome},
     )
-    return report.to_safe_dict()
+
+    from urllib.parse import urlsplit
+
+    from modules.govt_sync.status.tn_network_diagnostic import discover_all_ticket_record_ids
+    from modules.govt_sync.status.tn_phase2_evidence_envelope import issue_envelope
+
+    base_url = str((session.portal or {}).get("base_url") or "").rstrip("/")
+    expected_host = (urlsplit(base_url).netloc or "").lower() or None
+    observed_ids = discover_all_ticket_record_ids(report.network_evidence, expected_host=expected_host)
+    envelope = issue_envelope(
+        jwt_secret=JWT_SECRET, case_id=case_id, reference_number=reference_number,
+        observed_ticket_record_ids=observed_ids, expected_host=expected_host,
+    )
+
+    result = report.to_safe_dict()
+    result["phase2_evidence_envelope"] = envelope
+    return result
 
 
 # ─── Phase 2: multi-ticket scope + session durability (TEMPORARY, investigation-only) ──
@@ -4869,34 +4894,35 @@ async def govt_tamil_nadu_diagnostic_run_for_case(case_id: int, user=Depends(get
 # does NOT re-run capture_tn_diagnostic() (that would mean new Playwright
 # navigation — check_status_on_page() opens My Petitions, clicks a card,
 # etc. — explicitly forbidden for this endpoint). Instead it operates
-# purely on network evidence the CALLER already has from a Phase-1 run
-# they already made against this same live session (that endpoint's own
-# response already includes a `network_evidence` list, fully redacted via
-# tn_network_diagnostic.py's existing safe-dict discipline).
+# purely on evidence a PRIOR Phase-1 call against this same live session
+# already discovered.
 #
-# WHY THE CALLER SUPPLIES network_evidence: Phase 1's own network observer
-# (_NetworkEvidenceCollector) is created fresh inside one
-# capture_tn_diagnostic() call and goes out of scope the moment that call
-# returns its response — nothing in this codebase retains it anywhere
-# (not on the LiveSession object, not in a module-level cache, not in the
-# database). Investigated before writing this endpoint, per instruction:
-# the only way to give this endpoint "already-collected Phase-1 evidence"
-# without inventing a new persistence mechanism is for the operator to
-# pass back the exact same already-redacted list they already received in
-# a prior Phase-1 response — a request parameter, not storage. This
-# endpoint does not cache, log, or persist whatever it's given beyond the
-# lifetime of handling one request.
+# PROVENANCE FIX (2026-09-08): the first version of this endpoint (commit
+# 4c414173) accepted that Phase-1 evidence as a free-form `network_evidence`
+# request-body field. A static review correctly found this made "previously
+# observed ticket ID" caller-controlled — the harness only ever replays ids
+# PRESENT in whatever evidence it's given, which is not a security property
+# if the evidence itself can be edited before submission. Investigated
+# again per instruction: Phase 1's network observer is still created fresh
+# inside one capture_tn_diagnostic() call and discarded the moment that
+# call returns — nothing in this codebase persists it (no LiveSession
+# field, no module cache, no database), and this fix does not change that.
+# Instead, the case-scoped Phase-1 endpoint above now signs a short-lived
+# envelope (modules/govt_sync/status/tn_phase2_evidence_envelope.py) over
+# ONLY the already-discovered canonical ticket ids + case_id + reference
+# number, using the existing JWT_SECRET signing primitive (derived key —
+# see that module's docstring). A caller can carry this envelope between
+# calls, but cannot modify its contents without signature verification
+# failing — so this endpoint now requires the envelope, not a raw evidence
+# list, closing the provenance gap without any new persistence layer.
 _TN_HTTP_REPLAY_DIAGNOSTIC_PHASE2_CASE_ID = 3563
 
 
 class GovtTamilNaduHttpReplayDiagnosticRequest(BaseModel):
-    # Exactly the shape TnDiagnosticReport.to_safe_dict()'s own
-    # "network_evidence" field already returns from a prior Phase-1 call —
-    # already redacted (query values stripped, no cookies/headers/bodies)
-    # by that endpoint before the operator ever saw it. Never re-validated
-    # against Phase-1's internal dataclass here; discover_all_ticket_record_ids()
-    # below only ever reads a plain "url" string key from each entry.
-    network_evidence: list[dict] = []
+    # The signed envelope issued by govt_tamil_nadu_diagnostic_run_for_case
+    # above (field "phase2_evidence_envelope" in that endpoint's response).
+    # Opaque to the caller — any modification invalidates its signature.
+    envelope: str
     # Optional: the `this_attempt_at` a PRIOR call to this same endpoint
     # returned, so this call's report can compute elapsed time since that
     # attempt (see tn_http_replay_diagnostic.py's own docstring on why this
@@ -4938,14 +4964,20 @@ async def govt_tamil_nadu_http_replay_diagnostic_phase2(
     unmodified) is the only thing that ever touches session.context, and
     only to re-export its current cookies, exactly as it already does.
 
-    The primary ticket id is discovered from the caller-supplied evidence
-    the same way Phase 1 already discovers it (discover_all_ticket_record_ids,
-    unmodified, canonical /portal/api/tickets/{id} shape only) — never
-    hard-coded, never guessed. A 400 if the supplied evidence contains no
-    recognizable ticket id at all (nothing to replay). A second ticket is
-    replayed only if capture_tn_http_replay_diagnostic() itself finds a
-    second, distinct id already present in that same evidence — this
-    endpoint does not pick a second one itself.
+    `body.envelope` is verified (signature + expiry + purpose/version +
+    case_id/reference_number match) via tn_phase2_evidence_envelope.
+    verify_envelope() BEFORE anything else touches the live session or the
+    Phase-2 harness — any failure (tampered, expired, wrong case/reference,
+    malformed, wrong purpose/version) is reported as a single, uniform 400
+    and the function returns immediately, before any HTTP replay is ever
+    attempted. On success, the verified payload's own
+    `observed_ticket_record_ids` + `expected_host` (never anything from the
+    request body) are used to reconstruct a trusted network_evidence list
+    in exactly the canonical shape discover_all_ticket_record_ids() already
+    expects, which is then handed unmodified to
+    capture_tn_http_replay_diagnostic() — the unmodified Phase-2 harness
+    itself still decides whether a second, distinct id is present and
+    worth replaying; this endpoint does not pick one itself.
 
     Returns ONLY TnHttpReplayDiagnosticReport.to_safe_dict() — the exact,
     already-sanitized shape defined in tn_http_replay_diagnostic.py.
@@ -4961,19 +4993,33 @@ async def govt_tamil_nadu_http_replay_diagnostic_phase2(
     if _TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING not in reference_number:
         raise HTTPException(403, "This diagnostic is scoped to a single, pre-approved grievance only.")
 
-    from urllib.parse import urlsplit
+    from modules.govt_sync.status.tn_phase2_evidence_envelope import EnvelopeInvalid, verify_envelope
 
-    from modules.govt_sync.status.tn_network_diagnostic import discover_all_ticket_record_ids
+    try:
+        payload = verify_envelope(
+            body.envelope, jwt_secret=JWT_SECRET, case_id=case_id, reference_number=reference_number,
+        )
+    except EnvelopeInvalid:
+        raise HTTPException(400, "Invalid or expired evidence envelope. Run the Phase-1 diagnostic again to obtain a fresh one.")
+
+    observed_ids = list(payload.get("observed_ticket_record_ids") or [])
+    if not observed_ids:
+        raise HTTPException(400, "The evidence envelope contains no ticket record id.")
+    expected_host = payload.get("expected_host")
+
+    # Reconstructed purely from the VERIFIED envelope's own trusted ids —
+    # never from anything in the request body — in exactly the canonical
+    # shape discover_all_ticket_record_ids() (called internally by the
+    # unmodified Phase-2 harness) already expects.
+    trusted_network_evidence = [
+        {"url": f"https://{expected_host}/portal/api/tickets/{record_id}"}
+        for record_id in observed_ids
+    ]
+
     from modules.govt_sync.status.tn_http_replay_diagnostic import capture_tn_http_replay_diagnostic
 
-    base_url = str((session.portal or {}).get("base_url") or "").rstrip("/")
-    expected_host = (urlsplit(base_url).netloc or "").lower() or None
-    observed_ids = discover_all_ticket_record_ids(body.network_evidence, expected_host=expected_host)
-    if not observed_ids:
-        raise HTTPException(400, "No ticket record id was found in the supplied Phase-1 network evidence.")
-
     report = await capture_tn_http_replay_diagnostic(
-        session, body.network_evidence,
+        session, trusted_network_evidence,
         primary_record_id=observed_ids[0],
         previous_attempt_at=body.previous_attempt_at,
     )

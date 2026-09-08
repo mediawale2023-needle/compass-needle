@@ -260,11 +260,47 @@ def test_endpoint_invokes_diagnostic_harness_with_resolved_session():
         mock_capture.return_value = fake_report
         resp = client.post("/api/cases/3563/govt/tamil-nadu/diagnostic/run", headers=_auth_headers())
     assert resp.status_code == 200, resp.text
-    assert resp.json() == {"outcome": "HTTP_SUCCESS"}
+    # (2026-09-08) Additive: the response now also carries a signed
+    # phase2_evidence_envelope alongside every existing field — see
+    # test_endpoint_response_includes_a_verifiable_phase2_evidence_envelope
+    # below for the envelope's own contract.
+    body = resp.json()
+    assert body["outcome"] == "HTTP_SUCCESS"
+    assert "phase2_evidence_envelope" in body
     mock_capture.assert_awaited_once()
     called_session, called_ref = mock_capture.await_args.args
     assert called_session is fake_session  # the internally-resolved session, not a new one
     assert called_ref == REF
+
+
+def test_endpoint_response_includes_a_verifiable_phase2_evidence_envelope():
+    """(2026-09-08 provenance fix) The case-scoped Phase-1 endpoint now
+    issues a signed evidence envelope binding this run's own discovered
+    ticket ids to case 3563 / REF — verifiable with the same JWT_SECRET,
+    and rejecting a case/reference other than the ones this run actually
+    resolved."""
+    _seed_database()
+    fake_session = _fake_live_session("s1", tenant_id=1, case_id=3563)
+    _sessions["s1"] = fake_session
+    fake_report = MagicMock()
+    fake_report.outcome = "HTTP_SUCCESS"
+    fake_report.network_evidence = [
+        {"url": "https://cmhelpline.tnega.org/portal/api/tickets/35665012402750744"},
+    ]
+    fake_report.to_safe_dict.return_value = {"outcome": "HTTP_SUCCESS", "network_evidence": fake_report.network_evidence}
+    with patch("modules.govt_sync.status.tn_network_diagnostic.capture_tn_diagnostic", new_callable=AsyncMock) as mock_capture:
+        mock_capture.return_value = fake_report
+        resp = client.post("/api/cases/3563/govt/tamil-nadu/diagnostic/run", headers=_auth_headers())
+    assert resp.status_code == 200, resp.text
+    envelope = resp.json()["phase2_evidence_envelope"]
+
+    from modules.govt_sync.status.tn_phase2_evidence_envelope import verify_envelope
+
+    payload = verify_envelope(envelope, jwt_secret=TEST_JWT_SECRET, case_id=3563, reference_number=REF)
+    assert payload["observed_ticket_record_ids"] == ["35665012402750744"]
+    assert payload["expected_host"] == "cmhelpline.tnega.org"
+    # session_id must never appear inside the envelope either.
+    assert "s1" not in str(payload)
 
 
 def test_endpoint_never_arms_or_consumes_the_runtime_gate():
