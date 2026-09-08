@@ -15,27 +15,6 @@ import { isPrimaryAccount } from '@/lib/account';
 
 const GOVT_FILING_WORKSPACE_SPIKE = process.env.NEXT_PUBLIC_GOVT_FILING_WORKSPACE_SPIKE === 'true';
 
-// TEMPORARY — Phase 1 TN HTTP-migration controlled-proof scope only. NOT a
-// general-purpose diagnostic feature: hard-coded to the one case this
-// investigation is authorized against, so the button below (and its
-// confirmation dialog) cannot render or fire for any other case. Remove
-// this constant, isTnHttpDiagnosticProofCase(), the render branch that
-// checks it, and handleRunTnHttpDiagnostic() once the controlled proof is
-// complete and reviewed — see PROJECT_MEMORY.md.
-const TN_HTTP_DIAGNOSTIC_PROOF_CASE_ID = 3563;
-
-// Exported as a pure function (not just an inline comparison in the render)
-// so the exact gating rule is independently unit-testable — matching this
-// file's existing isTamilNaduLiveSessionActive/resolveGovtEscalateMode
-// pattern — without needing to render the whole modal. Loose (==) is
-// deliberate: caseId can arrive as a number (from case.id) or a string
-// (from a URL param), and 3563 must be recognized either way; nothing
-// wider than that ever matches, since Number(caseId) !== 3563 for anything
-// else, string or number.
-export function isTnHttpDiagnosticProofCase(caseId) {
-    return Number(caseId) === TN_HTTP_DIAGNOSTIC_PROOF_CASE_ID;
-}
-
 // ─── Icon component ─────────────────────────────────────────
 function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5, filled = false }) {
     const paths = {
@@ -1792,13 +1771,6 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const [worksheet, setWorksheet] = useState(null);  // response from /govt/translate (includes portal_contact_number, staff_action_note)
     const [refInput, setRefInput] = useState('');
     const [busy, setBusy] = useState(false);
-    // TEMPORARY — Phase 1 TN HTTP-migration controlled proof only. Scoped to
-    // one specific case by hard-coded id, deliberately not a general
-    // feature; see PROJECT_MEMORY.md for the investigation this supports.
-    // Remove this whole block (state + handler + render branch below) once
-    // the controlled proof is complete and reviewed.
-    const [tnHttpDiagnosticBusy, setTnHttpDiagnosticBusy] = useState(false);
-    const [tnHttpDiagnosticResult, setTnHttpDiagnosticResult] = useState(null);
     const [needsGovtVerification, setNeedsGovtVerification] = useState(false); // set when /govt/poll reports the OTP-gated portal session needs re-verification (Settings → Government Portal)
     // Interactive status-check flow (a live human-verification sequence solved
     // per lookup, not a persisted OTP session — Karnataka is one CAPTCHA step,
@@ -2141,31 +2113,6 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         }
     }
 
-    // TEMPORARY — Phase 1 TN HTTP-migration controlled proof only (see
-    // TN_HTTP_DIAGNOSTIC_PROOF_CASE_ID above). Uses the exact same
-    // authenticated apiPost() every other action in this file already
-    // uses — the JWT stays entirely inside that existing client, never
-    // touched here. Calls the already-deployed, case-scoped diagnostic
-    // endpoint directly; never reads, displays, or logs a session_id
-    // (this endpoint doesn't require one), never retries automatically,
-    // and only ever runs when the operator explicitly confirms.
-    async function handleRunTnHttpDiagnostic() {
-        const confirmed = window.confirm(
-            'This will contact the Tamil Nadu portal using the currently authenticated live session and run the controlled HTTP-replay diagnostic for grievance 18968314. Run once?'
-        );
-        if (!confirmed) return;
-        setTnHttpDiagnosticBusy(true);
-        try {
-            const result = await apiPost(`/api/cases/${caseId}/govt/tamil-nadu/diagnostic/run`, {});
-            setTnHttpDiagnosticResult(result);
-            toast.success(`TN HTTP diagnostic outcome: ${result?.outcome || 'complete'}`);
-        } catch (e) {
-            toast.error(e.message || 'TN HTTP diagnostic failed');
-        } finally {
-            setTnHttpDiagnosticBusy(false);
-        }
-    }
-
     async function handleSubmitRef() {
         if (!refInput.trim()) { toast.error('Enter the reference number the portal gave you'); return; }
         setBusy(true);
@@ -2315,35 +2262,6 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                     </span>
                 }
             />
-
-            {/* TEMPORARY — Phase 1 TN HTTP-migration controlled proof only.
-                Renders ONLY for the one case this investigation is authorized
-                against; cannot invoke for any other case. Remove this block
-                once the controlled proof is complete and reviewed — see
-                PROJECT_MEMORY.md. */}
-            {isTnHttpDiagnosticProofCase(caseId) && (
-                <div style={{
-                    border: `1px dashed ${C.red}`, background: C.surface, padding: '12px 14px', marginBottom: 12,
-                }}>
-                    <div style={{
-                        fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
-                        color: C.red, marginBottom: 8,
-                    }}>
-                        Temporary — Phase 1 controlled proof only
-                    </div>
-                    <Button size="sm" variant="outline" disabled={tnHttpDiagnosticBusy} onClick={handleRunTnHttpDiagnostic}>
-                        {tnHttpDiagnosticBusy ? <Loader2 size={14} className="animate-spin" /> : 'Run TN HTTP Diagnostic — ONE TIME'}
-                    </Button>
-                    {tnHttpDiagnosticResult && (
-                        <pre style={{
-                            fontSize: 11, marginTop: 10, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                            background: C.paper, border: `1px solid ${C.hair}`, padding: 10, maxHeight: 320, overflow: 'auto',
-                        }}>
-                            {JSON.stringify(tnHttpDiagnosticResult, null, 2)}
-                        </pre>
-                    )}
-                </div>
-            )}
 
             {locked ? (
                 <div style={{
