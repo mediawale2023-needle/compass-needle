@@ -281,6 +281,52 @@ def _discover_ticket_record_id(
     return None
 
 
+def _all_observed_urls(evidence) -> list[str]:
+    """Accepts either a list of _NetworkEvidenceEntry objects OR a list of
+    already-redacted evidence dicts (e.g. the network_evidence list a
+    TnDiagnosticReport.to_safe_dict() already produced) and returns just
+    the URL strings, in original order. Exists so a later diagnostic phase
+    (Phase 2's multi-ticket-scope check) can reuse this module's discovery
+    logic against evidence it received back from Phase 1's own report,
+    without needing to depend on the internal _NetworkEvidenceEntry class."""
+    urls = []
+    for item in evidence:
+        url = item.url if hasattr(item, "url") else item.get("url")
+        if url:
+            urls.append(url)
+    return urls
+
+
+def discover_all_ticket_record_ids(evidence, expected_host: str | None = None) -> list[str]:
+    """Like _discover_ticket_record_id, but returns EVERY distinct
+    canonical /portal/api/tickets/{numeric_id} record id naturally observed
+    in the evidence (first-seen order, de-duplicated) instead of only the
+    first match.
+
+    Built for the Phase 2 "multi-ticket scope" diagnostic: it lets that
+    diagnostic learn whether the authenticated session's OWN already-
+    occurring network traffic reveals more than one ticket belonging to the
+    account — never by enumerating, guessing, or incrementing an id, only
+    by noticing when more than one canonical URL shape was already present
+    in evidence the browser generated on its own. The legacy
+    /portal/ta/ticket/{id} shape is deliberately NOT included here (that
+    fallback exists only for single-id discovery — see
+    _discover_ticket_record_id's docstring); this function only ever
+    trusts the REAL-OBSERVED canonical API shape.
+
+    `expected_host`, when given, excludes any URL whose host doesn't match
+    it exactly — same unrelated-host protection as
+    _match_ticket_api_record_id. Never inspects headers, cookies,
+    authorization, request/response bodies, or any credential material —
+    operates purely on already-redacted URL strings."""
+    seen: list[str] = []
+    for url in _all_observed_urls(evidence):
+        record_id = _match_ticket_api_record_id(url, expected_host)
+        if record_id is not None and record_id not in seen:
+            seen.append(record_id)
+    return seen
+
+
 def _non_document_evidence(evidence: list[_NetworkEvidenceEntry]) -> list[_NetworkEvidenceEntry]:
     return [e for e in evidence if e.resource_type in _NON_DOCUMENT_RESOURCE_TYPES]
 
