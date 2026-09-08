@@ -4862,6 +4862,131 @@ async def govt_tamil_nadu_diagnostic_run_for_case(case_id: int, user=Depends(get
     return report.to_safe_dict()
 
 
+# ─── Phase 2: multi-ticket scope + session durability (TEMPORARY, investigation-only) ──
+#
+# Hard-scoped to the one case/grievance this Phase 2 evidence-gathering step
+# was authorized for. Unlike the Phase-1 endpoints above, this deliberately
+# does NOT re-run capture_tn_diagnostic() (that would mean new Playwright
+# navigation — check_status_on_page() opens My Petitions, clicks a card,
+# etc. — explicitly forbidden for this endpoint). Instead it operates
+# purely on network evidence the CALLER already has from a Phase-1 run
+# they already made against this same live session (that endpoint's own
+# response already includes a `network_evidence` list, fully redacted via
+# tn_network_diagnostic.py's existing safe-dict discipline).
+#
+# WHY THE CALLER SUPPLIES network_evidence: Phase 1's own network observer
+# (_NetworkEvidenceCollector) is created fresh inside one
+# capture_tn_diagnostic() call and goes out of scope the moment that call
+# returns its response — nothing in this codebase retains it anywhere
+# (not on the LiveSession object, not in a module-level cache, not in the
+# database). Investigated before writing this endpoint, per instruction:
+# the only way to give this endpoint "already-collected Phase-1 evidence"
+# without inventing a new persistence mechanism is for the operator to
+# pass back the exact same already-redacted list they already received in
+# a prior Phase-1 response — a request parameter, not storage. This
+# endpoint does not cache, log, or persist whatever it's given beyond the
+# lifetime of handling one request.
+_TN_HTTP_REPLAY_DIAGNOSTIC_PHASE2_CASE_ID = 3563
+
+
+class GovtTamilNaduHttpReplayDiagnosticRequest(BaseModel):
+    # Exactly the shape TnDiagnosticReport.to_safe_dict()'s own
+    # "network_evidence" field already returns from a prior Phase-1 call —
+    # already redacted (query values stripped, no cookies/headers/bodies)
+    # by that endpoint before the operator ever saw it. Never re-validated
+    # against Phase-1's internal dataclass here; discover_all_ticket_record_ids()
+    # below only ever reads a plain "url" string key from each entry.
+    network_evidence: list[dict] = []
+    # Optional: the `this_attempt_at` a PRIOR call to this same endpoint
+    # returned, so this call's report can compute elapsed time since that
+    # attempt (see tn_http_replay_diagnostic.py's own docstring on why this
+    # is a caller-supplied value, never state this backend remembers).
+    previous_attempt_at: float | None = None
+
+
+@router.post("/cases/{case_id}/govt/tamil-nadu/http-replay-diagnostic")
+async def govt_tamil_nadu_http_replay_diagnostic_phase2(
+    case_id: int, body: GovtTamilNaduHttpReplayDiagnosticRequest, user=Depends(get_current_user),
+):
+    """TEMPORARY Phase 2 investigation endpoint ONLY — not production status
+    checking, not a permanent feature. Collects two pieces of evidence
+    before any durable cookie-session architecture is built: (A) whether
+    the same exported cookie jar authenticates a SECOND ticket, if one was
+    already naturally observed in Phase-1 network evidence; (B) session
+    durability, via the same cookie-export-per-call, no-caching harness
+    already implemented and tested in tn_http_replay_diagnostic.py.
+
+    Hard-scoped in two independent ways, both required:
+      - case_id must be exactly 3563 (this Phase 2 step's one authorized
+        case) — any other case 404s before any DB query or ownership
+        check is even attempted, so this route's existence for any other
+        case is never even implicitly confirmed;
+      - the resolved reference number must contain the one pre-approved
+        grievance (_TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING,
+        "18968314", the same constant every Phase-1 diagnostic surface
+        already enforces) — a 403 if not.
+
+    Resolves tenant + case ownership + the already-open live session
+    entirely via the existing, unmodified
+    _get_tamil_nadu_live_status_context_for_case() (case-scoped,
+    session_id-free — see that function's own docstring for why the raw
+    session_id never crosses an HTTP boundary here either). Performs NO
+    new browser activity of any kind: no LiveSession is created, no
+    Playwright navigation/click/goto happens, no new network evidence is
+    collected — this function never touches session.page or session.context
+    directly at all; capture_tn_http_replay_diagnostic() (already reviewed,
+    unmodified) is the only thing that ever touches session.context, and
+    only to re-export its current cookies, exactly as it already does.
+
+    The primary ticket id is discovered from the caller-supplied evidence
+    the same way Phase 1 already discovers it (discover_all_ticket_record_ids,
+    unmodified, canonical /portal/api/tickets/{id} shape only) — never
+    hard-coded, never guessed. A 400 if the supplied evidence contains no
+    recognizable ticket id at all (nothing to replay). A second ticket is
+    replayed only if capture_tn_http_replay_diagnostic() itself finds a
+    second, distinct id already present in that same evidence — this
+    endpoint does not pick a second one itself.
+
+    Returns ONLY TnHttpReplayDiagnosticReport.to_safe_dict() — the exact,
+    already-sanitized shape defined in tn_http_replay_diagnostic.py.
+    Never returns or logs session_id, cookies, cookie values, Authorization
+    headers, JWTs, CSRF tokens, response bodies, or raw request headers;
+    the audit log entry below carries only the outcome classification and
+    ticket count, matching the discipline of every other Phase-1/Phase-2
+    log entry in this file."""
+    if case_id != _TN_HTTP_REPLAY_DIAGNOSTIC_PHASE2_CASE_ID:
+        raise HTTPException(404, "Not found")
+
+    tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context_for_case(case_id, user)
+    if _TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING not in reference_number:
+        raise HTTPException(403, "This diagnostic is scoped to a single, pre-approved grievance only.")
+
+    from urllib.parse import urlsplit
+
+    from modules.govt_sync.status.tn_network_diagnostic import discover_all_ticket_record_ids
+    from modules.govt_sync.status.tn_http_replay_diagnostic import capture_tn_http_replay_diagnostic
+
+    base_url = str((session.portal or {}).get("base_url") or "").rstrip("/")
+    expected_host = (urlsplit(base_url).netloc or "").lower() or None
+    observed_ids = discover_all_ticket_record_ids(body.network_evidence, expected_host=expected_host)
+    if not observed_ids:
+        raise HTTPException(400, "No ticket record id was found in the supplied Phase-1 network evidence.")
+
+    report = await capture_tn_http_replay_diagnostic(
+        session, body.network_evidence,
+        primary_record_id=observed_ids[0],
+        previous_attempt_at=body.previous_attempt_at,
+    )
+    _log_govt_action(
+        tid, case_id, "TN_HTTP_REPLAY_DIAGNOSTIC_PHASE2_RUN", user.get("username"),
+        payload={
+            "outcome": report.primary_attempt.outcome,
+            "multiple_tickets_observed": report.multiple_tickets_observed,
+        },
+    )
+    return report.to_safe_dict()
+
+
 @router.post("/cases/{case_id}/govt/session/{session_id}/close")
 async def govt_close_live_session(case_id: int, session_id: str, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)

@@ -132,6 +132,11 @@ CASES = [
     # session_id segment at all (resolved internally from case_id), but
     # still needs the same single-worker affinity to see the LiveSession.
     ("POST", "/api/cases/20/govt/tamil-nadu/diagnostic/run", "backend_govt_live"),
+    # Tamil Nadu HTTP-diagnostic, Phase 2 multi-ticket/durability
+    # (2026-09-08) — same case-scoped, session_id-free shape as the Phase 1
+    # route above; needs the same single-worker affinity to re-export
+    # cookies from the same process-local LiveSession.context.
+    ("POST", "/api/cases/20/govt/tamil-nadu/http-replay-diagnostic", "backend_govt_live"),
 ]
 
 

@@ -90,7 +90,15 @@ api.theneedle.in {
 	# non-trailing wildcard already matches exactly one path segment on
 	# its own, the same shape as the existing
 	# /api/cases/*/govt/session/start pattern already proves works.
-	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/cases/*/govt/session/*/tamil-nadu/diagnostic/http-replay-proof /api/cases/*/govt/session/*/tamil-nadu/diagnostic/arm /api/cases/*/govt/tamil-nadu/diagnostic/run /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close
+	#
+	# Tamil Nadu HTTP-diagnostic, Phase 2 multi-ticket/durability (2026-09-08,
+	# see api_router.py's govt_tamil_nadu_http_replay_diagnostic_phase2 and
+	# modules/govt_sync/status/tn_http_replay_diagnostic.py): same
+	# case-scoped, session_id-free shape as the Phase 1 route immediately
+	# above (one non-trailing wildcard, case_id only) — needs the identical
+	# single-worker affinity since it re-exports cookies from the SAME
+	# process-local LiveSession.context, never creating a new one.
+	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/cases/*/govt/session/*/tamil-nadu/diagnostic/http-replay-proof /api/cases/*/govt/session/*/tamil-nadu/diagnostic/arm /api/cases/*/govt/tamil-nadu/diagnostic/run /api/cases/*/govt/tamil-nadu/http-replay-diagnostic /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close
 	reverse_proxy @govt_live backend_govt_live:8000
 
 	reverse_proxy backend:8000
