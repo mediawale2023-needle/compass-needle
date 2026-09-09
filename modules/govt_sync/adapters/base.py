@@ -45,11 +45,15 @@ class StatusFailureKind(str, Enum):
     AUTH_REQUIRED and SESSION_EXPIRED are kept distinct on purpose,
     exactly because TN HTTP's own code CAN tell them apart structurally
     (not by guessing): AUTH_REQUIRED covers every pre-flight condition
-    where no HTTP request to the portal was even possible or attempted
-    (no cookie session stored yet, a stored session that fails to
-    decrypt, no known ticket mapping for this reference, ...) — i.e.
-    verified access has not been established. SESSION_EXPIRED covers the
-    one case where a request WAS actually sent with real cookies and the
+    where the cookie session itself is what's missing or unusable (no
+    session stored yet, a stored session that fails to decrypt, no
+    usable cookie header, ...) — i.e. verified access has not been
+    established. A missing ticket mapping for a given reference is
+    deliberately NOT classified AUTH_REQUIRED — a perfectly valid cookie
+    session can coexist with Needle simply not yet knowing this
+    reference's ticket id, so that condition is UNKNOWN, not a
+    (mis)classified auth signal. SESSION_EXPIRED covers the one case
+    where a request WAS actually sent with real cookies and the
     portal itself came back 401/403 — i.e. a session that was being used
     just got rejected live. Do not merge these two without re-confirming
     a future adapter's evidence genuinely can't distinguish them the same

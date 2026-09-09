@@ -279,7 +279,12 @@ def test_missing_mapping_never_attempts_numeric_neighbors(monkeypatch):
     result = TamilNaduHTTPStatusAdapter(_portal()).check_status(REF, tenant_id=1)
     assert result.checked is False
     assert result.needs_verification is True
-    assert result.failure_kind == StatusFailureKind.AUTH_REQUIRED
+    assert result.raw_portal_status == "Tamil Nadu access needs verification. Please sign in again."
+    # A valid cookie session may exist even though no ticket mapping is
+    # known for THIS reference — that is not evidence of an auth/session
+    # problem, so it must NOT be classified AUTH_REQUIRED. UNKNOWN is the
+    # correct, evidence-based classification (Phase 2A correction).
+    assert result.failure_kind == StatusFailureKind.UNKNOWN
     get.assert_not_called()
 
 

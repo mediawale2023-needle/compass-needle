@@ -65,8 +65,15 @@ class TamilNaduHTTPStatusAdapter(ManualAssistedAdapter):
         reference = (reference_number or "").strip().upper()
         record_id = (session.ticket_mappings or {}).get(reference)
         if not record_id:
+            # A valid cookie session may exist while Needle simply lacks a
+            # ticket mapping for THIS reference — this is not evidence that
+            # authentication is required or that the session is invalid, so
+            # it must not be classified AUTH_REQUIRED. No adapter has a
+            # reliable signal to say WHY the mapping is missing yet, so
+            # UNKNOWN is the honest classification here, not a new taxonomy
+            # member invented to describe this one gap.
             return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE,
-                                 failure_kind=StatusFailureKind.AUTH_REQUIRED)
+                                 failure_kind=StatusFailureKind.UNKNOWN)
 
         base_url = str(self.portal.get("base_url") or "https://cmhelpline.tnega.org").rstrip("/")
         host = urlsplit(base_url).netloc
