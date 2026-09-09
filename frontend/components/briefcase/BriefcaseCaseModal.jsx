@@ -1759,6 +1759,12 @@ export function resolveGovtEscalateMode(_data) {
     return 'manual_redirect';
 }
 
+export function resolveGovtStatusCheckAction({ isTamilNadu, tamilNaduCookieVerified, interactiveStatusCheck }) {
+    if (isTamilNadu && !tamilNaduCookieVerified) return 'verification_required';
+    if (interactiveStatusCheck) return 'interactive';
+    return 'poll';
+}
+
 const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted, onGovtStateChange }, ref) {
     const toast = useToast();
     // The portal a tenant can use is derived server-side from tenant -> constituency
@@ -1885,9 +1891,8 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         return handlePrepare();
     }
 
-    // Exposed so Escalate (in the citizen complaint's action row) can trigger
-    // this section's filing flow. Rebind when caseId/govtState change so a
-    // thread switch opens the right case.
+    // Exposed so the complaint action panel can invoke filing and status flows
+    // without duplicating portal-specific routing outside this section.
     useImperativeHandle(
         ref,
         () => ({
@@ -1897,8 +1902,9 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 if (mode === 'manual_redirect') return handleEscalateManualRedirect();
                 return handlePrepare();
             },
+            checkGovernmentStatus: () => handleGovernmentStatusCheck(),
         }),
-        [caseId, govtState, resolvedPortal],
+        [caseId, govtState, resolvedPortal, tamilNaduCookieVerified, interactiveStatusCheck],
     );
 
     if (!caseId) return null;
@@ -2175,6 +2181,21 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         } finally {
             setBusy(false);
         }
+    }
+
+    function handleGovernmentStatusCheck() {
+        const action = resolveGovtStatusCheckAction({
+            isTamilNadu: isTamilNaduPortal(),
+            tamilNaduCookieVerified,
+            interactiveStatusCheck,
+        });
+        if (action === 'verification_required') {
+            setNeedsGovtVerification(true);
+            toast.warning('Tamil Nadu access needs verification. Use Verify on Tamil Nadu portal below to continue.');
+            return;
+        }
+        if (action === 'interactive') return handleStartInteractiveCheck();
+        return handlePollNow();
     }
 
     // Interactive status-check flow — a live human-verification sequence
@@ -3130,6 +3151,11 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         if (alreadyFiledFlag) return;
         govtSyncRef.current?.openLiveSession();
     }
+    function handleGovernmentStatusClick() {
+        setGovtOpenSignal((n) => n + 1);
+        govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        govtSyncRef.current?.checkGovernmentStatus();
+    }
     function openLocationRow() {
         setLocationOpenSignal((n) => n + 1);
         detailCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3151,7 +3177,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 bg: C.amberTint, border: C.amber, accent: C.amber, icon: 'clock',
                 tag: 'ACTION REQUIRED',
                 text: `Awaiting action from ${current.govt_department || 'the department'}. Use Check status to pull the latest portal update.`,
-                cta: 'Check government status', onAction: handleEscalateClick,
+                cta: 'Check government status', onAction: handleGovernmentStatusClick,
             };
         }
         if (currentStatus === 'awaiting_location') {

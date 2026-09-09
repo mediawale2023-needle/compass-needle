@@ -1,9 +1,17 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import {
     isTamilNaduLiveSessionActive,
     isTamilNaduResolvedPortal,
+    resolveGovtStatusCheckAction,
 } from '@/components/briefcase/BriefcaseCaseModal';
+
+const modalSource = readFileSync(
+    join(process.cwd(), 'components/briefcase/BriefcaseCaseModal.jsx'),
+    'utf8',
+);
 
 // Regression pin for a real bug: isTamilNaduLiveSessionActive must reflect
 // an ACTUALLY-OPEN live session, never a tenant's merely-resolved state.
@@ -42,5 +50,41 @@ describe('isTamilNaduResolvedPortal', () => {
         expect(isTamilNaduResolvedPortal('Karnataka iPGRS', 'Karnataka')).toBe(false);
         expect(isTamilNaduResolvedPortal('Maharashtra Aaple Sarkar', 'Maharashtra')).toBe(false);
         expect(isTamilNaduResolvedPortal(undefined, undefined)).toBe(false);
+    });
+});
+
+describe('resolveGovtStatusCheckAction', () => {
+    it('routes verified Tamil Nadu access to the normal HTTP poll path', () => {
+        expect(resolveGovtStatusCheckAction({
+            isTamilNadu: true,
+            tamilNaduCookieVerified: true,
+            interactiveStatusCheck: false,
+        })).toBe('poll');
+    });
+
+    it('routes unverified Tamil Nadu access to guidance without opening a live browser', () => {
+        expect(resolveGovtStatusCheckAction({
+            isTamilNadu: true,
+            tamilNaduCookieVerified: false,
+            interactiveStatusCheck: false,
+        })).toBe('verification_required');
+    });
+
+    it('preserves the existing interactive status path for configured non-TN portals', () => {
+        expect(resolveGovtStatusCheckAction({
+            isTamilNadu: false,
+            tamilNaduCookieVerified: false,
+            interactiveStatusCheck: true,
+        })).toBe('interactive');
+    });
+
+    it('wires the right-side status CTA to status checking, not escalation', () => {
+        expect(modalSource).toContain("cta: 'Check government status', onAction: handleGovernmentStatusClick");
+        expect(modalSource).not.toContain("cta: 'Check government status', onAction: handleEscalateClick");
+    });
+
+    it('keeps live-browser startup behind the explicit Tamil Nadu verification button', () => {
+        expect(modalSource).toMatch(/onClick=\{handleStartTnStatusSession\}[\s\S]*?'Verify on Tamil Nadu portal'/);
+        expect(modalSource).toContain('govtSyncRef.current?.checkGovernmentStatus()');
     });
 });
