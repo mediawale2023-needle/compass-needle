@@ -6,6 +6,7 @@ import {
     isTamilNaduLiveSessionActive,
     isTamilNaduResolvedPortal,
     resolveGovtStatusCheckAction,
+    scopeLiveSessionToCase,
     shouldShowGovtVerificationWorkspace,
 } from '@/components/briefcase/BriefcaseCaseModal';
 
@@ -131,6 +132,48 @@ describe('shouldShowGovtVerificationWorkspace', () => {
         expect(startHandler).toContain('setTnVerificationMode(true)');
         expect(startHandler).toContain('setLive(existing)');
         expect(modalSource).toContain('hostedSessions.length > 0 && showGovtVerificationWorkspace');
-        expect(modalSource).toContain('liveSession && showGovtVerificationWorkspace');
+        expect(modalSource).toContain('currentLiveSession && showGovtVerificationWorkspace');
+    });
+});
+
+describe('case-scoped live-session lifecycle', () => {
+    const caseASession = {
+        case_id: 101,
+        session_id: 'case-a-session',
+        ws_path: '/api/govt/session/case-a-session/stream',
+        portal_name: 'Tamil Nadu CM Helpline (Mudhalvarin Mugavari)',
+    };
+
+    it('rejects Case A liveSession immediately when rendering Case B', () => {
+        expect(scopeLiveSessionToCase(caseASession, 101)).toBe(caseASession);
+        expect(scopeLiveSessionToCase(caseASession, 202)).toBeNull();
+    });
+
+    it('cannot pass a stale Case A session or ws_path to Case B browser rendering', () => {
+        const caseBLiveSession = scopeLiveSessionToCase(caseASession, 202);
+        expect(caseBLiveSession).toBeNull();
+        expect(caseBLiveSession?.ws_path).toBeUndefined();
+        expect(modalSource).toContain('currentLiveSession && showGovtVerificationWorkspace');
+        expect(modalSource).toContain('wsPath={currentLiveSession.ws_path}');
+    });
+
+    it('clears both liveSession and liveSessionRef at the start of the caseId effect', () => {
+        const lifecycleEffect = modalSource.match(/useEffect\(\(\) => \{\n        if \(!caseId\) return;[\s\S]*?\n    \}, \[caseId\]\);/)?.[0] || '';
+        expect(lifecycleEffect).toMatch(/if \(!caseId\) return;\n        setLive\(null\);/);
+        expect(modalSource).toMatch(/function setLive\(session\) \{[\s\S]*?liveSessionRef\.current = scopedSession;[\s\S]*?setLiveSession\(scopedSession\)/);
+    });
+
+    it('preserves cleanup of the previous case backend session', () => {
+        expect(modalSource).toMatch(/return \(\) => \{[\s\S]*?liveSessionRef\.current[\s\S]*?\/govt\/session\/\$\{session\.session_id\}\/close/);
+    });
+
+    it('stamps newly started sessions with the current case before attachment', () => {
+        expect(modalSource).toContain('? { ...session, case_id: caseId }');
+        expect(scopeLiveSessionToCase({ ...caseASession, case_id: 202 }, 202)?.session_id).toBe('case-a-session');
+    });
+
+    it('routes the journey refresh control to status checking rather than escalation', () => {
+        expect(modalSource).toContain('onRefresh={handleGovernmentStatusClick}');
+        expect(modalSource).not.toContain('onRefresh={handleEscalateClick}');
     });
 });

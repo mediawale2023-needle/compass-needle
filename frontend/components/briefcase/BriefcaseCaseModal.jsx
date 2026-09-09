@@ -1769,6 +1769,11 @@ export function shouldShowGovtVerificationWorkspace({ isTamilNadu, alreadyFiled,
     return !isTamilNadu || !alreadyFiled || verificationMode;
 }
 
+export function scopeLiveSessionToCase(session, caseId) {
+    if (!session || caseId == null) return null;
+    return String(session.case_id) === String(caseId) ? session : null;
+}
+
 const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted, onGovtStateChange }, ref) {
     const toast = useToast();
     // The portal a tenant can use is derived server-side from tenant -> constituency
@@ -1802,6 +1807,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
 
     useEffect(() => {
         if (!caseId) return;
+        setLive(null);
         setNeedsGovtVerification(false);
         setInteractiveAttempt(null);
         setInteractiveAnswers({ captcha: '', otp: '' });
@@ -1921,9 +1927,14 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const locked = !hasPortal && !alreadyFiled;
 
     function setLive(session) {
-        liveSessionRef.current = session;
-        setLiveSession(session);
+        const scopedSession = session && session.case_id == null
+            ? { ...session, case_id: caseId }
+            : session;
+        liveSessionRef.current = scopedSession;
+        setLiveSession(scopedSession);
     }
+
+    const currentLiveSession = scopeLiveSessionToCase(liveSession, caseId);
 
     async function refreshGovtViews() {
         const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
@@ -2037,7 +2048,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     }
 
     function isTamilNaduSession() {
-        return isTamilNaduLiveSessionActive(liveSession?.portal_name);
+        return isTamilNaduLiveSessionActive(currentLiveSession?.portal_name);
     }
 
     // Whether this tenant's resolved portal is Tamil Nadu — independent of
@@ -2288,8 +2299,8 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         ['Subject', ws?.subject],
         ['Description', ws?.description],
         ['Priority category', ws?.priority_category],
-        ['Filer/citizen name to enter on portal', worksheet?.portal_filer_name || liveSession?.portal_filer_name],
-        ['Contact number to enter on portal', worksheet?.portal_contact_number || liveSession?.portal_contact_number],
+        ['Filer/citizen name to enter on portal', worksheet?.portal_filer_name || currentLiveSession?.portal_filer_name],
+        ['Contact number to enter on portal', worksheet?.portal_contact_number || currentLiveSession?.portal_contact_number],
     ].filter(([, value]) => String(value || '').trim()).map(([label, value]) => [label, String(value).trim()]);
     // A case keeps whatever portal it was prepared against forever, even after a
     // better match becomes available (e.g. this tenant's state didn't have its own
@@ -2391,7 +2402,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                             {hostedSessions.map((item) => {
                                 const minutes = Math.max(1, Math.round((item.age_seconds || 0) / 60));
                                 const isThisCase = item.case_id === caseId;
-                                const isViewing = liveSession?.session_id === item.session_id;
+                                const isViewing = currentLiveSession?.session_id === item.session_id;
                                 return (
                                     <div key={item.session_id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
                                         <span style={{ flex: '1 1 160px' }}>
@@ -2458,16 +2469,16 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                         </div>
                     )}
 
-                    {liveSession && showGovtVerificationWorkspace && (
+                    {currentLiveSession && showGovtVerificationWorkspace && (
                         <div>
                             <GovtLiveBrowserView
-                                wsPath={liveSession.ws_path}
-                                viewport={liveSession.viewport}
+                                wsPath={currentLiveSession.ws_path}
+                                viewport={currentLiveSession.viewport}
                                 onClose={handleCloseLive}
                                 onSessionGone={handleSessionGone}
                                 preparedFields={preparedFields}
                                 workspaceMode={GOVT_FILING_WORKSPACE_SPIKE}
-                                portalName={liveSession.portal_name || resolvedPortal?.portal?.portal_name}
+                                portalName={currentLiveSession.portal_name || resolvedPortal?.portal?.portal_name}
                             />
                             {!alreadyFiled && (
                                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -3569,7 +3580,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                         current={current}
                                         narrow={isMobile}
                                         onViewSubmission={() => { setGovtOpenSignal((n) => n + 1); govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
-                                        onRefresh={handleEscalateClick}
+                                        onRefresh={handleGovernmentStatusClick}
                                     />
 
                                     <div ref={detailCardRef} style={{ border: `1px solid ${C.hair}`, borderRadius: 12, overflow: 'hidden', background: C.card }}>
