@@ -4036,21 +4036,12 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
         )
         return diagnostic_response({"success": True, "changed": False, "govt_status": case["govt_status"], "note": _GOVT_NO_STATUS_CHANGE_NOTE})
 
-    changed = result.status != case["govt_status"]
-    if changed:
-        with engine.begin() as conn:
-            conn.execute(
-                text("UPDATE cases SET govt_status = :status, govt_status_updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
-                {"status": result.status, "now": _utcnow(), "cid": case_id, "tid": tid},
-            )
-    _log_govt_action(
-        tid,
-        case_id,
-        "status_polled",
-        user.get("username"),
-        payload=_govt_status_poll_payload(case, result, case.get("portal_name")),
+    from modules.govt_sync.orchestrator import persist_successful_status_result
+
+    changed = persist_successful_status_result(
+        tenant_id=tid, case_id=case_id, case_row=case, result=result,
+        actor_username=user.get("username"),
     )
-    _observe_govt_status_snapshot(tid, case_id, case, result, actor_username=user.get("username"))
 
     return diagnostic_response({
         "success": True,
