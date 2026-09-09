@@ -6,6 +6,7 @@ import {
     isTamilNaduLiveSessionActive,
     isTamilNaduResolvedPortal,
     resolveGovtStatusCheckAction,
+    shouldShowGovtVerificationWorkspace,
 } from '@/components/briefcase/BriefcaseCaseModal';
 
 const modalSource = readFileSync(
@@ -81,10 +82,55 @@ describe('resolveGovtStatusCheckAction', () => {
     it('wires the right-side status CTA to status checking, not escalation', () => {
         expect(modalSource).toContain("cta: 'Check government status', onAction: handleGovernmentStatusClick");
         expect(modalSource).not.toContain("cta: 'Check government status', onAction: handleEscalateClick");
+        expect(modalSource).toMatch(/const action = govtSyncRef\.current\?\.checkGovernmentStatus\(\);[\s\S]*?if \(action === 'verification_required'\) \{[\s\S]*?scrollIntoView/);
     });
 
     it('keeps live-browser startup behind the explicit Tamil Nadu verification button', () => {
-        expect(modalSource).toMatch(/onClick=\{handleStartTnStatusSession\}[\s\S]*?'Verify on Tamil Nadu portal'/);
+        expect(modalSource).toMatch(/onClick=\{handleStartTnStatusSession\}[\s\S]*?'Verify access'/);
         expect(modalSource).toContain('govtSyncRef.current?.checkGovernmentStatus()');
+    });
+});
+
+describe('shouldShowGovtVerificationWorkspace', () => {
+    it('keeps filed TN cases compact outside explicit verification', () => {
+        expect(shouldShowGovtVerificationWorkspace({
+            isTamilNadu: true,
+            alreadyFiled: true,
+            verificationMode: false,
+        })).toBe(false);
+    });
+
+    it('shows the TN browser workspace only during explicit verification', () => {
+        expect(shouldShowGovtVerificationWorkspace({
+            isTamilNadu: true,
+            alreadyFiled: true,
+            verificationMode: true,
+        })).toBe(true);
+    });
+
+    it('does not change existing-state or unfiled filing workspaces', () => {
+        expect(shouldShowGovtVerificationWorkspace({
+            isTamilNadu: false,
+            alreadyFiled: true,
+            verificationMode: false,
+        })).toBe(true);
+        expect(shouldShowGovtVerificationWorkspace({
+            isTamilNadu: true,
+            alreadyFiled: false,
+            verificationMode: false,
+        })).toBe(true);
+    });
+
+    it('closes the promoted browser session before returning to compact status UI', () => {
+        expect(modalSource).toMatch(/if \(result\.promoted\) \{[\s\S]*?await handleCloseLive\(\)/);
+        expect(modalSource).toContain('if (isTamilNaduLiveSessionActive(session.portal_name)) setTnVerificationMode(false)');
+    });
+
+    it('only reconnects a discovered TN session inside the explicit verification handler', () => {
+        const startHandler = modalSource.match(/async function handleStartTnStatusSession\(\) \{[\s\S]*?\n    \}/)?.[0] || '';
+        expect(startHandler).toContain('setTnVerificationMode(true)');
+        expect(startHandler).toContain('setLive(existing)');
+        expect(modalSource).toContain('hostedSessions.length > 0 && showGovtVerificationWorkspace');
+        expect(modalSource).toContain('liveSession && showGovtVerificationWorkspace');
     });
 });

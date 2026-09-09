@@ -1765,6 +1765,10 @@ export function resolveGovtStatusCheckAction({ isTamilNadu, tamilNaduCookieVerif
     return 'poll';
 }
 
+export function shouldShowGovtVerificationWorkspace({ isTamilNadu, alreadyFiled, verificationMode }) {
+    return !isTamilNadu || !alreadyFiled || verificationMode;
+}
+
 const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted, onGovtStateChange }, ref) {
     const toast = useToast();
     // The portal a tenant can use is derived server-side from tenant -> constituency
@@ -1786,6 +1790,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const [interactiveAttempt, setInteractiveAttempt] = useState(null);
     const [interactiveAnswers, setInteractiveAnswers] = useState({ captcha: '', otp: '' });
     const [liveSession, setLiveSession] = useState(null); // { session_id, ws_path, viewport, portal_name }
+    const [tnVerificationMode, setTnVerificationMode] = useState(false);
     // Last response from the Tamil Nadu assisted status-check endpoint. null
     // until a check runs; carries { checkpoint, state, note, ... }.
     const [tnStatusResult, setTnStatusResult] = useState(null);
@@ -1801,6 +1806,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         setInteractiveAttempt(null);
         setInteractiveAnswers({ captcha: '', otp: '' });
         setTnStatusResult(null);
+        setTnVerificationMode(false);
         apiGet(`/api/cases/${caseId}/govt`).then(setGovtState).catch(() => setGovtState(null));
         apiGet(`/api/cases/${caseId}/govt/history`).then(setGovtHistory).catch(() => setGovtHistory(null));
     }, [caseId]);
@@ -1935,6 +1941,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     // 404 every time they're pressed.
     function handleSessionGone() {
         setLive(null);
+        setTnVerificationMode(false);
         toast.error('That live session ended (the server restarted since it was opened) — click Escalate on the complaint to start a new one');
     }
 
@@ -1977,6 +1984,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
             await apiPost(`/api/govt/sessions/${session.session_id}/close`, {});
         } catch { /* best effort */ }
         setLive(null);
+        if (isTamilNaduLiveSessionActive(session.portal_name)) setTnVerificationMode(false);
         await loadHostedSessions();
     }
 
@@ -2040,6 +2048,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     }
 
     async function handleStartTnStatusSession() {
+        setTnVerificationMode(true);
         setLiveConnecting(true);
         try {
             const listed = await loadHostedSessions();
@@ -2057,6 +2066,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
             await loadHostedSessions();
         } catch (e) {
             setLive(null);
+            setTnVerificationMode(false);
             await loadHostedSessions();
             toast.error(e.message || 'Could not open the Tamil Nadu portal');
         } finally {
@@ -2119,6 +2129,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 const portal = await apiGet('/api/govt-portal');
                 setResolvedPortal(portal);
                 await refreshGovtViews();
+                await handleCloseLive();
             } else {
                 toast.warning(result.note || 'Tamil Nadu access needs verification. Please sign in again.');
             }
@@ -2192,10 +2203,11 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         if (action === 'verification_required') {
             setNeedsGovtVerification(true);
             toast.warning('Tamil Nadu access needs verification. Use Verify on Tamil Nadu portal below to continue.');
-            return;
+            return action;
         }
-        if (action === 'interactive') return handleStartInteractiveCheck();
-        return handlePollNow();
+        if (action === 'interactive') handleStartInteractiveCheck();
+        else handlePollNow();
+        return action;
     }
 
     // Interactive status-check flow — a live human-verification sequence
@@ -2290,12 +2302,17 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         hasPortal && status === 'pending_staff_submit' &&
         resolvedPortal?.portal && resolvedPortal.portal.id !== govtState.case.govt_portal_id
     );
+    const showGovtVerificationWorkspace = shouldShowGovtVerificationWorkspace({
+        isTamilNadu: isTamilNaduPortal(),
+        alreadyFiled,
+        verificationMode: tnVerificationMode,
+    });
 
     return (
         <div style={sec}>
             <SectionHeading
                 n={3}
-                label="Government portal filing"
+                label={isTamilNaduPortal() && alreadyFiled && !tnVerificationMode ? 'Government status' : 'Government portal filing'}
                 trailing={
                     <span style={{
                         fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
@@ -2357,7 +2374,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 </div>
             ) : (
                 <>
-                    {hostedSessions.length > 0 && (
+                    {hostedSessions.length > 0 && showGovtVerificationWorkspace && (
                         <div style={{
                             fontSize: 11.5, color: C.ink, background: C.saffronTint, border: `1px solid ${C.hair}`,
                             padding: '8px 10px', marginBottom: 10,
@@ -2410,7 +2427,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                         </div>
                     )}
 
-                    {hasPortal && ws && (
+                    {hasPortal && ws && showGovtVerificationWorkspace && (
                         <div style={{ marginTop: hasPortal && !ws ? 0 : 4 }}>
                             <GovtSyncCopyField label="Department" value={ws.department} />
                             <GovtSyncCopyField label="Subject" value={ws.subject} />
@@ -2441,7 +2458,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                         </div>
                     )}
 
-                    {liveSession && (
+                    {liveSession && showGovtVerificationWorkspace && (
                         <div>
                             <GovtLiveBrowserView
                                 wsPath={liveSession.ws_path}
@@ -2613,7 +2630,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                             </Button>
                                         ) : (
                                             <Button size="sm" variant="outline" disabled={liveConnecting} onClick={handleStartTnStatusSession}>
-                                                {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Verify on Tamil Nadu portal'}
+                                                {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Verify access'}
                                             </Button>
                                         )}
                                         {isMp && (
@@ -3152,9 +3169,11 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         govtSyncRef.current?.openLiveSession();
     }
     function handleGovernmentStatusClick() {
-        setGovtOpenSignal((n) => n + 1);
-        govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        govtSyncRef.current?.checkGovernmentStatus();
+        const action = govtSyncRef.current?.checkGovernmentStatus();
+        if (action === 'verification_required') {
+            setGovtOpenSignal((n) => n + 1);
+            govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
     function openLocationRow() {
         setLocationOpenSignal((n) => n + 1);
