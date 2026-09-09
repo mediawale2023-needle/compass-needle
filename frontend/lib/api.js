@@ -9,6 +9,7 @@
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const REQUEST_TIMEOUT = 8000;   // 8 seconds for normal data calls
+const GOVT_POLL_TIMEOUT = 20000; // Govt status adapters may use up to 15s for one read-only portal request
 const AI_TIMEOUT = 60000;       // 60 seconds for AI endpoints (Gemini can take 15-30s)
 const GOVT_SESSION_TIMEOUT = 120000; // Playwright launch + portal page load
 const LOGIN_TIMEOUT = 28000;    // 28 seconds for login (handles cold start / slow wake)
@@ -21,6 +22,7 @@ function timeoutForPath(path, options) {
     if (options.timeout != null) return options.timeout;
     if (path.includes('/auth/login')) return LOGIN_TIMEOUT;
     if (path.includes('/govt/session/start')) return GOVT_SESSION_TIMEOUT;
+    if (path.includes('/govt/poll')) return GOVT_POLL_TIMEOUT;
     if (path.includes('/govt/translate')) return AI_TIMEOUT;
     return REQUEST_TIMEOUT;
 }
@@ -31,6 +33,9 @@ function maxRetriesForPath(path, options) {
     // Do not retry Playwright session start — a timed-out client still leaves
     // the backend browser running, and a retry would open a second one.
     if (path.includes('/govt/session/start')) return 0;
+    // A timed-out status poll can likewise continue server-side. Retrying it
+    // would turn one explicit staff action into two concurrent portal reads.
+    if (path.includes('/govt/poll')) return 0;
     if (path.includes('/auth/login')) return LOGIN_MAX_RETRIES;
     return MAX_RETRIES;
 }
@@ -38,6 +43,9 @@ function maxRetriesForPath(path, options) {
 function abortMessageForPath(path) {
     if (path.includes('/govt/session/start')) {
         return 'The government portal took too long to open. Click Escalate to try again.';
+    }
+    if (path.includes('/govt/poll')) {
+        return 'The government portal took too long to respond. Please try again.';
     }
     if (path.includes('/govt/translate')) {
         return 'Worksheet generation timed out. Click Escalate to try again.';
