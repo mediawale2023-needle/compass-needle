@@ -2187,9 +2187,18 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     }
 
     async function handlePollNow() {
+        const diagnosticStartedAt = performance.now();
+        const endpoint = `/api/cases/${caseId}/govt/poll`;
         setBusy(true);
+        console.info('[GOVT_STATUS_DIAG] poll request start', { caseId, endpoint });
         try {
-            const result = await apiPost(`/api/cases/${caseId}/govt/poll`, {});
+            const result = await apiPost(endpoint, {});
+            console.info('[GOVT_STATUS_DIAG] poll request success', {
+                caseId,
+                endpoint,
+                httpStatus: 200,
+                durationMs: Math.round(performance.now() - diagnosticStartedAt),
+            });
             await refreshGovtViews();
             setNeedsGovtVerification(!!result.needs_verification);
             if (result.needs_verification) {
@@ -2199,19 +2208,43 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 toast.success(result.changed ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}` : (raw ? `Portal still says: ${raw}` : (result.note || 'No change yet')));
             }
         } catch (e) {
+            console.error('[GOVT_STATUS_DIAG] poll request error', {
+                caseId,
+                endpoint,
+                errorType: e?.name || 'Error',
+                errorMessage: e?.message || 'Status check failed',
+                durationMs: Math.round(performance.now() - diagnosticStartedAt),
+            });
             toast.error(e.message || 'Status check failed');
         } finally {
+            console.info('[GOVT_STATUS_DIAG] status check finished', {
+                caseId,
+                durationMs: Math.round(performance.now() - diagnosticStartedAt),
+            });
             setBusy(false);
         }
     }
 
     function handleGovernmentStatusCheck() {
+        const isTamilNadu = isTamilNaduPortal();
         const action = resolveGovtStatusCheckAction({
-            isTamilNadu: isTamilNaduPortal(),
+            isTamilNadu,
             tamilNaduCookieVerified,
             interactiveStatusCheck,
         });
+        console.info('[GOVT_STATUS_DIAG] verification decision', {
+            caseId,
+            portalType: resolvedPortal?.portal?.portal_type || null,
+            verificationState: cookieVerification?.status || null,
+            isTamilNadu,
+            action,
+        });
         if (action === 'verification_required') {
+            console.info('[GOVT_STATUS_DIAG] early return', {
+                caseId,
+                action,
+                reason: 'verification_required',
+            });
             setNeedsGovtVerification(true);
             toast.warning('Tamil Nadu access needs verification. Use Verify on Tamil Nadu portal below to continue.');
             return action;
@@ -3180,6 +3213,10 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         govtSyncRef.current?.openLiveSession();
     }
     function handleGovernmentStatusClick() {
+        console.info('[GOVT_STATUS_DIAG] action panel click', {
+            caseId,
+            action: 'check_government_status',
+        });
         const action = govtSyncRef.current?.checkGovernmentStatus();
         if (action === 'verification_required') {
             setGovtOpenSignal((n) => n + 1);

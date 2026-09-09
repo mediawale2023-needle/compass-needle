@@ -1,5 +1,11 @@
 # Task Log
 
+- Date: 2026-09-09
+- Request: Add temporary diagnostic-only instrumentation for the production "Check government status" path, without fixing or deploying it.
+- Summary: Added removable `[GOVT_STATUS_DIAG]` frontend traces for action-panel entry, verification decision, fail-closed early return, `/govt/poll` start/success/error, and total duration. Added matching backend route/adapter selection, start, completion, exception-type, result-state, and total-duration traces. Added focused assertions that verified TN access reaches the HTTP poll path while unverified TN access returns to guidance without opening a live browser.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `api_router.py`, `frontend/tests/briefcase-tamil-nadu-session.test.jsx`, `TASK_LOG.md`.
+- Safety: Diagnostic-only; no production behavior, timeout/retry behavior, TN adapter, session lifecycle, database/schema, polling interval, or government interaction changed. No live government request or grievance mutation occurred. Not committed, pushed, or deployed.
+
 Chronological log of completed repository work. Read before making changes to understand recent context.
 
 ## Entry Template
@@ -16,7 +22,7 @@ Chronological log of completed repository work. Read before making changes to un
 - Request: Fix the confirmed stale GovtSync `liveSession` state that could render Case A's TN browser after switching to Case B, and correct the journey-card refresh handler; validate only, with no commit/push/deploy.
 - Summary: The existing `[caseId]` lifecycle effect now calls the existing `setLive(null)` abstraction before resetting verification state and loading the new case. `setLive()` stamps the active `case_id` onto new session-start responses (hosted-session metadata already has it), keeping React state and `liveSessionRef` synchronized. `scopeLiveSessionToCase()` supplies a render-time ownership guard so the old case's session and `ws_path` cannot render during the pre-effect case-switch frame. Previous-case backend cleanup remains unchanged in the separate effect cleanup. `GovernmentJourneyPanel.onRefresh` now uses `handleGovernmentStatusClick`, not `handleEscalateClick`.
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `frontend/tests/briefcase-tamil-nadu-session.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`.
-- Verification: Focused TN lifecycle suite passed (21/21); full frontend suite passed (49/49); frontend production build passed; GovtSync regression bundle passed (282/282). Impeccable reported only the pre-existing line-1332 side-border warning. Backend, TN HTTP adapter, protected state adapters, OTP, Playwright/browser-session infrastructure, filing, and Caddy remain unchanged. No live TN request or grievance mutation occurred. Not committed, pushed, or deployed.
+- Verification: Focused TN lifecycle suite passed (21/21); full frontend suite passed (49/49); frontend production build passed; GovtSync regression bundle passed (282/282). Impeccable reported only the pre-existing line-1332 side-border warning. Backend, TN HTTP adapter, protected state adapters, OTP, Playwright/browser-session infrastructure, filing, and Caddy remain unchanged. No live TN request or grievance mutation occurred. Committed as `87758b4a8ba1246cde6b50c4a8e3fd31ff67569e`, pushed to `main`, and deployed successfully to the production `compass-needle-lacd` Vercel project; the production dashboard serves chunk `page-42b4c096dbc0e9ea.js`.
 
 - Date: 2026-09-09
 - Request: Make Tamil Nadu verification a temporary explicit authentication bootstrap while keeping normal verified status checks compact and HTTP-only.

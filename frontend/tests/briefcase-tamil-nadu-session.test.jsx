@@ -62,6 +62,9 @@ describe('resolveGovtStatusCheckAction', () => {
             tamilNaduCookieVerified: true,
             interactiveStatusCheck: false,
         })).toBe('poll');
+        expect(modalSource).toMatch(/async function handlePollNow\(\)[\s\S]*?apiPost\(endpoint, \{\}\)/);
+        expect(modalSource).toContain('checkGovernmentStatus: () => handleGovernmentStatusCheck()');
+        expect(modalSource).not.toMatch(/function handleGovernmentStatusCheck\(\)[\s\S]*?if \(action === 'poll'\)[\s\S]*?handleStartTnStatusSession/);
     });
 
     it('routes unverified Tamil Nadu access to guidance without opening a live browser', () => {
@@ -70,6 +73,9 @@ describe('resolveGovtStatusCheckAction', () => {
             tamilNaduCookieVerified: false,
             interactiveStatusCheck: false,
         })).toBe('verification_required');
+        const statusHandler = modalSource.match(/function handleGovernmentStatusCheck\(\) \{[\s\S]*?\n    \}/)?.[0] || '';
+        expect(statusHandler).toMatch(/if \(action === 'verification_required'\) \{[\s\S]*?return action;[\s\S]*?handlePollNow\(\)/);
+        expect(statusHandler).not.toContain('handleStartTnStatusSession');
     });
 
     it('preserves the existing interactive status path for configured non-TN portals', () => {

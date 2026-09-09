@@ -11,6 +11,7 @@ import logging
 import re
 import secrets
 import string
+import time
 import uuid
 from datetime import datetime, timedelta, timezone, date
 from typing import Optional
@@ -3963,7 +3964,9 @@ def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_cur
 @router.post("/cases/{case_id}/govt/poll")
 def govt_poll_case(case_id: int, user=Depends(get_current_user)):
     """On-demand status check against the portal (read-only, public reference lookup only)."""
+    diagnostic_started_at = time.monotonic()
     tid = get_tenant_or_fail(user)
+    logger.info("[GOVT_STATUS_DIAG] poll entry case_id=%s", case_id)
     case = _q_one(
         """SELECT c.id, c.govt_status, c.govt_reference_number, c.govt_portal_id, p.id AS portal_id,
                   p.portal_name, p.portal_type, p.base_url, p.status_check_url, p.status_check_mode,
@@ -3979,7 +3982,33 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
 
     from modules.govt_sync.adapters import get_adapter
     adapter = get_adapter(case)
-    result = adapter.check_status(case["govt_reference_number"], tenant_id=tid)
+    adapter_name = type(adapter).__name__
+    logger.info(
+        "[GOVT_STATUS_DIAG] adapter selected case_id=%s portal_type=%s adapter=%s",
+        case_id, case.get("portal_type"), adapter_name,
+    )
+    logger.info("[GOVT_STATUS_DIAG] adapter start case_id=%s adapter=%s", case_id, adapter_name)
+    try:
+        result = adapter.check_status(case["govt_reference_number"], tenant_id=tid)
+    except Exception as exc:
+        logger.error(
+            "[GOVT_STATUS_DIAG] adapter exception case_id=%s adapter=%s error_type=%s duration_ms=%s",
+            case_id, adapter_name, type(exc).__name__, round((time.monotonic() - diagnostic_started_at) * 1000),
+        )
+        raise
+    logger.info(
+        "[GOVT_STATUS_DIAG] adapter completion case_id=%s adapter=%s checked=%s needs_verification=%s result_status=%s duration_ms=%s",
+        case_id, adapter_name, bool(result.checked), bool(getattr(result, "needs_verification", False)),
+        result.status or None, round((time.monotonic() - diagnostic_started_at) * 1000),
+    )
+
+    def diagnostic_response(payload: dict) -> dict:
+        logger.info(
+            "[GOVT_STATUS_DIAG] poll completion case_id=%s adapter=%s success=%s result_status=%s duration_ms=%s",
+            case_id, adapter_name, payload.get("success"), payload.get("govt_status"),
+            round((time.monotonic() - diagnostic_started_at) * 1000),
+        )
+        return payload
 
     if getattr(result, "needs_verification", False):
         note = (
@@ -3991,11 +4020,11 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
             tid, case_id, "status_check_needs_verification", user.get("username"),
             payload={"portal": case.get("portal_name"), "raw_portal_status": getattr(result, "raw_portal_status", None)},
         )
-        return {
+        return diagnostic_response({
             "success": True, "changed": False, "govt_status": case["govt_status"],
             "needs_verification": True,
             "note": note,
-        }
+        })
     if not result.checked or not result.status:
         # Distinct action, never "status_polled" — the latter must stay
         # reserved for genuinely successful checks, since "last successfully
@@ -4005,7 +4034,7 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
             tid, case_id, "status_check_inconclusive", user.get("username"),
             payload={"portal": case.get("portal_name"), "raw_portal_status": getattr(result, "raw_portal_status", None)},
         )
-        return {"success": True, "changed": False, "govt_status": case["govt_status"], "note": _GOVT_NO_STATUS_CHANGE_NOTE}
+        return diagnostic_response({"success": True, "changed": False, "govt_status": case["govt_status"], "note": _GOVT_NO_STATUS_CHANGE_NOTE})
 
     changed = result.status != case["govt_status"]
     if changed:
@@ -4023,13 +4052,13 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
     )
     _observe_govt_status_snapshot(tid, case_id, case, result, actor_username=user.get("username"))
 
-    return {
+    return diagnostic_response({
         "success": True,
         "changed": changed,
         "govt_status": result.status,
         "raw_portal_status": result.raw_portal_status,
         "portal_detail": getattr(result, "portal_detail", None) or {},
-    }
+    })
 
 
 def _govt_status_check_case_row(case_id: int, tid: int) -> dict | None:
