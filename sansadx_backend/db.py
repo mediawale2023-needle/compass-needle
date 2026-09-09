@@ -272,6 +272,33 @@ class GovtStatusCheckAttempt(Base):
     last_activity_at = Column(DateTime, default=datetime.utcnow)
 
 
+class GovtCookieSession(Base):
+    """Encrypted, tenant/portal-scoped cookie session for authenticated portals.
+
+    Tamil Nadu's inboard status check reuses the authenticated cookies a staff
+    member obtained via the normal browser login flow. The cookie jar is
+    encrypted before storage and decrypted only by modules.govt_sync.cookie_sessions.
+    """
+    __tablename__ = "govt_cookie_sessions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "portal_id", name="uq_govt_cookie_sessions_tenant_portal"),
+        Index("idx_govt_cookie_sessions_tenant_portal", "tenant_id", "portal_id"),
+        Index("idx_govt_cookie_sessions_requires_verification", "requires_verification"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    portal_id = Column(Integer, ForeignKey("govt_portals.id"), nullable=False, index=True)
+    encrypted_cookie_jar = Column(Text, nullable=False)
+    ticket_mappings = Column(JSON, nullable=False, default=dict)
+    captured_at = Column(DateTime, default=datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=True)
+    last_auth_failed_at = Column(DateTime, nullable=True)
+    requires_verification = Column(Boolean, nullable=False, default=False)
+    expires_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class GovtStatusSnapshot(Base):
     """Point-in-time government portal status read, stored beside current state."""
     __tablename__ = "govt_status_snapshots"

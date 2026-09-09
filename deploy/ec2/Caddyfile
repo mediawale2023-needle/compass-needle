@@ -98,7 +98,7 @@ api.theneedle.in {
 	# above (one non-trailing wildcard, case_id only) — needs the identical
 	# single-worker affinity since it re-exports cookies from the SAME
 	# process-local LiveSession.context, never creating a new one.
-	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/cases/*/govt/session/*/tamil-nadu/diagnostic/http-replay-proof /api/cases/*/govt/session/*/tamil-nadu/diagnostic/arm /api/cases/*/govt/tamil-nadu/diagnostic/run /api/cases/*/govt/tamil-nadu/http-replay-diagnostic /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close
+	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/cases/*/govt/session/*/tamil-nadu/promote-session /api/cases/*/govt/session/*/tamil-nadu/diagnostic/http-replay-proof /api/cases/*/govt/session/*/tamil-nadu/diagnostic/arm /api/cases/*/govt/tamil-nadu/diagnostic/run /api/cases/*/govt/tamil-nadu/http-replay-diagnostic /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close
 	reverse_proxy @govt_live backend_govt_live:8000
 
 	reverse_proxy backend:8000

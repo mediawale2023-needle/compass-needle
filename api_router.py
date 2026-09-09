@@ -3530,6 +3530,10 @@ def get_resolved_govt_portal(user=Depends(get_current_user)):
                     _govt_interactive_status_check_supported(portal)
                     if portal.get("status_check_adapter") else False
                 ),
+                "cookie_verification": (
+                    _govt_cookie_verification_state(tid, portal)
+                    if portal.get("status_check_adapter") == "tamil_nadu_http_api" else None
+                ),
             }
             if portal else None
         ),
@@ -3553,6 +3557,15 @@ def _govt_interactive_status_check_supported(portal: dict) -> bool:
     from modules.govt_sync.adapters import get_adapter
     adapter = get_adapter(portal)
     return hasattr(adapter, "start") and hasattr(adapter, "advance")
+
+
+def _govt_cookie_verification_state(tid: int, portal: dict) -> dict | None:
+    from modules.govt_sync.adapters import get_adapter
+
+    adapter = get_adapter(portal)
+    if not hasattr(adapter, "verification_state"):
+        return None
+    return adapter.verification_state(tid)
 
 
 def _get_portal_contact_number(tid: int) -> str | None:
@@ -3969,6 +3982,11 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
     result = adapter.check_status(case["govt_reference_number"], tenant_id=tid)
 
     if getattr(result, "needs_verification", False):
+        note = (
+            "Tamil Nadu access needs verification. Please sign in again."
+            if case.get("status_check_adapter") == "tamil_nadu_http_api"
+            else "Verify Rajasthan Sampark access under Settings → Government Portal, then try again."
+        )
         _log_govt_action(
             tid, case_id, "status_check_needs_verification", user.get("username"),
             payload={"portal": case.get("portal_name"), "raw_portal_status": getattr(result, "raw_portal_status", None)},
@@ -3976,7 +3994,7 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
         return {
             "success": True, "changed": False, "govt_status": case["govt_status"],
             "needs_verification": True,
-            "note": "Verify Rajasthan Sampark access under Settings → Government Portal, then try again.",
+            "note": note,
         }
     if not result.checked or not result.status:
         # Distinct action, never "status_polled" — the latter must stay
@@ -4660,6 +4678,61 @@ async def govt_tamil_nadu_check_status(case_id: int, session_id: str, user=Depen
         "checkpoint": False,
         "govt_status": normalized if changed else old_status,
         **payload,
+    }
+
+
+@router.post("/cases/{case_id}/govt/session/{session_id}/tamil-nadu/promote-session")
+async def govt_tamil_nadu_promote_session(case_id: int, session_id: str, user=Depends(get_current_user)):
+    """Capture an already-authenticated TN browser session for future HTTP reads."""
+    tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context(case_id, session_id, user)
+    from modules.govt_sync.status.base import StatusCheckState
+
+    try:
+        result, record_id = await adapter.check_status_and_observe_record_id(session.page, reference_number)
+    except Exception as e:
+        logger.error("Tamil Nadu session promotion failed for case %s session %s: %s", case_id, session_id, e)
+        raise HTTPException(502, "Tamil Nadu access could not be verified — sign in and try again.")
+
+    if result.state != StatusCheckState.STATUS_CHECKED or not record_id:
+        return {
+            "success": True,
+            "promoted": False,
+            "needs_verification": True,
+            "state": result.state,
+            "note": "Tamil Nadu access needs verification. Please sign in again.",
+        }
+
+    portal_id = session.portal.get("portal_id") or session.portal.get("id")
+    if not portal_id:
+        raise HTTPException(400, "Tamil Nadu portal configuration is missing.")
+
+    from modules.govt_sync.cookie_sessions import derive_cookie_expiry, store_cookie_session
+
+    try:
+        cookies = await session.context.cookies(session.portal["base_url"])
+        store_cookie_session(
+            tenant_id=tid,
+            portal_id=int(portal_id),
+            cookie_jar=cookies,
+            ticket_mappings={reference_number.upper(): record_id},
+            expires_at=derive_cookie_expiry(cookies),
+        )
+    except Exception:
+        logger.exception("Tamil Nadu cookie session promotion failed tenant=%s case=%s", tid, case_id)
+        raise HTTPException(503, "Tamil Nadu access could not be stored securely — configure GOVT_COOKIE_SESSION_KEY.")
+
+    _log_govt_action(
+        tid,
+        case_id,
+        "TN_COOKIE_SESSION_PROMOTED",
+        user.get("username"),
+        payload={"portal": session.portal.get("portal_name"), "reference_number": reference_number},
+    )
+    return {
+        "success": True,
+        "promoted": True,
+        "needs_verification": False,
+        "message": "Tamil Nadu access verified for status checks.",
     }
 
 

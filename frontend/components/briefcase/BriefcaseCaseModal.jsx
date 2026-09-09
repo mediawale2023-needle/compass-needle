@@ -1855,6 +1855,8 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     // per-lookup CAPTCHA/OTP (currently Karnataka iPGRS) — distinct from
     // Rajasthan's needsGovtVerification (a persisted session going stale).
     const interactiveStatusCheck = resolvedPortal?.portal?.interactive_status_check === true;
+    const cookieVerification = resolvedPortal?.portal?.cookie_verification || null;
+    const tamilNaduCookieVerified = cookieVerification?.status === 'verified';
 
     // Awaits the real /api/govt-portal answer instead of guessing at one still
     // in flight (a fast click could otherwise race ahead of the fetch).
@@ -2098,6 +2100,30 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         }
     }
 
+    async function handlePromoteTamilNaduSession() {
+        const session = liveSessionRef.current;
+        if (!session) return;
+        setBusy(true);
+        try {
+            const result = await apiPost(
+                `/api/cases/${caseId}/govt/session/${session.session_id}/tamil-nadu/promote-session`, {},
+            );
+            if (result.promoted) {
+                toast.success(result.message || 'Tamil Nadu access verified for status checks');
+                const portal = await apiGet('/api/govt-portal');
+                setResolvedPortal(portal);
+                await refreshGovtViews();
+            } else {
+                toast.warning(result.note || 'Tamil Nadu access needs verification. Please sign in again.');
+            }
+        } catch (e) {
+            if (e.message === 'Live session not found') { handleSessionGone(); return; }
+            toast.error(e.message || 'Tamil Nadu access could not be verified');
+        } finally {
+            setBusy(false);
+        }
+    }
+
     async function handlePrepare() {
         setBusy(true);
         toast.info('Preparing the filing worksheet…');
@@ -2139,7 +2165,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
             await refreshGovtViews();
             setNeedsGovtVerification(!!result.needs_verification);
             if (result.needs_verification) {
-                toast.warning(result.note || 'Verify Rajasthan Sampark access under Settings → Government Portal, then try again.');
+                toast.warning(result.note || 'This portal needs access verification before status can be checked.');
             } else {
                 const raw = String(result.raw_portal_status || '').trim();
                 toast.success(result.changed ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}` : (raw ? `Portal still says: ${raw}` : (result.note || 'No change yet')));
@@ -2416,7 +2442,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                 <div style={{ border: `1px solid ${C.hair}`, background: C.surface, padding: 12, marginBottom: 10 }}>
                                     <div style={{ ...monoLbl, marginBottom: 8 }}>Tamil Nadu status check</div>
                                     <div style={{ fontSize: 11.5, color: C.ink2, lineHeight: 1.5 }}>
-                                        Staff signs in and clears any OTP/CAPTCHA in this browser. Needle then only opens My Petitions and reads this grievance — it never submits, edits, or replies to anything. Use "Check Tamil Nadu status" below once signed in.
+                                        Staff signs in and clears any OTP/CAPTCHA in this browser. Needle then only opens My Petitions and reads this grievance — it never submits, edits, or replies to anything. Use "Verify access" once signed in to enable normal inboard status checks.
                                     </div>
                                     {tnStatusResult && (
                                         <div style={{
@@ -2477,12 +2503,16 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                             )}
                             {needsGovtVerification && (
                                 <div style={{ fontSize: 11.5, color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 8 }}>
-                                    ⚠ This portal needs a fresh access verification before status can be checked again.
-                                    <div style={{ marginTop: 6 }}>
-                                        <a href="/dashboard/settings" style={{ color: C.saffron, textDecoration: 'underline', fontWeight: 600 }}>
-                                            Verify under Settings → Government Portal
-                                        </a>
-                                    </div>
+                                    ⚠ {isTamilNaduPortal()
+                                        ? 'Tamil Nadu access needs verification. Please sign in again.'
+                                        : 'This portal needs a fresh access verification before status can be checked again.'}
+                                    {!isTamilNaduPortal() && (
+                                        <div style={{ marginTop: 6 }}>
+                                            <a href="/dashboard/settings" style={{ color: C.saffron, textDecoration: 'underline', fontWeight: 600 }}>
+                                                Verify under Settings → Government Portal
+                                            </a>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             {interactiveStatusCheck && interactiveAttempt && (
@@ -2546,13 +2576,19 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                     <div style={{ fontSize: 11, color: C.ink3, lineHeight: 1.5 }}>
                                         {isTamilNaduSession()
-                                            ? 'A Tamil Nadu portal session is open above — sign in there, then use "Check Tamil Nadu status".'
-                                            : 'Tamil Nadu status is only visible on the CM Helpline portal after a signed-in session. Opening the portal lets staff sign in; Needle then only reads this grievance from My Petitions — it never submits, edits, or replies to anything.'}
+                                            ? 'A Tamil Nadu portal session is open above — sign in there, then verify access for future inboard checks.'
+                                            : (tamilNaduCookieVerified
+                                                ? 'Tamil Nadu access is verified. Needle will check the existing grievance through the authenticated read-only status API.'
+                                                : 'Tamil Nadu access needs verification. Opening the portal lets staff sign in; Needle then only captures the minimum session needed for future read-only status checks.')}
                                     </div>
                                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                         {isTamilNaduSession() ? (
-                                            <Button size="sm" variant="outline" disabled={busy} onClick={handleTamilNaduCheckStatus}>
-                                                {busy ? <Loader2 size={14} className="animate-spin" /> : 'Check Tamil Nadu status'}
+                                            <Button size="sm" variant="outline" disabled={busy} onClick={handlePromoteTamilNaduSession}>
+                                                {busy ? <Loader2 size={14} className="animate-spin" /> : 'Verify access'}
+                                            </Button>
+                                        ) : tamilNaduCookieVerified ? (
+                                            <Button size="sm" variant="outline" disabled={busy} onClick={handlePollNow}>
+                                                {busy ? <Loader2 size={14} className="animate-spin" /> : 'Check status now'}
                                             </Button>
                                         ) : (
                                             <Button size="sm" variant="outline" disabled={liveConnecting} onClick={handleStartTnStatusSession}>

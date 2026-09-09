@@ -1278,6 +1278,30 @@ try:
             "ON govt_status_check_attempts (last_activity_at)"
         ))
         conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS govt_cookie_sessions (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                portal_id INTEGER NOT NULL REFERENCES govt_portals(id),
+                encrypted_cookie_jar TEXT NOT NULL,
+                ticket_mappings JSONB NOT NULL DEFAULT '{}'::jsonb,
+                captured_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_used_at TIMESTAMP,
+                last_auth_failed_at TIMESTAMP,
+                requires_verification BOOLEAN NOT NULL DEFAULT false,
+                expires_at TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_govt_cookie_sessions_tenant_portal UNIQUE (tenant_id, portal_id)
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_govt_cookie_sessions_tenant_portal "
+            "ON govt_cookie_sessions (tenant_id, portal_id)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_govt_cookie_sessions_requires_verification "
+            "ON govt_cookie_sessions (requires_verification)"
+        ))
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS govt_status_snapshots (
                 id SERIAL PRIMARY KEY,
                 tenant_id INTEGER NOT NULL REFERENCES tenants(id),

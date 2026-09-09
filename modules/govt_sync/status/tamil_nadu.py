@@ -100,6 +100,7 @@ _POST_CONTENT_SELECTOR = ".Post__postContent"
 _ENDUSER_THREAD_SELECTOR = ".enduser_thread"
 _WEB_CONTENT_SELECTOR = ".web_cont"
 _ACTION_TAKEN_UNAVAILABLE = "Action Taken Report iframe not accessible"
+_TICKET_API_RECORD_ID_RE = re.compile(r"^/portal/api/tickets/(\d+)/?$")
 
 _MY_PETITIONS_LABELS = (
     "My Petitions", "My Grievances", "My Area", "My Tickets", "My Complaints",
@@ -164,6 +165,17 @@ def _short_id_for(reference: str) -> str | None:
     tail = (reference or "").rstrip("/").rsplit("/", 1)[-1]
     digits = re.sub(r"\D", "", tail)
     return f"#{digits}" if len(digits) >= 5 else None
+
+
+def _record_id_from_url(url: str) -> str | None:
+    try:
+        from urllib.parse import urlsplit
+
+        path = urlsplit(url or "").path
+    except Exception:
+        return None
+    match = _TICKET_API_RECORD_ID_RE.match(path or "")
+    return match.group(1) if match else None
 
 
 def _match_cards(cards: list, reference: str, short_id: str | None):
@@ -551,3 +563,33 @@ class TamilNaduStatusAdapter:
             note="Read from the authenticated Tamil Nadu portal.",
             **common,
         )
+
+    async def check_status_and_observe_record_id(self, page, reference_number: str) -> tuple[StatusCheckResult, str | None]:
+        observed_record_ids: list[str] = []
+        context = getattr(page, "context", None)
+
+        def _on_request(request):
+            try:
+                rid = _record_id_from_url(getattr(request, "url", "") or "")
+            except Exception:
+                rid = None
+            if rid and rid not in observed_record_ids:
+                observed_record_ids.append(rid)
+
+        if context is not None:
+            try:
+                context.on("request", _on_request)
+            except Exception:
+                context = None
+        try:
+            result = await self.check_status_on_page(page, reference_number)
+        finally:
+            if context is not None:
+                try:
+                    context.remove_listener("request", _on_request)
+                except Exception:
+                    pass  # nosec B110
+
+        if result.state != StatusCheckState.STATUS_CHECKED:
+            return result, None
+        return result, observed_record_ids[0] if len(observed_record_ids) == 1 else None

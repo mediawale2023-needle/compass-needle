@@ -117,6 +117,7 @@ CASES = [
     # live browser view never found its own session and hung on "Connecting…".
     ("POST", "/api/cases/20/govt/session/start-status-check", "backend_govt_live"),
     ("POST", "/api/cases/20/govt/session/abc123/tamil-nadu/check-status", "backend_govt_live"),
+    ("POST", "/api/cases/20/govt/session/abc123/tamil-nadu/promote-session", "backend_govt_live"),
     # Tamil Nadu HTTP-migration diagnostic (2026-09-07, disabled by default —
     # see GOVT_SYNC_TN_HTTP_DIAGNOSTIC_ENABLED) — reads the same process-local
     # LiveSession as the routes above, so it needs the same single-worker
