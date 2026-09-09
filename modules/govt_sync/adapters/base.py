@@ -16,8 +16,53 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 
 logger = logging.getLogger("needle.govt_sync.adapter")
+
+
+class StatusFailureKind(str, Enum):
+    """Internal, machine-readable classification of WHY a status check did
+    not produce a usable result — Phase 2A of the government-portal
+    architecture work (docs/GOVERNMENT_PORTAL_ARCHITECTURE_AUDIT.md, Part
+    J/P). Deliberately small: only values a real adapter can currently
+    back with an actual structural signal (an HTTP status code, a
+    transport exception type, or a genuine parse/match failure) — never a
+    guess from human-readable text, and never a category invented for a
+    condition no adapter can yet detect.
+
+    Currently populated ONLY by TamilNaduHTTPStatusAdapter
+    (modules/govt_sync/adapters/tamil_nadu_http.py). Every other adapter
+    leaves StatusResult.failure_kind at its default (None) — this is not
+    a regression or an oversight; adopting the taxonomy elsewhere is a
+    deliberately separate, later decision, not automatic.
+
+    This is a DIAGNOSTIC-ONLY field as of Phase 2A: nothing reads
+    failure_kind yet (not the poller, not the orchestrator, not the API
+    response, not govt_status_snapshots). No behavior anywhere depends on
+    it. Persisting or exposing it is an explicit, separate future phase.
+
+    AUTH_REQUIRED and SESSION_EXPIRED are kept distinct on purpose,
+    exactly because TN HTTP's own code CAN tell them apart structurally
+    (not by guessing): AUTH_REQUIRED covers every pre-flight condition
+    where no HTTP request to the portal was even possible or attempted
+    (no cookie session stored yet, a stored session that fails to
+    decrypt, no known ticket mapping for this reference, ...) — i.e.
+    verified access has not been established. SESSION_EXPIRED covers the
+    one case where a request WAS actually sent with real cookies and the
+    portal itself came back 401/403 — i.e. a session that was being used
+    just got rejected live. Do not merge these two without re-confirming
+    a future adapter's evidence genuinely can't distinguish them the same
+    way."""
+
+    AUTH_REQUIRED = "AUTH_REQUIRED"
+    SESSION_EXPIRED = "SESSION_EXPIRED"
+    REFERENCE_NOT_FOUND = "REFERENCE_NOT_FOUND"
+    PORTAL_UNAVAILABLE = "PORTAL_UNAVAILABLE"
+    TIMEOUT = "TIMEOUT"
+    NETWORK_FAILURE = "NETWORK_FAILURE"
+    PARSE_FAILED = "PARSE_FAILED"
+    UNKNOWN = "UNKNOWN"
 
 
 def _utcnow():
@@ -84,6 +129,12 @@ class StatusResult:
     # (OtpGatedStatusMixin subclasses, e.g. rajasthan_sampark.py); every
     # other adapter leaves this False.
     needs_verification: bool = False
+    # Additive, internal-diagnostic-only (Phase 2A) — see StatusFailureKind's
+    # own docstring above. None means either "the check succeeded" or "no
+    # adapter has classified this failure yet." Never read by any caller as
+    # of this field's introduction; existing behavior for every adapter that
+    # does not set it is completely unchanged.
+    failure_kind: "StatusFailureKind | None" = None
 
 
 class GovtPortalAdapter(ABC):

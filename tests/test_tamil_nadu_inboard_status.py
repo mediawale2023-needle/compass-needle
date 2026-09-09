@@ -26,6 +26,7 @@ import core.db_helpers as db_helpers
 import sansadx_backend.db as dbmod
 from modules.govt_sync import cookie_sessions
 from modules.govt_sync.adapters import get_adapter
+from modules.govt_sync.adapters.base import StatusFailureKind, StatusResult
 from modules.govt_sync.adapters.tamil_nadu_http import TamilNaduHTTPStatusAdapter
 from sansadx_backend.db import Base
 
@@ -171,6 +172,7 @@ def test_http_200_parses_exact_reference_and_pending_action(monkeypatch):
     assert result.raw_portal_status == "Pending Action"
     assert result.portal_detail["department_name"] == "Food and Civil Supplies"
     assert result.portal_detail["replies"][0]["parent_id"] == "c1"
+    assert result.failure_kind is None  # a genuine success is never classified as a failure
     assert get.call_args_list[0].args[0].endswith(f"/portal/api/tickets/{RECORD_ID}")
     assert get.call_args_list[1].args[0].endswith(f"/portal/api/tickets/{RECORD_ID}/conversations")
     with test_engine.connect() as conn:
@@ -186,19 +188,47 @@ def test_http_wrong_reference_fails_closed_without_status_update(monkeypatch):
     result = TamilNaduHTTPStatusAdapter(_portal()).check_status(REF, tenant_id=1)
     assert result.checked is False
     assert result.status == ""
+    # The response was valid JSON but didn't self-report the reference we
+    # asked about — a structural match failure, not an HTTP-layer signal.
+    assert result.failure_kind == StatusFailureKind.PARSE_FAILED
 
 
-@pytest.mark.parametrize("status_code,needs_verification", [(401, True), (403, True), (404, False), (500, False), (502, False)])
-def test_http_error_classification(status_code, needs_verification, monkeypatch):
+@pytest.mark.parametrize(
+    "status_code,needs_verification,expected_failure_kind",
+    [
+        (401, True, StatusFailureKind.SESSION_EXPIRED),
+        (403, True, StatusFailureKind.SESSION_EXPIRED),
+        (404, False, StatusFailureKind.REFERENCE_NOT_FOUND),
+        (500, False, StatusFailureKind.PORTAL_UNAVAILABLE),
+        (502, False, StatusFailureKind.PORTAL_UNAVAILABLE),
+    ],
+)
+def test_http_error_classification(status_code, needs_verification, expected_failure_kind, monkeypatch):
     _store()
     monkeypatch.setattr("modules.govt_sync.adapters.tamil_nadu_http.requests.get", Mock(return_value=_response(status_code, {})))
     result = TamilNaduHTTPStatusAdapter(_portal()).check_status(REF, tenant_id=1)
     assert result.checked is False
     assert result.needs_verification is needs_verification
+    # The new internal classification never changes any pre-existing,
+    # externally-observable field — only adds the label alongside them.
+    assert result.failure_kind == expected_failure_kind
     with test_engine.connect() as conn:
         requires_verification = conn.execute(text("SELECT requires_verification FROM govt_cookie_sessions")).scalar()
     if needs_verification:
         assert bool(requires_verification) is True
+
+
+def test_unexpected_non_200_status_is_classified_unknown(monkeypatch):
+    """A status code this adapter doesn't specifically branch on (e.g. a
+    3xx it saw despite allow_redirects=False, or an unmapped 4xx) — no
+    adapters currently have a structured signal for WHY, so it stays
+    UNKNOWN rather than guessing."""
+    _store()
+    monkeypatch.setattr("modules.govt_sync.adapters.tamil_nadu_http.requests.get", Mock(return_value=_response(418, {})))
+    result = TamilNaduHTTPStatusAdapter(_portal()).check_status(REF, tenant_id=1)
+    assert result.checked is False
+    assert result.raw_portal_status == "Tamil Nadu status check was inconclusive."
+    assert result.failure_kind == StatusFailureKind.UNKNOWN
 
 
 def test_timeout_and_malformed_response_are_transient_or_inconclusive(monkeypatch):
@@ -207,12 +237,39 @@ def test_timeout_and_malformed_response_are_transient_or_inconclusive(monkeypatc
     result = TamilNaduHTTPStatusAdapter(_portal()).check_status(REF, tenant_id=1)
     assert result.checked is False
     assert result.needs_verification is False
+    assert result.raw_portal_status == "Tamil Nadu portal timed out."
+    assert result.failure_kind == StatusFailureKind.TIMEOUT
 
     _store()
     monkeypatch.setattr("modules.govt_sync.adapters.tamil_nadu_http.requests.get", Mock(return_value=_response(200, ValueError("bad"))))
     result = TamilNaduHTTPStatusAdapter(_portal()).check_status(REF, tenant_id=1)
     assert result.checked is False
     assert result.needs_verification is False
+    assert result.raw_portal_status == "Tamil Nadu returned an unreadable response."
+    assert result.failure_kind == StatusFailureKind.PARSE_FAILED
+
+
+def test_network_error_classified_as_network_failure(monkeypatch):
+    _store()
+    monkeypatch.setattr("modules.govt_sync.adapters.tamil_nadu_http.requests.get", Mock(side_effect=requests.ConnectionError()))
+    result = TamilNaduHTTPStatusAdapter(_portal()).check_status(REF, tenant_id=1)
+    assert result.checked is False
+    assert result.needs_verification is False
+    assert result.raw_portal_status == "Tamil Nadu portal could not be reached."
+    assert result.failure_kind == StatusFailureKind.NETWORK_FAILURE
+
+
+def test_unrecognised_status_text_classified_as_parse_failed(monkeypatch):
+    """A 200, matching reference, but portal wording that doesn't map onto
+    any known STATUS_KEYWORDS bucket — a normalization/parsing failure,
+    not a legitimate empty result."""
+    _store()
+    ticket = {"data": {"reference_number": REF, "status": "Some Brand New Portal Wording Nobody Has Seen"}}
+    monkeypatch.setattr("modules.govt_sync.adapters.tamil_nadu_http.requests.get", Mock(return_value=_response(200, ticket)))
+    result = TamilNaduHTTPStatusAdapter(_portal()).check_status(REF, tenant_id=1)
+    assert result.checked is False
+    assert result.raw_portal_status == "Some Brand New Portal Wording Nobody Has Seen"
+    assert result.failure_kind == StatusFailureKind.PARSE_FAILED
 
 
 def test_missing_mapping_never_attempts_numeric_neighbors(monkeypatch):
@@ -222,6 +279,24 @@ def test_missing_mapping_never_attempts_numeric_neighbors(monkeypatch):
     result = TamilNaduHTTPStatusAdapter(_portal()).check_status(REF, tenant_id=1)
     assert result.checked is False
     assert result.needs_verification is True
+    assert result.failure_kind == StatusFailureKind.AUTH_REQUIRED
+    get.assert_not_called()
+
+
+def test_cookie_key_error_through_adapter_classified_auth_required(monkeypatch):
+    """Exercises the adapter's own CookieSessionKeyError branch directly
+    (not just cookie_sessions.load_cookie_session() in isolation) — a
+    pre-flight condition, no HTTP request possible, so AUTH_REQUIRED
+    rather than SESSION_EXPIRED."""
+    _store()
+    monkeypatch.delenv("GOVT_COOKIE_SESSION_KEY", raising=False)
+    get = Mock()
+    monkeypatch.setattr("modules.govt_sync.adapters.tamil_nadu_http.requests.get", get)
+    result = TamilNaduHTTPStatusAdapter(_portal()).check_status(REF, tenant_id=1)
+    assert result.checked is False
+    assert result.needs_verification is True
+    assert result.raw_portal_status == "Tamil Nadu access needs verification. Please sign in again."
+    assert result.failure_kind == StatusFailureKind.AUTH_REQUIRED
     get.assert_not_called()
 
 
@@ -271,3 +346,65 @@ def test_promote_session_encrypts_cookies_and_returns_no_secret_or_record_id(mon
         stored = conn.execute(text("SELECT encrypted_cookie_jar, ticket_mappings FROM govt_cookie_sessions")).mappings().one()
     assert COOKIE_VALUE not in stored["encrypted_cookie_jar"]
     assert RECORD_ID in stored["ticket_mappings"]
+
+
+# ─── StatusResult backward-compatibility (Phase 2A additive-field proof) ───
+#
+# StatusResult is a @dataclass, so equality/repr are structural (dataclass-
+# generated) and every field mentioned below is keyword-only in EVERY real
+# construction site in this repo (confirmed by grepping every
+# `StatusResult(` call before adding failure_kind — none of them construct
+# positionally), so a new field with a default cannot break any existing
+# caller regardless of where it sits in the field order.
+
+def test_status_result_old_style_success_construction_still_works():
+    result = StatusResult(status="submitted", checked=True, raw_portal_status="Registered")
+    assert result.status == "submitted"
+    assert result.checked is True
+    assert result.needs_verification is False
+    assert result.failure_kind is None  # new field defaults to None, untouched by old-style callers
+
+
+def test_status_result_old_style_inconclusive_construction_still_works():
+    result = StatusResult(status="", checked=False, raw_portal_status="Unrecognised page text")
+    assert result.checked is False
+    assert result.failure_kind is None
+
+
+def test_status_result_needs_verification_default_unaffected_by_new_field():
+    result = StatusResult(status="", checked=False, needs_verification=True)
+    assert result.needs_verification is True
+    assert result.failure_kind is None
+
+
+def test_status_result_equality_and_repr_include_failure_kind_consistently():
+    """Dataclass-generated __eq__/__repr__ automatically include every
+    field, including the new one — two results are equal only if
+    failure_kind also matches, and repr() doesn't raise. This is expected,
+    additive dataclass behavior, not something adapters need to account
+    for (none of them compare StatusResult instances for equality today)."""
+    a = StatusResult(status="", checked=False, failure_kind=StatusFailureKind.TIMEOUT)
+    b = StatusResult(status="", checked=False, failure_kind=StatusFailureKind.TIMEOUT)
+    c = StatusResult(status="", checked=False)
+    assert a == b
+    assert a != c
+    assert "failure_kind" in repr(a)
+
+
+def test_status_result_explicit_failure_kind_construction():
+    result = StatusResult(status="", checked=False, failure_kind=StatusFailureKind.NETWORK_FAILURE)
+    assert result.failure_kind == StatusFailureKind.NETWORK_FAILURE
+    assert result.failure_kind == "NETWORK_FAILURE"  # str-Enum: compares equal to its plain string value
+
+
+def test_other_adapters_returning_no_failure_kind_are_unaffected():
+    """Characterizes that an adapter which has NOT adopted the taxonomy
+    (every adapter except TamilNaduHTTPStatusAdapter, as of Phase 2A)
+    continues to produce a perfectly ordinary StatusResult — accessing
+    failure_kind on it is always safe and always None, never an
+    AttributeError, regardless of which adapter produced it."""
+    from modules.govt_sync.adapters.manual import ManualAssistedAdapter
+
+    result = ManualAssistedAdapter({"status_check_mode": "login_required"}).check_status("REF/1")
+    assert result.checked is False
+    assert result.failure_kind is None
