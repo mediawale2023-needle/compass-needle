@@ -18,6 +18,7 @@ from sansadx_backend.db import engine
 from sqlalchemy import text
 
 from modules.govt_sync.adapters import get_adapter
+from modules.govt_sync.orchestrator import persist_successful_status_result
 
 logger = logging.getLogger("needle.govt_sync.poller")
 
@@ -26,17 +27,6 @@ _PENDING_STATUSES = ("submitted", "escalated", "under_review")
 
 def _utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-def _status_poll_payload(row: dict, result) -> dict:
-    return {
-        "old_status": row.get("govt_status"),
-        "new_status": result.status,
-        "raw_portal_status": result.raw_portal_status,
-        "portal_detail": getattr(result, "portal_detail", None) or {},
-        "portal": row.get("portal_name"),
-        "changed": result.status != row.get("govt_status"),
-    }
 
 
 def _inconclusive_payload(row: dict, result) -> dict:
@@ -131,47 +121,10 @@ def poll_all_pending() -> dict:
             _log_inconclusive(row, result, "status_check_inconclusive")
             continue
 
-        changed_this_case = result.status != row["govt_status"]
-        payload_expr = "CAST(:payload AS JSONB)"
-        if getattr(getattr(engine, "dialect", None), "name", "") == "sqlite":
-            payload_expr = ":payload"
-        with engine.begin() as conn:
-            if changed_this_case:
-                conn.execute(
-                    text(
-                        "UPDATE cases SET govt_status = :status, govt_status_updated_at = :now "
-                        "WHERE id = :cid AND tenant_id = :tid"
-                    ),
-                    {"status": result.status, "now": _utcnow(), "cid": row["case_id"], "tid": row["tenant_id"]},
-                )
-            conn.execute(
-                text(
-                    "INSERT INTO govt_submission_log (tenant_id, case_id, action, actor_username, payload, created_at) "
-                    f"VALUES (:tid, :cid, 'status_polled', NULL, {payload_expr}, :now)"
-                ),
-                {
-                    "tid": row["tenant_id"],
-                    "cid": row["case_id"],
-                    "payload": _json_dumps(_status_poll_payload(row, result)),
-                    "now": _utcnow(),
-                },
-            )
-        try:
-            from modules.govt_sync.status_snapshot import persist_status_snapshot
-
-            persist_status_snapshot(
-                tenant_id=row["tenant_id"],
-                case_id=row["case_id"],
-                portal_id=row["portal_id"],
-                reference_number=row["govt_reference_number"],
-                adapter_key=row.get("status_check_adapter") or row.get("portal_type"),
-                result=result,
-                portal_name=row.get("portal_name"),
-                source_url=row.get("status_check_url") or row.get("base_url"),
-                created_by=None,
-            )
-        except Exception:
-            logger.exception("Govt status snapshot observer failed case=%s", row["case_id"])
+        changed_this_case = persist_successful_status_result(
+            tenant_id=row["tenant_id"], case_id=row["case_id"], case_row=row, result=result,
+            actor_username=None,
+        )
         if changed_this_case:
             changed += 1
             logger.info(
