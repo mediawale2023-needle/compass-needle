@@ -50,3 +50,5 @@ jobs:
         run: npm run build --prefix frontend
       - name: GovtSync regression selection
         run: venv/bin/python -m pytest tests/ -k "govt or karnataka or maharashtra or rajasthan or tamil" -q
+
+# Temporary branch-only workflow. Delete before PR/merge.
