@@ -26,6 +26,7 @@ import re
 from dataclasses import dataclass
 
 from ..adapters.base import normalize_status_keywords
+from ..tamil_nadu_constants import _ACTION_TAKEN_UNAVAILABLE
 from .base import StatusCheckReply, StatusCheckResult, StatusCheckState
 
 
@@ -99,7 +100,10 @@ _POST_CONTAINER_SELECTOR = ".Post__container"
 _POST_CONTENT_SELECTOR = ".Post__postContent"
 _ENDUSER_THREAD_SELECTOR = ".enduser_thread"
 _WEB_CONTENT_SELECTOR = ".web_cont"
-_ACTION_TAKEN_UNAVAILABLE = "Action Taken Report iframe not accessible"
+# _ACTION_TAKEN_UNAVAILABLE now lives in ..tamil_nadu_constants (imported
+# above) so adapters/tamil_nadu_http.py can share the one canonical
+# definition without importing this module — see that module's docstring
+# for the import cycle this removed. Still used below exactly as before.
 _TICKET_API_RECORD_ID_RE = re.compile(r"^/portal/api/tickets/(\d+)/?$")
 
 _MY_PETITIONS_LABELS = (
