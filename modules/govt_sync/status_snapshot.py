@@ -829,6 +829,8 @@ def persist_status_snapshot(
         snapshot_result = build_snapshot_result(result)
         if not snapshot_result.checked:
             return None
+        failure_kind = getattr(result, "failure_kind", None)
+        failure_kind_value = getattr(failure_kind, "value", failure_kind)
         captured_at = captured_at or _utcnow()
         snapshot_status = "partial" if snapshot_result.partial else "complete"
 
@@ -847,11 +849,11 @@ def persist_status_snapshot(
                     """
                     INSERT INTO govt_status_snapshots (
                         tenant_id, case_id, portal_id, reference_number, adapter_key,
-                        snapshot_status, normalized_status, raw_status, captured_at,
+                        snapshot_status, normalized_status, raw_status, failure_kind, captured_at,
                         source_url, raw_capture_ref, created_by, created_at
                     ) VALUES (
                         :tenant_id, :case_id, :portal_id, :reference_number, :adapter_key,
-                        :snapshot_status, :normalized_status, :raw_status, :captured_at,
+                        :snapshot_status, :normalized_status, :raw_status, :failure_kind, :captured_at,
                         :source_url, :raw_capture_ref, :created_by, :created_at
                     )
                     RETURNING id
@@ -866,6 +868,7 @@ def persist_status_snapshot(
                     "snapshot_status": snapshot_status,
                     "normalized_status": snapshot_result.normalized_status,
                     "raw_status": snapshot_result.raw_status,
+                    "failure_kind": failure_kind_value,
                     "captured_at": captured_at,
                     "source_url": source_url,
                     "raw_capture_ref": raw_capture_ref,
