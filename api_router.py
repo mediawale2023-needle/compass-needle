@@ -4726,15 +4726,19 @@ async def govt_tamil_nadu_promote_session(case_id: int, session_id: str, user=De
     if not portal_id:
         raise HTTPException(400, "Tamil Nadu portal configuration is missing.")
 
-    from modules.govt_sync.cookie_sessions import derive_cookie_expiry, store_cookie_session
+    from modules.govt_sync.cookie_sessions import derive_cookie_expiry, load_ticket_mappings, store_cookie_session
 
     try:
         cookies = await session.context.cookies(session.portal["base_url"])
+        ticket_mappings = load_ticket_mappings(tid, int(portal_id))
+        ticket_mappings[reference_number.strip().upper()] = record_id
+        # TODO: Refresh the account-wide map only after a verified
+        # /portal/api/tickets list response and pagination contract exist.
         store_cookie_session(
             tenant_id=tid,
             portal_id=int(portal_id),
             cookie_jar=cookies,
-            ticket_mappings={reference_number.upper(): record_id},
+            ticket_mappings=ticket_mappings,
             expires_at=derive_cookie_expiry(cookies),
         )
     except Exception:

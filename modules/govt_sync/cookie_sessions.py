@@ -177,6 +177,22 @@ def load_cookie_session(tenant_id: int, portal_id: int) -> CookieSession | None:
     return _row_to_session(dict(row))
 
 
+def load_ticket_mappings(tenant_id: int, portal_id: int) -> dict[str, str]:
+    """Load only the non-secret reference mapping for a tenant/portal pair."""
+    from core.db_helpers import _q_one
+
+    row = _q_one(
+        """
+        SELECT ticket_mappings
+        FROM govt_cookie_sessions
+        WHERE tenant_id = :tenant_id AND portal_id = :portal_id
+        """,
+        {"tenant_id": tenant_id, "portal_id": portal_id},
+    )
+    mappings = _decode_json(row.get("ticket_mappings")) if row else None
+    return dict(mappings) if isinstance(mappings, dict) else {}
+
+
 def mark_cookie_session_used(tenant_id: int, portal_id: int) -> None:
     from sansadx_backend.db import engine
     from sqlalchemy import text

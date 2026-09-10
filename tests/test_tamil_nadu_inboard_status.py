@@ -34,6 +34,8 @@ test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": Fals
 
 REF = "TN/FOODCO/CBE/P/PORTAL/01SEP26/18968314"
 RECORD_ID = "35665012402750744"
+REF_TWO = "TN/FOODCO/CBE/P/PORTAL/02SEP26/18968315"
+RECORD_ID_TWO = "35665012402750745"
 COOKIE_VALUE = "cookie-" + secrets.token_urlsafe(18)
 FERNET_KEY = Fernet.generate_key().decode("ascii")
 
@@ -46,6 +48,7 @@ def _bind_engine():
     dbmod.engine = test_engine
     db_helpers.engine = test_engine
     api_router.engine = test_engine
+    api_router.JWT_SECRET = os.environ["JWT_SECRET"]
 
 
 def _reset_db():
@@ -74,8 +77,10 @@ def _reset_db():
             "INSERT INTO cases (id, tenant_id, user_phone, raw_message, category, status, created_at, "
             "govt_portal_id, govt_status, govt_reference_number, is_deleted) VALUES "
             "(40, 1, '+919111111140', 'Test grievance', 'Infrastructure & Utilities', 'in_progress', :now, "
-            "10, 'submitted', :ref, 0)"
-        ), {"now": _utcnow(), "ref": REF})
+            "10, 'submitted', :ref, 0), "
+            "(41, 1, '+919111111141', 'Second grievance', 'Infrastructure & Utilities', 'in_progress', :now, "
+            "10, 'submitted', :ref_two, 0)"
+        ), {"now": _utcnow(), "ref": REF, "ref_two": REF_TWO})
 
 
 def _portal():
@@ -278,14 +283,35 @@ def test_missing_mapping_never_attempts_numeric_neighbors(monkeypatch):
     monkeypatch.setattr("modules.govt_sync.adapters.tamil_nadu_http.requests.get", get)
     result = TamilNaduHTTPStatusAdapter(_portal()).check_status(REF, tenant_id=1)
     assert result.checked is False
-    assert result.needs_verification is True
-    assert result.raw_portal_status == "Tamil Nadu access needs verification. Please sign in again."
+    assert result.needs_verification is False
+    assert result.raw_portal_status == "Tamil Nadu grievance is not mapped to the authenticated portal session."
     # A valid cookie session may exist even though no ticket mapping is
     # known for THIS reference — that is not evidence of an auth/session
     # problem, so it must NOT be classified AUTH_REQUIRED. UNKNOWN is the
     # correct, evidence-based classification (Phase 2A correction).
     assert result.failure_kind == StatusFailureKind.UNKNOWN
     get.assert_not_called()
+
+
+def test_multiple_mapped_cases_reuse_one_encrypted_session(monkeypatch):
+    _store(mapping={REF: RECORD_ID, REF_TWO: RECORD_ID_TWO})
+    ticket_one = {"data": {"reference_number": REF, "status": "Pending Action"}}
+    ticket_two = {"data": {"reference_number": REF_TWO, "status": "Pending Action"}}
+    get = Mock(side_effect=[
+        _response(200, ticket_one), _response(200, {"data": []}),
+        _response(200, ticket_two), _response(200, {"data": []}),
+    ])
+    monkeypatch.setattr("modules.govt_sync.adapters.tamil_nadu_http.requests.get", get)
+
+    adapter = TamilNaduHTTPStatusAdapter(_portal())
+    assert adapter.check_status(REF, tenant_id=1).checked is True
+    assert adapter.check_status(REF_TWO, tenant_id=1).checked is True
+    assert cookie_sessions.load_cookie_session(1, 10).ticket_mappings == {
+        REF: RECORD_ID,
+        REF_TWO: RECORD_ID_TWO,
+    }
+    assert get.call_args_list[0].args[0].endswith(f"/portal/api/tickets/{RECORD_ID}")
+    assert get.call_args_list[2].args[0].endswith(f"/portal/api/tickets/{RECORD_ID_TWO}")
 
 
 def test_cookie_key_error_through_adapter_classified_auth_required(monkeypatch):
@@ -351,6 +377,59 @@ def test_promote_session_encrypts_cookies_and_returns_no_secret_or_record_id(mon
         stored = conn.execute(text("SELECT encrypted_cookie_jar, ticket_mappings FROM govt_cookie_sessions")).mappings().one()
     assert COOKIE_VALUE not in stored["encrypted_cookie_jar"]
     assert RECORD_ID in stored["ticket_mappings"]
+
+
+def test_promotions_merge_existing_mappings_and_new_observation_wins(monkeypatch):
+    import main
+
+    _bind_engine()
+    main.engine = test_engine
+    old_ref = "TN/OLD/REFERENCE/1"
+    old_record_id = "35665012402750000"
+    refreshed_record_id = "35665012402750999"
+    _store(mapping={old_ref: old_record_id, REF: "stale-record-id"})
+
+    sessions = {
+        "sess-one": Mock(tenant_id=1, case_id=40, portal=_portal(), page=Mock(), context=Mock()),
+        "sess-two": Mock(tenant_id=1, case_id=41, portal=_portal(), page=Mock(), context=Mock()),
+        "sess-refresh": Mock(tenant_id=1, case_id=40, portal=_portal(), page=Mock(), context=Mock()),
+    }
+    for session in sessions.values():
+        session.context.cookies = AsyncMock(return_value=_cookie_jar())
+    monkeypatch.setattr(
+        "modules.govt_sync.browser_session.get_live_session",
+        lambda session_id: sessions.get(session_id),
+    )
+    observed = AsyncMock(side_effect=[
+        (Mock(state="STATUS_CHECKED"), RECORD_ID),
+        (Mock(state="STATUS_CHECKED"), RECORD_ID_TWO),
+        (Mock(state="STATUS_CHECKED"), refreshed_record_id),
+    ])
+    monkeypatch.setattr(
+        "modules.govt_sync.status.tamil_nadu.TamilNaduStatusAdapter.check_status_and_observe_record_id",
+        observed,
+    )
+    client = TestClient(main.app)
+
+    assert client.post(
+        "/api/cases/40/govt/session/sess-one/tamil-nadu/promote-session", headers=_auth_headers(),
+    ).status_code == 200
+    assert client.post(
+        "/api/cases/41/govt/session/sess-two/tamil-nadu/promote-session", headers=_auth_headers(),
+    ).status_code == 200
+    assert client.post(
+        "/api/cases/40/govt/session/sess-refresh/tamil-nadu/promote-session", headers=_auth_headers(),
+    ).status_code == 200
+
+    stored = cookie_sessions.load_cookie_session(1, 10)
+    assert stored.ticket_mappings == {
+        old_ref: old_record_id,
+        REF: refreshed_record_id,
+        REF_TWO: RECORD_ID_TWO,
+    }
+    with test_engine.connect() as conn:
+        encrypted = conn.execute(text("SELECT encrypted_cookie_jar FROM govt_cookie_sessions")).scalar()
+    assert COOKIE_VALUE not in encrypted
 
 
 # ─── StatusResult backward-compatibility (Phase 2A additive-field proof) ───

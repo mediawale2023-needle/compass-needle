@@ -18,6 +18,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 
 ## Architecture Memory
 
+- Tamil Nadu cookie-session promotion preserves tenant+portal ticket mappings across staff re-authentication: load mapping JSON independently of cookie validity, merge the newly observed normalized reference (new observation wins), then persist the fresh cookie jar through the existing Fernet-encrypted store. A valid TN cookie session missing one reference mapping is inconclusive (`UNKNOWN`), not authentication failure, so it must not set `needs_verification` or block later mapped cases in the poller batch. Account-wide `/portal/api/tickets` discovery remains deferred until its response and pagination contract are verified; do not guess or scrape it.
 - Government status snapshot failure metadata is internal observability data: `govt_status_snapshots.failure_kind` is nullable and stores the existing `StatusFailureKind.value` only when the canonical successful-snapshot writer receives one. It does not broaden snapshot eligibility, failed/unchecked observations still create no snapshot, historical rows remain `NULL`, and the government history API does not expose this field.
 - Backend API lives at repo root with FastAPI entrypoints in `main.py`, `api_router.py`, and `admin_api.py`.
 - MP frontend lives in `frontend/` and admin frontend lives in `admin/`, both using Next.js 15 and React 19.
