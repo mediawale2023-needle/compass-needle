@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import api_router
 import core.db_helpers as db_helpers
 import sansadx_backend.db as dbmod
-from modules.govt_sync.adapters.base import StatusResult
+from modules.govt_sync.adapters.base import StatusFailureKind, StatusResult
 from modules.govt_sync.status_snapshot import (
     AVAILABILITY_EXPLICITLY_EMPTY,
     AVAILABILITY_PRESENT,
@@ -100,6 +100,73 @@ def _field_rows(snapshot_id: int):
             "SELECT field_key, value_text, availability FROM govt_status_snapshot_fields "
             "WHERE snapshot_id = :snapshot_id ORDER BY id"
         ), {"snapshot_id": snapshot_id}).mappings().all()]
+
+
+def test_snapshot_schema_has_nullable_failure_kind_and_historical_insert_remains_valid():
+    _reset_db()
+    failure_kind_column = dbmod.GovtStatusSnapshot.__table__.columns["failure_kind"]
+    assert failure_kind_column.nullable is True
+
+    with test_engine.begin() as conn:
+        historical_id = conn.execute(text(
+            """
+            INSERT INTO govt_status_snapshots (
+                tenant_id, case_id, portal_id, reference_number, adapter_key,
+                snapshot_status, normalized_status, raw_status, captured_at, created_at
+            ) VALUES (
+                1, 40, 10, 'REF/TEST/0001', 'historical',
+                'complete', 'submitted', 'Received', :now, :now
+            ) RETURNING id
+            """
+        ), {"now": _utcnow()}).scalar()
+        stored = conn.execute(text(
+            "SELECT failure_kind FROM govt_status_snapshots WHERE id = :id"
+        ), {"id": historical_id}).scalar()
+
+    assert stored is None
+
+
+def test_successful_status_result_persists_null_failure_kind():
+    _reset_db()
+    snapshot_id = persist_status_snapshot(
+        tenant_id=1,
+        case_id=40,
+        portal_id=10,
+        reference_number="REF/TEST/0001",
+        adapter_key="test",
+        result=StatusResult(status="submitted", raw_portal_status="Received", checked=True),
+    )
+
+    with test_engine.connect() as conn:
+        stored = conn.execute(text(
+            "SELECT failure_kind FROM govt_status_snapshots WHERE id = :id"
+        ), {"id": snapshot_id}).scalar()
+
+    assert stored is None
+
+
+def test_snapshot_writer_persists_failure_kind_enum_value_as_text():
+    _reset_db()
+    snapshot_id = persist_status_snapshot(
+        tenant_id=1,
+        case_id=40,
+        portal_id=10,
+        reference_number="REF/TEST/0001",
+        adapter_key="test",
+        result=StatusResult(
+            status="submitted",
+            raw_portal_status="Received",
+            checked=True,
+            failure_kind=StatusFailureKind.TIMEOUT,
+        ),
+    )
+
+    with test_engine.connect() as conn:
+        stored = conn.execute(text(
+            "SELECT failure_kind FROM govt_status_snapshots WHERE id = :id"
+        ), {"id": snapshot_id}).scalar()
+
+    assert stored == "TIMEOUT"
 
 
 def test_status_result_maps_known_portal_detail_fields():
@@ -630,6 +697,8 @@ def test_history_api_keeps_partial_latest_snapshot_and_previous_latest_known():
     assert "T" in response["latest_snapshot"]["captured_at"]
     assert response["latest_snapshot"]["captured_at"].endswith("Z")
     assert response["latest_snapshot"]["snapshot_status"] == "partial"
+    assert "failure_kind" not in response["latest_snapshot"]
+    assert all("failure_kind" not in snapshot for snapshot in response["snapshots"])
     assert response["latest_snapshot"]["fields"]["department"]["state"] == "unavailable"
     assert response["latest_known"]["department"]["value"] == "Revenue"
     assert response["latest_known"]["department"]["snapshot_id"] == first_id

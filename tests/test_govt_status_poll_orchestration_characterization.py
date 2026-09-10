@@ -123,7 +123,7 @@ import main
 import sansadx_backend.db as dbmod
 from sansadx_backend.db import Base
 
-from modules.govt_sync.adapters.base import StatusResult
+from modules.govt_sync.adapters.base import StatusFailureKind, StatusResult
 from modules.govt_sync import poller as poller_mod
 
 test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
@@ -481,6 +481,34 @@ def test_A_on_demand_inconclusive_checked_false():
     assert payload == {"portal": "Test Portal", "raw_portal_status": "Unrecognised page text"}  # exactly 2 keys
 
     assert _snapshot_rows(40) == []  # no snapshot for an inconclusive check
+
+
+def test_failure_kinds_do_not_broaden_on_demand_snapshot_creation():
+    for failure_kind in (
+        StatusFailureKind.TIMEOUT,
+        StatusFailureKind.NETWORK_FAILURE,
+        StatusFailureKind.SESSION_EXPIRED,
+        StatusFailureKind.UNKNOWN,
+    ):
+        _seed_database()
+        result = StatusResult(status="", checked=False, failure_kind=failure_kind)
+        with patch("modules.govt_sync.adapters.get_adapter", return_value=_FakeAdapter(result)):
+            response = client.post("/api/cases/40/govt/poll", headers=_auth_headers())
+        assert response.status_code == 200
+        assert _snapshot_rows(40) == []
+
+
+def test_tamil_nadu_successful_poll_snapshot_has_null_failure_kind():
+    _seed_database()
+    result = StatusResult(status="under_review", checked=True, raw_portal_status="Under Process")
+    with patch("modules.govt_sync.adapters.get_adapter", return_value=_FakeAdapter(result)):
+        response = client.post("/api/cases/41/govt/poll", headers=_auth_headers())
+
+    assert response.status_code == 200
+    snapshots = _snapshot_rows(41)
+    assert len(snapshots) == 1
+    assert snapshots[0]["adapter_key"] == "tamil_nadu_http_api"
+    assert snapshots[0]["failure_kind"] is None
 
 
 def test_B_background_inconclusive_checked_false():

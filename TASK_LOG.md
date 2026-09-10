@@ -1,5 +1,11 @@
 # Task Log
 
+- Date: 2026-09-10
+- Request: Implement Phase 2B failure-kind persistence for successful Government Status snapshots, validate broadly, and commit locally without pushing.
+- Summary: Added nullable `govt_status_snapshots.failure_kind`, including idempotent startup migration support, and persisted the existing `StatusResult.failure_kind` enum value through the canonical successful-snapshot writer. Snapshot eligibility is unchanged: unchecked, authentication, timeout, network, session-expiry, and unknown failures still create no snapshot. The history API remains unchanged and does not expose the new internal field.
+- Files touched: `sansadx_backend/db.py`, `main.py`, `modules/govt_sync/status_snapshot.py`, `tests/test_govt_status_snapshot.py`, `tests/test_govt_status_poll_orchestration_characterization.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`.
+- Verification: Focused Phase 2B/GovtSync tests passed 89/89; the government/state selection passed 383/383; Python compilation and `git diff --check` passed. `npm run test:all` completed its backend runner with only pre-existing SQLite-suite failures in `test_briefcase_api.py`, `test_case_buckets_api.py`, `test_e2e_core_flow.py`, and `test_pilot_readiness.py`, plus a local-environment-only `test_auth_password_flows.py` import failure because `slowapi` is absent from this Python 3.14 venv. The runner stopped after backend failures, so chained frontend/admin/e2e stages did not run. No live government request, push, or deployment occurred.
+
 - Date: 2026-09-09
 - Request: Add temporary diagnostic-only instrumentation for the production "Check government status" path, without fixing or deploying it.
 - Summary: Added removable `[GOVT_STATUS_DIAG]` frontend traces for action-panel entry, verification decision, fail-closed early return, `/govt/poll` start/success/error, and total duration. Added matching backend route/adapter selection, start, completion, exception-type, result-state, and total-duration traces. Added focused assertions that verified TN access reaches the HTTP poll path while unverified TN access returns to guidance without opening a live browser.

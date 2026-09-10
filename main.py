@@ -1312,6 +1312,7 @@ try:
                 snapshot_status VARCHAR NOT NULL DEFAULT 'complete',
                 normalized_status VARCHAR,
                 raw_status TEXT,
+                failure_kind TEXT,
                 captured_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 source_url TEXT,
                 raw_capture_ref VARCHAR,
@@ -1319,6 +1320,9 @@ try:
                 created_at TIMESTAMP NOT NULL DEFAULT NOW()
             )
         """))
+        conn.execute(text(
+            "ALTER TABLE govt_status_snapshots ADD COLUMN IF NOT EXISTS failure_kind TEXT"
+        ))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshots_case ON govt_status_snapshots (tenant_id, case_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshots_portal_ref ON govt_status_snapshots (tenant_id, portal_id, reference_number)"))
         conn.execute(text(

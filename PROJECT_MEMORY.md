@@ -18,6 +18,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 
 ## Architecture Memory
 
+- Government status snapshot failure metadata is internal observability data: `govt_status_snapshots.failure_kind` is nullable and stores the existing `StatusFailureKind.value` only when the canonical successful-snapshot writer receives one. It does not broaden snapshot eligibility, failed/unchecked observations still create no snapshot, historical rows remain `NULL`, and the government history API does not expose this field.
 - Backend API lives at repo root with FastAPI entrypoints in `main.py`, `api_router.py`, and `admin_api.py`.
 - MP frontend lives in `frontend/` and admin frontend lives in `admin/`, both using Next.js 15 and React 19.
 - The platform is multi-tenant. Every data access path must preserve `tenant_id` isolation.

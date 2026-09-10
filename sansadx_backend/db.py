@@ -317,6 +317,7 @@ class GovtStatusSnapshot(Base):
     snapshot_status = Column(String, nullable=False, default="complete")
     normalized_status = Column(String, nullable=True)
     raw_status = Column(Text, nullable=True)
+    failure_kind = Column(Text, nullable=True)
     captured_at = Column(DateTime, default=datetime.utcnow, index=True)
     source_url = Column(Text, nullable=True)
     raw_capture_ref = Column(String, nullable=True)
