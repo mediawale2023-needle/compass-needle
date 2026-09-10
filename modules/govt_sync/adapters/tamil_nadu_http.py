@@ -12,7 +12,12 @@ from urllib.parse import urlsplit
 import requests
 
 from modules.govt_sync import cookie_sessions
-from modules.govt_sync.status.tamil_nadu import _ACTION_TAKEN_UNAVAILABLE
+# Imported from the neutral constants module, NOT from
+# modules.govt_sync.status.tamil_nadu — that edge created a real import
+# cycle (status.tamil_nadu -> adapters.base -> adapters/__init__ ->
+# tamil_nadu_http -> status.tamil_nadu) that broke any import order which
+# reached the status package first. See tamil_nadu_constants' docstring.
+from modules.govt_sync.tamil_nadu_constants import _ACTION_TAKEN_UNAVAILABLE
 
 from .base import StatusResult, normalize_status_keywords
 from .manual import ManualAssistedAdapter
