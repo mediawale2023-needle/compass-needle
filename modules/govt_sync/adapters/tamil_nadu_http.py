@@ -19,7 +19,7 @@ from modules.govt_sync import cookie_sessions
 # reached the status package first. See tamil_nadu_constants' docstring.
 from modules.govt_sync.tamil_nadu_constants import _ACTION_TAKEN_UNAVAILABLE
 
-from .base import StatusResult, normalize_status_keywords
+from .base import StatusFailureKind, StatusResult, normalize_status_keywords
 from .manual import ManualAssistedAdapter
 
 logger = logging.getLogger("needle.govt_sync.adapter.tamil_nadu_http")
@@ -44,31 +44,44 @@ class TamilNaduHTTPStatusAdapter(ManualAssistedAdapter):
     def check_status(self, reference_number: str, tenant_id: int | None = None) -> StatusResult:
         portal_id = self._portal_id()
         if not tenant_id or not portal_id:
-            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE)
+            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE,
+                                 failure_kind=StatusFailureKind.AUTH_REQUIRED)
 
         try:
             session = cookie_sessions.load_cookie_session(int(tenant_id), int(portal_id))
         except cookie_sessions.CookieSessionKeyError:
             logger.warning("Tamil Nadu cookie session key missing/invalid; status check requires verification")
-            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE)
+            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE,
+                                 failure_kind=StatusFailureKind.AUTH_REQUIRED)
         except cookie_sessions.CookieSessionDecryptError:
             cookie_sessions.mark_cookie_session_auth_failed(int(tenant_id), int(portal_id))
-            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE)
+            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE,
+                                 failure_kind=StatusFailureKind.AUTH_REQUIRED)
 
         if not session:
-            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE)
+            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE,
+                                 failure_kind=StatusFailureKind.AUTH_REQUIRED)
 
         reference = (reference_number or "").strip().upper()
         record_id = (session.ticket_mappings or {}).get(reference)
         if not record_id:
-            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE)
+            # A valid cookie session may exist while Needle simply lacks a
+            # ticket mapping for THIS reference — this is not evidence that
+            # authentication is required or that the session is invalid, so
+            # it must not be classified AUTH_REQUIRED. No adapter has a
+            # reliable signal to say WHY the mapping is missing yet, so
+            # UNKNOWN is the honest classification here, not a new taxonomy
+            # member invented to describe this one gap.
+            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE,
+                                 failure_kind=StatusFailureKind.UNKNOWN)
 
         base_url = str(self.portal.get("base_url") or "https://cmhelpline.tnega.org").rstrip("/")
         host = urlsplit(base_url).netloc
         cookie_header = cookie_sessions.cookies_to_header(session.cookie_jar, host)
         if not cookie_header:
             cookie_sessions.mark_cookie_session_auth_failed(int(tenant_id), int(portal_id))
-            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE)
+            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE,
+                                 failure_kind=StatusFailureKind.AUTH_REQUIRED)
 
         headers = {
             "Accept": "application/json, text/plain, */*",
@@ -83,28 +96,36 @@ class TamilNaduHTTPStatusAdapter(ManualAssistedAdapter):
                 allow_redirects=False,
             )
         except requests.Timeout:
-            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu portal timed out.")
+            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu portal timed out.",
+                                 failure_kind=StatusFailureKind.TIMEOUT)
         except requests.RequestException:
-            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu portal could not be reached.")
+            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu portal could not be reached.",
+                                 failure_kind=StatusFailureKind.NETWORK_FAILURE)
 
         if ticket_resp.status_code in (401, 403):
             cookie_sessions.mark_cookie_session_auth_failed(int(tenant_id), int(portal_id))
-            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE)
+            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE,
+                                 failure_kind=StatusFailureKind.SESSION_EXPIRED)
         if ticket_resp.status_code == 404:
-            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu ticket was not found.")
+            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu ticket was not found.",
+                                 failure_kind=StatusFailureKind.REFERENCE_NOT_FOUND)
         if 500 <= ticket_resp.status_code < 600:
-            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu portal is temporarily unavailable.")
+            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu portal is temporarily unavailable.",
+                                 failure_kind=StatusFailureKind.PORTAL_UNAVAILABLE)
         if ticket_resp.status_code != 200:
-            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu status check was inconclusive.")
+            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu status check was inconclusive.",
+                                 failure_kind=StatusFailureKind.UNKNOWN)
 
         try:
             ticket = ticket_resp.json()
         except ValueError:
-            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu returned an unreadable response.")
+            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu returned an unreadable response.",
+                                 failure_kind=StatusFailureKind.PARSE_FAILED)
 
         parsed = _parse_ticket_payload(ticket, reference)
         if not parsed:
-            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu response did not match the recorded grievance.")
+            return StatusResult(status="", checked=False, raw_portal_status="Tamil Nadu response did not match the recorded grievance.",
+                                 failure_kind=StatusFailureKind.PARSE_FAILED)
 
         conversations = _fetch_conversations(base_url, record_id, headers)
         if conversations is not None:
@@ -113,7 +134,8 @@ class TamilNaduHTTPStatusAdapter(ManualAssistedAdapter):
         raw_status = parsed.get("raw_detail_status") or parsed.get("raw_list_status") or ""
         normalized = _normalize_tn_status(raw_status)
         if not normalized:
-            return StatusResult(status="", checked=False, raw_portal_status=raw_status or "Tamil Nadu status was unreadable.")
+            return StatusResult(status="", checked=False, raw_portal_status=raw_status or "Tamil Nadu status was unreadable.",
+                                 failure_kind=StatusFailureKind.PARSE_FAILED)
 
         cookie_sessions.mark_cookie_session_used(int(tenant_id), int(portal_id))
         return StatusResult(
