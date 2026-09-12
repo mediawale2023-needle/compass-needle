@@ -124,6 +124,32 @@ def test_cookie_session_encrypts_and_decrypts_without_plaintext_persistence():
     assert cookie_sessions.load_cookie_session(1, 10).ticket_mappings == {REF: RECORD_ID}
 
 
+def test_atomic_mapping_upsert_preserves_distinct_keys_and_new_value_wins():
+    _store(mapping={"OLD": "1", "A": "OLD-ID"})
+    cookie_sessions.store_cookie_session(
+        tenant_id=1, portal_id=10, cookie_jar=_cookie_jar(),
+        ticket_mappings={"A": "2"}, merge_ticket_mappings=True,
+    )
+    cookie_sessions.store_cookie_session(
+        tenant_id=1, portal_id=10, cookie_jar=_cookie_jar(),
+        ticket_mappings={"B": "3"}, merge_ticket_mappings=True,
+    )
+
+    assert cookie_sessions.load_cookie_session(1, 10).ticket_mappings == {
+        "OLD": "1", "A": "2", "B": "3",
+    }
+
+
+def test_postgres_mapping_upsert_is_one_atomic_jsonb_merge():
+    engine = Mock(dialect=Mock(name="postgresql"))
+    expression = cookie_sessions._ticket_mappings_update_expr(engine, merge=True)
+
+    assert expression == (
+        "COALESCE(govt_cookie_sessions.ticket_mappings, '{}'::jsonb) "
+        "|| EXCLUDED.ticket_mappings"
+    )
+
+
 def test_cookie_session_missing_or_invalid_key_fails_closed(monkeypatch):
     _store()
     monkeypatch.delenv("GOVT_COOKIE_SESSION_KEY", raising=False)
