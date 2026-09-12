@@ -83,7 +83,7 @@ import json
 import os
 import sys
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import jwt
 import pytest
@@ -585,6 +585,28 @@ def test_B_background_needs_verification_and_skip_pairs():
     assert rows[0]["action"] == "status_check_needs_verification"
     payload = json.loads(rows[0]["payload"])
     assert payload == {"portal": "TN Test Portal", "raw_portal_status": None, "govt_status_at_time": "submitted"}
+
+
+def test_B_tn_missing_mapping_does_not_skip_later_mapped_case():
+    _seed_database()
+    missing = StatusResult(
+        status="", checked=False, needs_verification=False,
+        raw_portal_status="Tamil Nadu grievance is not mapped to the authenticated portal session.",
+    )
+    mapped = StatusResult(status="under_review", checked=True, raw_portal_status="Under Process")
+    adapter = _FakeAdapter()
+    adapter.check_status = Mock(side_effect=[missing, mapped])
+    row_a = _poller_row(41, 1, 2, "submitted", "TN/REF/0002", status_check_adapter="tamil_nadu_http_api")
+    row_b = _poller_row(42, 1, 2, "submitted", "TN/REF/0003", status_check_adapter="tamil_nadu_http_api")
+
+    with patch("modules.govt_sync.poller._q", return_value=[row_a, row_b]), \
+         patch("modules.govt_sync.poller.get_adapter", return_value=adapter):
+        summary = poller_mod.poll_all_pending()
+
+    assert adapter.check_status.call_count == 2
+    assert summary == {"pending": 2, "checked": 2, "changed": 1}
+    assert _case_row(42)["govt_status"] == "under_review"
+    assert [row["action"] for row in _log_rows()] == ["status_check_inconclusive", "status_polled"]
 
 
 # ─── 6. Adapter exception ────────────────────────────────────────────────────

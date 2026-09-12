@@ -4730,12 +4730,15 @@ async def govt_tamil_nadu_promote_session(case_id: int, session_id: str, user=De
 
     try:
         cookies = await session.context.cookies(session.portal["base_url"])
+        # TODO: Refresh the account-wide map only after a verified
+        # /portal/api/tickets list response and pagination contract exist.
         store_cookie_session(
             tenant_id=tid,
             portal_id=int(portal_id),
             cookie_jar=cookies,
-            ticket_mappings={reference_number.upper(): record_id},
+            ticket_mappings={reference_number.strip().upper(): record_id},
             expires_at=derive_cookie_expiry(cookies),
+            merge_ticket_mappings=True,
         )
     except Exception:
         logger.exception("Tamil Nadu cookie session promotion failed tenant=%s case=%s", tid, case_id)

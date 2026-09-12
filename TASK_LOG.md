@@ -1,5 +1,18 @@
 # Task Log
 
+- Date: 2026-09-12
+- Request: Resolve PR #134's valid concurrent Tamil Nadu promotion lost-update blocker with the smallest atomic persistence correction.
+- Summary: Moved mapping merge semantics into the existing tenant+portal cookie-session upsert. PostgreSQL now atomically applies existing JSONB `|| EXCLUDED.ticket_mappings` (new observation wins duplicate keys); SQLite uses atomic `json_patch` for compatible tests. The unique tenant+portal upsert conflict path also protects simultaneous first-row promotions. The route submits only its newly observed normalized mapping. Cookie encryption and the prior missing-mapping behavior remain unchanged.
+- Validation: focused TN inboard/orchestration suite `51 passed`; targeted TN/GovtSync/import-cycle/protected-state suite `316 passed`; full government-sync selection `388 passed, 487 deselected`.
+- Files touched: `modules/govt_sync/cookie_sessions.py`, `api_router.py`, `tests/test_tamil_nadu_inboard_status.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`.
+- Risks or follow-ups: Account-wide TN list discovery remains intentionally deferred. No live portal request or unrelated implementation was introduced.
+
+- Date: 2026-09-10
+- Request: Implement the evidence-safe subset of Tamil Nadu login-once multi-case status reuse, without guessing the unverified account-wide ticket-list API.
+- Summary: Tamil Nadu session promotion now loads tenant+portal-scoped stored ticket mappings, preserves unrelated references, and lets the newly observed record ID win for the promoted reference before storing the fresh encrypted cookie session. A valid cookie session with no mapping for one grievance now returns an inconclusive `UNKNOWN` result without requesting re-authentication, so the unchanged background poller continues to later mapped TN cases. Definitive 401/403 expiry behavior remains unchanged. Account-wide `/portal/api/tickets` discovery is explicitly deferred pending verified response and pagination evidence.
+- Files touched: `api_router.py`, `modules/govt_sync/cookie_sessions.py`, `modules/govt_sync/adapters/tamil_nadu_http.py`, `tests/test_tamil_nadu_inboard_status.py`, `tests/test_govt_status_poll_orchestration_characterization.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`.
+- Verification: focused TN/poller boundary tests 49/49; combined TN diagnostics, cookie-session, orchestration, normalization, import-cycle, and protected-state suite 314/314; full government/state selection 386/386; `py_compile` and `git diff --check` passed. No frontend/schema/poller/protected-adapter change, live portal request, push, merge, or deployment occurred. The unrelated `data/geography/Ghaziabad/Loni.json` modification remained untouched and unstaged.
+
 - Date: 2026-09-10
 - Request: Implement Phase 2B failure-kind persistence for successful Government Status snapshots, validate broadly, and commit locally without pushing.
 - Summary: Added nullable `govt_status_snapshots.failure_kind`, including idempotent startup migration support, and persisted the existing `StatusResult.failure_kind` enum value through the canonical successful-snapshot writer. Snapshot eligibility is unchanged: unchecked, authentication, timeout, network, session-expiry, and unknown failures still create no snapshot. The history API remains unchanged and does not expose the new internal field.

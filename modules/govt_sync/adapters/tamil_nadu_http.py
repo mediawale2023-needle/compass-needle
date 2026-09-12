@@ -72,7 +72,8 @@ class TamilNaduHTTPStatusAdapter(ManualAssistedAdapter):
             # reliable signal to say WHY the mapping is missing yet, so
             # UNKNOWN is the honest classification here, not a new taxonomy
             # member invented to describe this one gap.
-            return StatusResult(status="", checked=False, needs_verification=True, raw_portal_status=_VERIFY_NOTE,
+            return StatusResult(status="", checked=False, needs_verification=False,
+                                 raw_portal_status="Tamil Nadu grievance is not mapped to the authenticated portal session.",
                                  failure_kind=StatusFailureKind.UNKNOWN)
 
         base_url = str(self.portal.get("base_url") or "https://cmhelpline.tnega.org").rstrip("/")

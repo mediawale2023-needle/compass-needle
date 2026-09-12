@@ -53,6 +53,14 @@ def _json_param(value: Any) -> str:
     return json.dumps(value, sort_keys=True, default=str)
 
 
+def _ticket_mappings_update_expr(engine, merge: bool) -> str:
+    if not merge:
+        return "EXCLUDED.ticket_mappings"
+    if getattr(getattr(engine, "dialect", None), "name", "") == "sqlite":
+        return "json_patch(COALESCE(govt_cookie_sessions.ticket_mappings, '{}'), EXCLUDED.ticket_mappings)"
+    return "COALESCE(govt_cookie_sessions.ticket_mappings, '{}'::jsonb) || EXCLUDED.ticket_mappings"
+
+
 def _decode_json(value: Any) -> Any:
     if value is None:
         return None
@@ -118,12 +126,14 @@ def store_cookie_session(
     cookie_jar: list[dict],
     ticket_mappings: dict[str, str] | None = None,
     expires_at: datetime | None = None,
+    merge_ticket_mappings: bool = False,
 ) -> None:
     from sansadx_backend.db import engine
     from sqlalchemy import text
 
     encrypted = encrypt_cookie_jar(cookie_jar)
     mappings_expr = _json_expr(engine, "ticket_mappings")
+    mappings_update_expr = _ticket_mappings_update_expr(engine, merge_ticket_mappings)
     now = _utcnow()
     with engine.begin() as conn:
         conn.execute(
@@ -139,7 +149,7 @@ def store_cookie_session(
                 )
                 ON CONFLICT (tenant_id, portal_id) DO UPDATE SET
                     encrypted_cookie_jar = EXCLUDED.encrypted_cookie_jar,
-                    ticket_mappings = EXCLUDED.ticket_mappings,
+                    ticket_mappings = {mappings_update_expr},
                     captured_at = EXCLUDED.captured_at,
                     last_auth_failed_at = NULL,
                     requires_verification = false,
