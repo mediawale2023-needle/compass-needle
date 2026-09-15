@@ -2747,7 +2747,9 @@ _GREETING_CATEGORIES = {"greetings", "greeting"}
 # ─────────────────────────────────────────
 # CONTEXT MEMORY (prevents repeated questions)
 # ─────────────────────────────────────────
-def get_user_context(phone_number: str) -> str:
+def get_user_context(phone_number: str, tenant_id: int) -> str:
+    if not tenant_id:
+        return ""
     try:
         with engine.connect() as conn:
             # Use JSONB operator instead of CAST+LIKE for correctness and performance.
@@ -2755,19 +2757,21 @@ def get_user_context(phone_number: str) -> str:
             try:
                 query = text("""
                     SELECT case_metadata FROM cases
-                    WHERE user_phone = :phone
+                    WHERE user_phone = :phone AND tenant_id = :tenant_id
+                      AND (is_deleted = false OR is_deleted IS NULL)
                       AND (case_metadata->>'location_resolved')::boolean = true
                     ORDER BY created_at DESC LIMIT 1
                 """)
-                result = conn.execute(query, {"phone": phone_number}).fetchone()
+                result = conn.execute(query, {"phone": phone_number, "tenant_id": tenant_id}).fetchone()
             except Exception:
                 # SQLite fallback (development only)
                 query = text("""
                     SELECT case_metadata FROM cases
-                    WHERE user_phone = :phone
+                    WHERE user_phone = :phone AND tenant_id = :tenant_id
+                      AND (is_deleted = false OR is_deleted IS NULL)
                     ORDER BY created_at DESC LIMIT 1
                 """)
-                result = conn.execute(query, {"phone": phone_number}).fetchone()
+                result = conn.execute(query, {"phone": phone_number, "tenant_id": tenant_id}).fetchone()
 
             if result and result[0]:
                 meta = result[0]
@@ -4400,7 +4404,7 @@ def _run_citizen_case_enrichment(
     media_source: dict | None = None,
     thread_context: str = "",
 ) -> dict:
-    user_context = get_user_context(sender)
+    user_context = get_user_context(sender, current_tenant)
     context_parts: list[str] = []
     if user_context:
         context_parts.append(user_context)

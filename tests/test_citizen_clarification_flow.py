@@ -40,7 +40,7 @@ def test_civic_drainage_message_overrides_silent_media_category(monkeypatch):
     monkeypatch.setenv("CLASSIFICATION_MODE", "on")
     msg = "Shivaji colony in Tilakwadi has drainage issue. Needs immediate attention."
 
-    monkeypatch.setattr("main.get_user_context", lambda _sender: "")
+    monkeypatch.setattr("main.get_user_context", lambda _sender, _tenant_id: "")
     monkeypatch.setattr(
         "main.ask_chatgpt_agent",
         lambda _prompt, tenant_id: {
@@ -92,7 +92,7 @@ def test_civic_drainage_rescue_in_shadow_mode_keeps_taxonomy_null(monkeypatch):
     monkeypatch.delenv("CLASSIFICATION_MODE", raising=False)  # default = shadow
     msg = "Shivaji colony in Tilakwadi has drainage issue. Needs immediate attention."
 
-    monkeypatch.setattr("main.get_user_context", lambda _sender: "")
+    monkeypatch.setattr("main.get_user_context", lambda _sender, _tenant_id: "")
     monkeypatch.setattr(
         "main.ask_chatgpt_agent",
         lambda _prompt, tenant_id: {
