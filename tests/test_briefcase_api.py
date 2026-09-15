@@ -1032,3 +1032,36 @@ def test_briefcase_newest_grouping_ignores_staff_updated_at():
     updated_rows = api_router._group_briefcase_cases([older, newer], sort="updated")
     assert [row["id"] for row in updated_rows] == [1, 2]
 
+
+
+def test_legacy_notify_enforces_primary_role_and_tenant(monkeypatch):
+    _seed_database()
+    outbound = []
+    monkeypatch.setattr(api_router, "get_tenant_phone_number_id", lambda _tid: "test-sender")
+    monkeypatch.setattr("modules.whatsapp.send_whatsapp_message", lambda *args, **kwargs: outbound.append(args))
+    for username in ("pr_meera", "staff_raj"):
+        response = client.post("/api/cases/101/notify", headers=_auth_headers(username))
+        assert response.status_code == 403, response.text
+    response = client.post("/api/cases/101/notify", headers=_auth_headers("mp_priya"))
+    assert response.status_code == 404, response.text
+    assert outbound == []
+    for username in ("mp_arun", "owner_arun"):
+        response = client.post("/api/cases/101/notify", headers=_auth_headers(username))
+        assert response.status_code == 200, response.text
+    assert len(outbound) == 2
+
+
+def test_citizen_history_is_tenant_scoped_and_excludes_deleted_cases():
+    _seed_database()
+    with test_engine.begin() as conn:
+        conn.execute(text("UPDATE cases SET user_phone = 'shared-citizen', case_metadata = :meta"),
+                     {"meta": json.dumps({"location_resolved": True, "matched_value": "Office B location"})})
+        conn.execute(text("UPDATE cases SET case_metadata = :meta WHERE tenant_id = 1"),
+                     {"meta": json.dumps({"location_resolved": True, "matched_value": "Office A location"})})
+    assert "Office A location" in main.get_user_context("shared-citizen", 1)
+    assert "Office B location" in main.get_user_context("shared-citizen", 2)
+    assert main.get_user_context("shared-citizen", 999) == ""
+    assert main.get_user_context("shared-citizen", None) == ""
+    with test_engine.begin() as conn:
+        conn.execute(text("UPDATE cases SET is_deleted = true WHERE tenant_id = 1"))
+    assert main.get_user_context("shared-citizen", 1) == ""

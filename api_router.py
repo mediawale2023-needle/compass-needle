@@ -3020,6 +3020,9 @@ def add_complaint_to_case(case_id: int, body: AddComplaintRequest, user=Depends(
 def notify_citizen(case_id: int, user=Depends(get_current_user)):
     """Send a WhatsApp status update to the citizen. Uses the 24-hour customer service window."""
     tid = get_tenant_or_fail(user)
+    if not _is_primary_workspace_user(user):
+        raise HTTPException(403, "Only the primary account can send citizen notifications")
+
     case = _q_one(
         "SELECT c.*, t.whatsapp_number as wa_number FROM cases c "
         "JOIN tenants t ON c.tenant_id = t.id "
