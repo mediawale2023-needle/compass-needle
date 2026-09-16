@@ -1,0 +1,81 @@
+name: Verify Production Baseline
+
+on:
+  push:
+    branches:
+      - "Codex/verify-production-baseline-20260916"
+
+concurrency:
+  group: aws-ec2-production-verification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Read-only SHA and database verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions read-only verification'}]" \
+            || echo "SSH ingress may already exist; continuing."
+
+      - name: Verify Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 7m
+          script: |
+            set -euo pipefail
+            ROOT=/opt/compass-needle
+            COMPOSE="$ROOT/deploy/ec2/docker-compose.yml"
+            echo "== deployed source =="
+            git -C "$ROOT" rev-parse HEAD
+            git -C "$ROOT" status --short
+            echo "== containers =="
+            docker compose -f "$COMPOSE" ps --format json | python3 -c 'import json,sys; [print(x.get("Service"), x.get("State"), x.get("Health","")) for x in map(json.loads,sys.stdin)]'
+            echo "== database schema =="
+            docker compose -f "$COMPOSE" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F"|" -c "
+              SELECT table_name FROM information_schema.tables
+              WHERE table_schema = '\''public'\'' AND table_name IN ('\''wa_inbound_messages'\'','\''wa_text_buffer'\'','\''cases'\'')
+              ORDER BY table_name;
+              SELECT column_name FROM information_schema.columns
+              WHERE table_schema = '\''public'\'' AND table_name = '\''cases'\''
+                AND column_name IN ('\''contact_buffer_claim_token'\'','\''contact_buffer_claimed_at'\'','\''contact_buffer_release_at'\'')
+              ORDER BY column_name;"'
+            echo "== aggregate operational state =="
+            docker compose -f "$COMPOSE" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F"|" -c "
+              SELECT '\''inbound'\'', status, COUNT(*) FROM wa_inbound_messages GROUP BY status ORDER BY status;
+              SELECT '\''text_buffer'\'', status, COUNT(*) FROM wa_text_buffer GROUP BY status ORDER BY status;
+              SELECT '\''contact_buffered'\'', COUNT(*) FROM cases WHERE status = '\''contact_buffered'\'';"'
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
