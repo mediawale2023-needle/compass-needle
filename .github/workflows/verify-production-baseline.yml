@@ -51,7 +51,7 @@ jobs:
             ROOT=/opt/compass-needle
             COMPOSE="$ROOT/deploy/ec2/docker-compose.yml"
             echo "== deployed source =="
-            SOURCE_DIR="$(find "$ROOT" -maxdepth 3 -type d -name .git -printf '%h\\n' 2>/dev/null | head -1)"
+            SOURCE_DIR="$(find "$ROOT" -maxdepth 3 -type d -name .git -print 2>/dev/null | sed 's#/.git$##' | head -1)"
             if [ -n "$SOURCE_DIR" ]; then
               git -C "$SOURCE_DIR" rev-parse HEAD
               git -C "$SOURCE_DIR" status --short
