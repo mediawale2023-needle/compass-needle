@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 103668)
-Total output lines: 9539
-
 """
 API Router — REST endpoints for the Next.js frontend.
 Mounted in main.py as app.include_router(api_router, prefix="/api")
@@ -4570,7 +4567,297 @@ async def govt_tamil_nadu_check_status(case_id: int, session_id: str, user=Depen
 
     Never signs in, never answers OTP/CAPTCHA, never submits/edits/replies.
     Returns either a human-checkpoint state (staff acts in the browser, then
-    calls this a…3668 tokens truncated… reference_number:
+    calls this again — no status is written) or a read result. A successful
+    read reuses the existing status_polled / status_check_inconclusive
+    persistence exactly as the non-interactive poll paths do.
+    """
+    tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context(case_id, session_id, user)
+
+    from modules.govt_sync.status import HUMAN_CHECKPOINT_STATES
+    from modules.govt_sync.status.base import StatusCheckState
+
+    try:
+        result = await adapter.check_status_on_page(session.page, reference_number)
+    except Exception as e:
+        logger.error("Tamil Nadu status check failed for case %s session %s: %s", case_id, session_id, e)
+        _log_govt_action(tid, case_id, "TN_STATUS_PORTAL_ERROR", user.get("username"), payload={"session_id": session_id})
+        raise HTTPException(502, "Tamil Nadu status check could not complete — verify manually on the portal.")
+
+    payload = result.to_dict()
+    state = result.state
+    portal_name = session.portal.get("portal_name") or case.get("portal_name")
+
+    tn_action = {
+        StatusCheckState.AUTH_REQUIRED: "TN_STATUS_AUTH_REQUIRED",
+        StatusCheckState.OTP_REQUIRED: "TN_STATUS_OTP_REQUIRED",
+        StatusCheckState.CAPTCHA_REQUIRED: "TN_STATUS_CAPTCHA_REQUIRED",
+        StatusCheckState.SESSION_EXPIRED: "TN_STATUS_SESSION_EXPIRED",
+        StatusCheckState.PETITIONS_LOADING: "TN_STATUS_PETITIONS_LOADING",
+        StatusCheckState.STATUS_FORM_LOADING: "TN_STATUS_FORM_LOADING",
+        StatusCheckState.CASE_NOT_FOUND: "TN_STATUS_CASE_NOT_FOUND",
+        StatusCheckState.AMBIGUOUS_MATCH: "TN_STATUS_AMBIGUOUS_MATCH",
+        StatusCheckState.PORTAL_ERROR: "TN_STATUS_PORTAL_ERROR",
+        StatusCheckState.STATUS_CHECK_INCONCLUSIVE: "TN_STATUS_INCONCLUSIVE",
+        StatusCheckState.STATUS_CHECKED: "TN_STATUS_CHECKED",
+    }.get(state, "TN_STATUS_INCONCLUSIVE")
+
+    # A human checkpoint is not a check outcome: log the checkpoint, hand the
+    # state back so the UI tells staff what to do in the browser, and write
+    # nothing to cases.govt_status / no status_polled / no inconclusive row.
+    if state in HUMAN_CHECKPOINT_STATES:
+        _log_govt_action(tid, case_id, tn_action, user.get("username"), payload={"session_id": session_id, "state": state})
+        return {"success": True, "changed": False, "checkpoint": True, **payload}
+
+    if state != StatusCheckState.STATUS_CHECKED or not result.normalized_status:
+        # Reached-but-unreadable, no match, ambiguous, still loading, portal
+        # error — persisted with the SAME action the non-interactive poll paths
+        # use for this (govt_poll_case, poller.py), so get_govt_forward_state's
+        # "last successfully checked" stays truthful.
+        _log_govt_action(
+            tid, case_id, "status_check_inconclusive", user.get("username"),
+            payload={
+                "portal": portal_name,
+                "raw_portal_status": result.raw_detail_status or result.raw_list_status,
+                "tn_state": state,
+                "session_id": session_id,
+            },
+        )
+        return {
+            "success": True, "changed": False, "checkpoint": False,
+            # result.note is almost always set by the (protected, untouched)
+            # Tamil Nadu adapter itself with a specific, meaningful message
+            # per state (e.g. "no petition matched this reference number") —
+            # this fallback only fires if that's ever falsy, so it uses the
+            # same standardized wording as every other inconclusive surface.
+            "note": result.note or _GOVT_NO_STATUS_CHANGE_NOTE,
+            **payload,
+        }
+
+    # Genuine success: the authenticated page was reached and a status was read
+    # AND it normalized cleanly.
+    old_status = case.get("govt_status")
+    normalized = result.normalized_status
+    changed = normalized != old_status
+    if changed:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE cases SET govt_status = :status, govt_status_updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
+                {"status": normalized, "now": _utcnow(), "cid": case_id, "tid": tid},
+            )
+
+    portal_detail = {
+        "status_text": result.raw_detail_status,
+        "sub_status_text": result.raw_list_status,
+        "department_name": result.department,
+        "last_action_date": result.last_updated,
+        "pendency_details": result.action_taken_report,
+        # Both raw portal strings kept verbatim alongside the display fields —
+        # the list card and the detail page can legitimately disagree.
+        "raw_list_status": result.raw_list_status,
+        "raw_detail_status": result.raw_detail_status,
+        "replies": payload["replies"],
+    }
+    portal_detail = {k: v for k, v in portal_detail.items() if v not in (None, "", [])}
+    _log_govt_action(
+        tid, case_id, "status_polled", user.get("username"),
+        payload={
+            "old_status": old_status,
+            "new_status": normalized,
+            "raw_portal_status": result.raw_detail_status or result.raw_list_status,
+            "portal_detail": portal_detail,
+            "portal": portal_name,
+            "changed": changed,
+            "channel": "tn_live_status",
+            "session_id": session_id,
+        },
+    )
+    from modules.govt_sync.adapters.base import StatusResult
+
+    _observe_govt_status_snapshot(
+        tid,
+        case_id,
+        case,
+        StatusResult(
+            status=normalized,
+            raw_portal_status=result.raw_detail_status or result.raw_list_status,
+            checked=True,
+            portal_detail=portal_detail,
+        ),
+        actor_username=user.get("username"),
+        source_url=result.current_url,
+        adapter_key="tamil_nadu_live_status",
+    )
+    return {
+        "success": True,
+        "changed": changed,
+        "checkpoint": False,
+        "govt_status": normalized if changed else old_status,
+        **payload,
+    }
+
+
+@router.post("/cases/{case_id}/govt/session/{session_id}/tamil-nadu/promote-session")
+async def govt_tamil_nadu_promote_session(case_id: int, session_id: str, user=Depends(get_current_user)):
+    """Capture an already-authenticated TN browser session for future HTTP reads."""
+    tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context(case_id, session_id, user)
+    from modules.govt_sync.status.base import StatusCheckState
+
+    try:
+        result, record_id = await adapter.check_status_and_observe_record_id(session.page, reference_number)
+    except Exception as e:
+        logger.error("Tamil Nadu session promotion failed for case %s session %s: %s", case_id, session_id, e)
+        raise HTTPException(502, "Tamil Nadu access could not be verified — sign in and try again.")
+
+    if result.state != StatusCheckState.STATUS_CHECKED or not record_id:
+        return {
+            "success": True,
+            "promoted": False,
+            "needs_verification": True,
+            "state": result.state,
+            "note": "Tamil Nadu access needs verification. Please sign in again.",
+        }
+
+    portal_id = session.portal.get("portal_id") or session.portal.get("id")
+    if not portal_id:
+        raise HTTPException(400, "Tamil Nadu portal configuration is missing.")
+
+    from modules.govt_sync.cookie_sessions import derive_cookie_expiry, store_cookie_session
+
+    try:
+        cookies = await session.context.cookies(session.portal["base_url"])
+        # TODO: Refresh the account-wide map only after a verified
+        # /portal/api/tickets list response and pagination contract exist.
+        store_cookie_session(
+            tenant_id=tid,
+            portal_id=int(portal_id),
+            cookie_jar=cookies,
+            ticket_mappings={reference_number.strip().upper(): record_id},
+            expires_at=derive_cookie_expiry(cookies),
+            merge_ticket_mappings=True,
+        )
+    except Exception:
+        logger.exception("Tamil Nadu cookie session promotion failed tenant=%s case=%s", tid, case_id)
+        raise HTTPException(503, "Tamil Nadu access could not be stored securely — configure GOVT_COOKIE_SESSION_KEY.")
+
+    _log_govt_action(
+        tid,
+        case_id,
+        "TN_COOKIE_SESSION_PROMOTED",
+        user.get("username"),
+        payload={"portal": session.portal.get("portal_name"), "reference_number": reference_number},
+    )
+    return {
+        "success": True,
+        "promoted": True,
+        "needs_verification": False,
+        "message": "Tamil Nadu access verified for status checks.",
+    }
+
+
+# ─── Tamil Nadu HTTP-migration investigation — Phase 1 controlled proof ────
+#
+# NOT part of the normal TN status-check flow above. This is a diagnostic
+# only, added to determine whether TN's status check could someday be
+# migrated off the live Playwright browser onto a plain HTTP client (see
+# modules/govt_sync/status/tn_network_diagnostic.py's module docstring for
+# the full Cowork-investigation context). Disabled by default; when
+# disabled this route behaves as if it doesn't exist (404), not a
+# descriptive 403, so its presence isn't advertised. Hard-scoped to the one
+# grievance this investigation was authorized against.
+_TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING = "18968314"
+
+
+def _tn_http_diagnostic_enabled() -> bool:
+    return os.getenv("GOVT_SYNC_TN_HTTP_DIAGNOSTIC_ENABLED", "false").strip().lower() == "true"
+
+
+class GovtTamilNaduDiagnosticGateRequest(BaseModel):
+    action: str  # "arm" | "disarm"
+
+
+@router.post("/cases/{case_id}/govt/session/{session_id}/tamil-nadu/diagnostic/arm")
+async def govt_tamil_nadu_http_diagnostic_gate(
+    case_id: int, session_id: str, body: GovtTamilNaduDiagnosticGateRequest, user=Depends(get_current_user),
+):
+    """Process-local, single-use permission slip for the HTTP-diagnostic
+    proof below — added so that proof can be enabled for exactly one
+    controlled run WITHOUT recreating backend_govt_live (which would
+    destroy the in-memory LiveSession the diagnostic needs). This endpoint
+    NEVER runs the diagnostic itself — arming only ever grants a later
+    call to govt_tamil_nadu_http_replay_diagnostic() the right to proceed
+    once. See modules/govt_sync/status/tn_diagnostic_runtime_gate.py's
+    module docstring for the full design.
+
+    Reuses the exact same tenant/case/session-ownership and
+    Tamil-Nadu-adapter check as the diagnostic endpoint itself
+    (_get_tamil_nadu_live_status_context), plus the same hard-coded
+    single-grievance guard — a grant can never be created for any case,
+    session, or reference number the diagnostic itself wouldn't already
+    accept. GOVT_SYNC_TN_HTTP_DIAGNOSTIC_ENABLED is untouched by this
+    endpoint and keeps its existing, unrelated meaning (a deployment-wide
+    "diagnostic always on" switch)."""
+    tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context(case_id, session_id, user)
+    if _TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING not in reference_number:
+        raise HTTPException(403, "This diagnostic is scoped to a single, pre-approved grievance only.")
+
+    action = (body.action or "").strip().lower()
+    from modules.govt_sync.status import tn_diagnostic_runtime_gate
+
+    if action == "arm":
+        await tn_diagnostic_runtime_gate.arm(
+            tenant_id=tid, case_id=case_id, session_id=session_id, reference_number=reference_number,
+        )
+        _log_govt_action(tid, case_id, "TN_HTTP_DIAGNOSTIC_ARMED", user.get("username"), payload={"session_id": session_id})
+        return {"armed": True, "expires_in_seconds": tn_diagnostic_runtime_gate.TTL_SECONDS}
+    if action == "disarm":
+        await tn_diagnostic_runtime_gate.disarm(session_id=session_id)
+        _log_govt_action(tid, case_id, "TN_HTTP_DIAGNOSTIC_DISARMED", user.get("username"), payload={"session_id": session_id})
+        return {"armed": False}
+    raise HTTPException(400, "action must be 'arm' or 'disarm'")
+
+
+@router.post("/cases/{case_id}/govt/session/{session_id}/tamil-nadu/diagnostic/http-replay-proof")
+async def govt_tamil_nadu_http_replay_diagnostic(case_id: int, session_id: str, user=Depends(get_current_user)):
+    """Phase 1 controlled-proof diagnostic ONLY — not production status
+    checking. Reuses the exact same tenant/case/session-ownership and
+    Tamil-Nadu-adapter check as the real status-check endpoint above
+    (_get_tamil_nadu_live_status_context), then additionally refuses to run
+    against any reference number other than the single grievance this
+    investigation was authorized for. Drives the SAME production
+    check_status_on_page() call the real "Check Tamil Nadu status" button
+    already performs — no new navigation is added — with a read-only
+    network observer attached around it. Never returns cookies, tokens, or
+    raw headers; see tn_network_diagnostic.py for the sanitization
+    discipline. Read-only: cannot submit, edit, reply to, or create any
+    grievance.
+
+    Runs if EITHER the deployment-wide GOVT_SYNC_TN_HTTP_DIAGNOSTIC_ENABLED
+    is on, OR a process-local, single-use grant was created for this exact
+    tenant/case/session/reference via the /diagnostic/arm endpoint above
+    (see tn_diagnostic_runtime_gate.py) — the second path exists
+    specifically so a single controlled run doesn't require recreating
+    backend_govt_live. A successful grant-based run consumes the grant
+    atomically; a second call behaves exactly as if the diagnostic were
+    off (404), never a distinct error that would hint a grant ever
+    existed.
+
+    Ordering note: when the deployment flag is off, this checks for the
+    mere PRESENCE of any grant for this session_id (has_pending_grant —
+    a cheap, non-authoritative dict-key check) before doing anything else.
+    If none exists — the overwhelming common case — this 404s immediately,
+    before ever touching tenant/case ownership or the real reference
+    number, preserving the exact pre-existing "diagnostic off -> 404 for
+    everyone, no ownership check even attempted" behavior byte-for-byte.
+    Only when a grant might apply does it proceed to the real,
+    authoritative ownership + reference + exact-match-consume checks."""
+    if not _tn_http_diagnostic_enabled():
+        from modules.govt_sync.status import tn_diagnostic_runtime_gate
+
+        if not tn_diagnostic_runtime_gate.has_pending_grant(session_id):
+            raise HTTPException(404, "Not found")
+
+    tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context(case_id, session_id, user)
+    if _TN_HTTP_DIAGNOSTIC_ALLOWED_REFERENCE_SUBSTRING not in reference_number:
         raise HTTPException(403, "This diagnostic is scoped to a single, pre-approved grievance only.")
 
     if not _tn_http_diagnostic_enabled():
