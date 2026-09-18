@@ -314,7 +314,7 @@ export default function useBriefcaseCases(user) {
         setUrlFilter('assembly', '');
     }
 
-    function handleStatusChange(caseId, newStatus) {
+    function handleStatusChange(caseId, newStatus, { keepWorkspaceOpen = false } = {}) {
         const leaveTab = caseLeavesCurrentTab(newStatus);
 
         setCases((current) => current.flatMap((item) => {
@@ -341,6 +341,11 @@ export default function useBriefcaseCases(user) {
 
         setSelected((current) => {
             if (!current) return current;
+            // Explicit Case Detail transitions retain the open workspace even
+            // when the queue row leaves the active filter. Siblings stay intact.
+            if (keepWorkspaceOpen) {
+                return current.id === caseId ? { ...current, status: newStatus } : current;
+            }
             if (current.id === caseId) {
                 return leaveTab ? null : { ...current, status: newStatus };
             }

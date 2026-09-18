@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle, useId } from 'react';
 import { Loader2, Send } from 'lucide-react';
 import { apiGet, apiPatch, apiPost, apiDelete, API_BASE, getAuthToken } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -12,11 +12,13 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import BriefcaseSourceMediaViewer from '@/components/briefcase/BriefcaseSourceMediaViewer';
 import { STATUS_OPTIONS } from '@/components/briefcase/briefcase-shared';
 import { isPrimaryAccount } from '@/lib/account';
+import CitizenReplyDialog from './CitizenReplyDialog';
+import './case-detail.css';
 
 const GOVT_FILING_WORKSPACE_SPIKE = process.env.NEXT_PUBLIC_GOVT_FILING_WORKSPACE_SPIKE === 'true';
 
 // ─── Icon component ─────────────────────────────────────────
-function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5, filled = false }) {
+function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5, filled = false, style, className }) {
     const paths = {
         x:        <><path d="M6 6l12 12M18 6L6 18" /></>,
         chevL:    <><path d="M15 6l-6 6 6 6" /></>,
@@ -49,7 +51,7 @@ function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5, filled = 
         star:     <><path d="M12 3l2.7 5.9 6.3.7-4.8 4.3 1.4 6.2L12 17l-5.6 3.1 1.4-6.2-4.8-4.3 6.3-.7z" /></>,
     };
     return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : "none"}
+        <svg aria-hidden="true" style={style} className={className} width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : "none"}
             stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
             {paths[name] || null}
         </svg>
@@ -59,27 +61,27 @@ function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5, filled = 
 // ─── Shared design tokens ────────────────────────────────────
 // Values mirror Main.dc.html (the canonical Case Detail design source).
 const C = {
-    paper:       '#F3EEE2',   // --bg
-    paperDeep:   '#ECE8DC',   // subtle raised (--grey-tint)
-    surface:     '#FFFEFB',   // --card
-    surfaceWarm: '#F6F1E3',   // action-panel ground (warm, close to --bg)
-    card:        '#FFFEFB',   // --card
-    ink:         '#211F19',
-    ink2:        '#6C6858',   // --ink-muted
-    ink3:        '#9D9683',   // --ink-faint
-    hair:        '#E4DECB',   // --border
+    paper:       '#F4F0E7',
+    paperDeep:   '#ECE6DA',
+    surface:     '#FFFDF8',
+    surfaceWarm: '#ECE6DA',
+    card:        '#FFFDF8',
+    ink:         '#24251F',
+    ink2:        '#62635B',
+    ink3:        '#6F7068',
+    hair:        '#D9D2C4',
     hairStrong:  '#D2CAB2',
-    green:       '#2B6E4C',
+    green:       '#234F3A',
     greenDeep:   '#1E5238',
     greenInk:    '#215539',
-    greenTint:   '#E3ECE3',
+    greenTint:   '#E4ECE5',
     greenWash:   '#ECF1E9',
     saffron:     '#BC6A36',   // --rust
     saffronTint: '#F5E7D8',
     red:         '#B3341C',
     redTint:     '#F6E0D9',
-    amber:       '#A5822B',
-    amberTint:   '#F2E9CF',
+    amber:       '#8A5C17',
+    amberTint:   '#F5EAD4',
     slate:       '#48678A',
     slateTint:   '#E1E7EF',
     grey:        '#807A69',
@@ -94,7 +96,7 @@ const sec = {
 
 const monoLbl = {
     fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace',
-    fontSize: 10.5,
+    fontSize: '0.75rem',
     letterSpacing: '0.06em',
     color: C.ink3,
     textTransform: 'uppercase',
@@ -247,25 +249,25 @@ function ReviewReasonBanner({ current, meta, onViewSummary }) {
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                     <Icon name="warn" size={13} color={C.saffron} stroke={2} />
                     <span style={{
-                        fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: 9.5,
+                        fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: '0.75rem',
                         letterSpacing: '0.16em', color: C.saffron, textTransform: 'uppercase', fontWeight: 700,
                     }}>Needs review · why</span>
                 </span>
                 {onViewSummary && (
                     <button type="button" onClick={onViewSummary} style={{
                         padding: '6px 12px', background: C.surface, border: `1px solid ${C.hairStrong}`, color: C.ink,
-                        fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                        fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                     }}>
                         View AI summary
                     </button>
                 )}
             </div>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink, marginBottom: 6 }}>Flagged for review</div>
+            <div style={{ fontSize: '0.84375rem', fontWeight: 700, color: C.ink, marginBottom: 6 }}>Flagged for review</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {reasons.map((reason, i) => (
                     <div key={i}>
-                        {reasons.length > 1 && <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{reason.title}</div>}
-                        <div style={{ fontSize: 12.5, color: C.ink2, lineHeight: 1.55, marginTop: 2 }}>{reason.detail}</div>
+                        {reasons.length > 1 && <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: C.ink }}>{reason.title}</div>}
+                        <div style={{ fontSize: '0.78125rem', color: C.ink2, lineHeight: 1.55, marginTop: 2 }}>{reason.detail}</div>
                     </div>
                 ))}
             </div>
@@ -282,7 +284,7 @@ function SectionHeading({ n, label, trailing, info }) {
             {n != null && (
                 <span style={{
                     width: 18, height: 18, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: C.ink, color: C.paper, fontSize: 10, fontWeight: 700,
+                    background: C.ink, color: C.paper, fontSize: '0.75rem', fontWeight: 700,
                     fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace',
                 }}>{n}</span>
             )}
@@ -291,7 +293,7 @@ function SectionHeading({ n, label, trailing, info }) {
                 <span title={info} style={{
                     width: 14, height: 14, borderRadius: '50%', border: `1px solid ${C.ink3}`,
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 9, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, flexShrink: 0,
+                    fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, flexShrink: 0,
                 }}>i</span>
             )}
             <span style={{ flex: 1 }} />
@@ -360,8 +362,7 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
             <button onClick={onClose} style={{
                 border: `1px solid ${C.hair}`, borderRadius: 8, background: 'none', cursor: 'pointer', flexShrink: 0,
                 display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
-                fontFamily: 'inherit', fontSize: 13, fontWeight: 500, color: C.ink2,
-                outline: 'none',
+                fontFamily: 'inherit', fontSize: '0.8125rem', fontWeight: 500, color: C.ink2,
             }}>
                 <Icon name="chevL" size={14} color={C.ink2} stroke={2} /> Back to Briefcase
             </button>
@@ -371,7 +372,7 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
             <div style={{ flex: '1 1 260px', display: 'flex', alignItems: 'center', gap: 10, rowGap: 6, minWidth: 0, flexWrap: 'wrap' }}>
                 <h1 style={{
                     margin: 0, fontFamily: '"Source Serif 4", Georgia, serif',
-                    fontSize: 22, lineHeight: 1.1, fontWeight: 600, color: C.ink,
+                    fontSize: '1.375rem', lineHeight: 1.1, fontWeight: 600, color: C.ink,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     minWidth: 0, maxWidth: narrow ? '100%' : '46%', flexShrink: 1,
                 }}>
@@ -380,10 +381,10 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
                 <span style={{
                     flexShrink: 0,
                     padding: '3px 10px', borderRadius: 20, border: `1px solid ${C.hair}`,
-                    color: C.ink3, fontSize: 10.5,
+                    color: C.ink3, fontSize: '0.75rem',
                     fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', letterSpacing: '0.06em', textTransform: 'uppercase',
                 }}>
-                    Record open
+                    Current complaint
                 </span>
                 <Icon name="chevR" size={14} color={C.ink3} stroke={2} />
                 <StatusPill status={normalizedStatus} />
@@ -392,7 +393,7 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
                     <span style={{
                         flexShrink: 0,
                         padding: '3px 9px', borderRadius: 20, background: C.amberTint, color: C.amber,
-                        fontSize: 10.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
+                        fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
                         whiteSpace: 'nowrap',
                     }}>uncategorised</span>
                 )}
@@ -406,7 +407,7 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
                         display: 'flex', alignItems: 'center', gap: 6,
                         border: `1px solid ${isFollowing ? C.green : C.hair}`, borderRadius: 8,
                         background: 'none', padding: '8px 12px',
-                        fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+                        fontFamily: 'inherit', fontSize: '0.8125rem', fontWeight: 500,
                         color: isFollowing ? C.green : C.ink2,
                         cursor: followBusy ? 'not-allowed' : 'pointer',
                         opacity: followBusy ? 0.6 : 1,
@@ -418,7 +419,7 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
                 </button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <button style={{
+                        <button aria-label="More complaint actions" style={{
                             border: `1px solid ${C.hair}`, borderRadius: 8,
                             background: 'none', padding: '8px 10px', color: C.ink2, cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -471,16 +472,16 @@ function CaseMetaRow({ phone, createdAt, updatedAt, language, narrow }) {
             gap: 8,
             borderBottom: `1px solid ${C.hair}`,
             background: C.paper,
-            fontSize: 12.5,
+            fontSize: '0.78125rem',
             color: C.ink2,
             flexWrap: 'wrap',
         }}>
             <span style={grp}><Icon name="whatsapp" size={14} color="#3EAE5C" stroke={2} /> WhatsApp</span>
             {language && <span style={grp}>{sep} {language}</span>}
             {phone && <span style={{ ...grp, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>{sep} ···{phone.slice(-4)}</span>}
-            <span style={grp}>{sep} Received {dateStr}, {timeStr}</span>
+            <span style={grp}>{sep} Complaint received {dateStr}, {timeStr}</span>
             <span style={{ ...grp, marginLeft: narrow ? 0 : 'auto', color: C.ink3, whiteSpace: narrow ? 'normal' : 'nowrap' }}>
-                Case created {fmt(createdAt)} {sep} Last updated {fmt(updatedAt)}
+                Last activity {fmt(updatedAt)}
             </span>
         </div>
     );
@@ -503,7 +504,7 @@ function CaseHero({ current, meta }) {
 
     const chip = {
         display: 'inline-flex', alignItems: 'center', gap: 6,
-        fontSize: 12, border: `1px solid ${C.hair}`, background: C.card, color: C.ink2,
+        fontSize: '0.75rem', border: `1px solid ${C.hair}`, background: C.card, color: C.ink2,
         padding: '4px 10px', borderRadius: 20, whiteSpace: 'nowrap',
     };
 
@@ -513,11 +514,11 @@ function CaseHero({ current, meta }) {
                 <span style={chip}><Icon name="doc" size={13} color={C.ink3} /> {category}</span>
                 <span style={chip}><Icon name="pin" size={13} color={C.ink3} /> {location}</span>
                 {assembly && <span style={chip}>{assembly}</span>}
-                <span style={{ fontSize: 11.5, fontWeight: 600, border: `1px solid ${priorityColor}`, color: priorityColor, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, border: `1px solid ${priorityColor}`, color: priorityColor, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>
                     {priorityLabel} priority
                 </span>
                 {aiNote && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: C.ink3, marginLeft: 2 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.75rem', color: C.ink3, marginLeft: 2 }}>
                         <Icon name="star" size={11} color={C.ink3} /> {aiNote}
                     </span>
                 )}
@@ -551,14 +552,14 @@ function ContactQueueNotice({ current }) {
                 <span style={monoLbl}>Other messages from this contact · not yet a complaint</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     {distinctIssueCount > 0 && (
-                        <span style={{ fontSize: 10, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        <span style={{ fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                             {distinctIssueCount} issue{distinctIssueCount === 1 ? '' : 's'} tracked
                         </span>
                     )}
                     {stateTone && (
                         <span style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 8px',
-                            background: stateTone.bg, color: stateTone.fg, fontSize: 10, fontWeight: 700,
+                            background: stateTone.bg, color: stateTone.fg, fontSize: '0.75rem', fontWeight: 700,
                             letterSpacing: '0.04em', textTransform: 'uppercase',
                         }}>
                             <Icon name={contactThreadState === 'spam_suspected' ? 'warn' : 'clock'} size={10} color={stateTone.fg} stroke={2} />
@@ -567,37 +568,37 @@ function ContactQueueNotice({ current }) {
                     )}
                 </div>
             </div>
-            <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, lineHeight: 1.5 }}>
+            <div style={{ fontSize: '0.75rem', color: C.ink2, marginBottom: 10, lineHeight: 1.5 }}>
                 The AI intake pipeline flagged these as possibly separate from any complaint above, but hasn't promoted them into their own complaint yet.
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {bufferedItems.map((item) => (
                     <div key={item.id} style={{ border: `1px solid ${C.greenTint}`, background: C.greenWash, padding: '10px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                            <span style={{ fontSize: 10, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.greenInk, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                            <span style={{ fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.greenInk, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                                 Possibly distinct issue
                             </span>
-                            <span style={{ fontSize: 10, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3 }}>
+                            <span style={{ fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3 }}>
                                 {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
                             </span>
                         </div>
-                        <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>{item.raw_message || '—'}</div>
+                        <div style={{ fontSize: '0.78125rem', color: C.ink, lineHeight: 1.55 }}>{item.raw_message || '—'}</div>
                         {(item.problem_subdomain || item.problem_domain) && (
-                            <div style={{ marginTop: 8, fontSize: 11, color: C.ink2 }}>{item.problem_subdomain || item.problem_domain}</div>
+                            <div style={{ marginTop: 8, fontSize: '0.75rem', color: C.ink2 }}>{item.problem_subdomain || item.problem_domain}</div>
                         )}
                     </div>
                 ))}
                 {suppressedItems.map((item, idx) => (
                     <div key={`suppressed-${idx}`} style={{ border: `1px solid ${C.red}`, background: '#FEF3F2', padding: '10px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                            <span style={{ fontSize: 10, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.red, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                            <span style={{ fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.red, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                                 Suppressed after spam threshold
                             </span>
-                            <span style={{ fontSize: 10, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3 }}>
+                            <span style={{ fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3 }}>
                                 {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
                             </span>
                         </div>
-                        <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>{item.message || '—'}</div>
+                        <div style={{ fontSize: '0.78125rem', color: C.ink, lineHeight: 1.55 }}>{item.message || '—'}</div>
                     </div>
                 ))}
             </div>
@@ -614,7 +615,7 @@ function ContactQueueNotice({ current }) {
 // Complaints are produced only by the citizen intake / AI pipeline — staff
 // review, respond to, escalate and resolve them, but never create one by
 // hand, so there is deliberately no "add complaint" control here.
-function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
+export function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
     const ordered = [...threadCases].slice().reverse();
     const STATE_LABEL = {
         new: 'New', pending: 'Pending', pending_review: 'Pending Review', in_progress: 'In Progress',
@@ -624,14 +625,14 @@ function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
         <div style={{ padding: '16px 28px 0', background: C.paper }}>
             <div style={{
                 display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
-                fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', color: C.ink3, textTransform: 'uppercase',
+                fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.06em', color: C.ink3, textTransform: 'uppercase',
             }}>
                 Complaints in this case
                 <span style={{ fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontWeight: 400 }}>
-                    ({ordered.length} · same location, 6 weeks)
+                    ({ordered.length})
                 </span>
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', overflowX: 'auto', paddingBottom: 2 }}>
+            <div role="tablist" aria-label="Complaints in this case" style={{ display: 'flex', gap: 8, alignItems: 'stretch', overflowX: 'auto', paddingBottom: 6 }}>
                 {ordered.map((item, idx) => {
                     const isActive = item.id === activeCaseId;
                     const st = String(item.status || 'new').toLowerCase();
@@ -643,31 +644,45 @@ function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
                     return (
                         <button
                             key={item.id}
+                            id={`complaint-tab-${item.id}`}
+                            role="tab"
+                            aria-selected={isActive}
+                            aria-controls="case-complaint-panel"
+                            tabIndex={isActive ? 0 : -1}
                             type="button"
                             onClick={() => onSelectCase(item)}
+                            onKeyDown={(event) => {
+                                const next = event.key === 'Home' ? 0 : event.key === 'End' ? ordered.length - 1
+                                    : event.key === 'ArrowRight' ? (idx + 1) % ordered.length
+                                    : event.key === 'ArrowLeft' ? (idx - 1 + ordered.length) % ordered.length : null;
+                                if (next === null) return;
+                                event.preventDefault();
+                                onSelectCase(ordered[next]);
+                                document.getElementById(`complaint-tab-${ordered[next].id}`)?.focus();
+                            }}
                             style={{
                                 textAlign: 'left', minWidth: 150, flexShrink: 0,
                                 padding: '10px 14px', borderRadius: 10,
-                                border: `1px solid ${isActive ? C.ink : C.hair}`,
+                                border: `1px solid ${isActive ? C.green : C.hair}`,
                                 background: isActive ? C.card : 'transparent',
                                 cursor: 'pointer', fontFamily: 'inherit', color: C.ink,
                             }}
                         >
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                                 <span style={{
-                                    fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: 10.5,
+                                    fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: '0.75rem',
                                     color: isActive ? C.ink : C.ink3,
                                 }}>
                                     COMPLAINT {idx + 1}
                                 </span>
                                 {flagged && <Icon name="external" size={13} color={C.amber} stroke={2} />}
                             </div>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? C.ink : C.ink2, marginTop: 5 }}>
+                            <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: isActive ? C.ink : C.ink2, marginTop: 5 }}>
                                 {formatShortDate(item.created_at) || 'No date'}
                             </div>
                             <div style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 6,
-                                fontSize: 11, fontWeight: 600, color: pillColor,
+                                fontSize: '0.75rem', fontWeight: 600, color: pillColor,
                                 background: `${pillColor}1A`, padding: '2px 8px', borderRadius: 20,
                             }}>
                                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: pillColor }} />
@@ -685,23 +700,24 @@ function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
 // One contained card; each row is a header button + chevron with the
 // section body nested below when open. Section components render `bare`
 // (no own chrome) inside.
-function AccordionRow({ icon, label, defaultOpen = false, last = false, forwardedRef, forceOpenKey = 0, children }) {
+export function AccordionRow({ icon, label, defaultOpen = false, last = false, forwardedRef, forceOpenKey = 0, children }) {
+    const regionId = useId();
     const [open, setOpen] = useState(defaultOpen);
     useEffect(() => { if (forceOpenKey) setOpen(true); }, [forceOpenKey]);
     return (
         <div ref={forwardedRef} style={{ borderBottom: last ? 'none' : `1px solid ${C.hair}` }}>
-            <button type="button" onClick={() => setOpen((v) => !v)} style={{
+            <button type="button" id={`${regionId}-trigger`} aria-expanded={open} aria-controls={regionId} onClick={() => setOpen((v) => !v)} style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '14px 18px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer',
                 fontFamily: 'inherit',
             }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, color: C.ink2 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.8125rem', fontWeight: 600, color: C.ink2 }}>
                     {icon && <Icon name={icon} size={14} color="currentColor" stroke={2} />}
                     {label}
                 </span>
-                <Icon name="chevD" size={14} color={C.ink3} stroke={2} />
+                <Icon name="chevD" size={14} color={C.ink3} stroke={2} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 140ms ease' }} />
             </button>
-            {open && <div style={{ padding: '0 18px 16px' }}>{children}</div>}
+            <div id={regionId} role="region" aria-labelledby={`${regionId}-trigger`} hidden={!open} style={{ padding: '0 18px 16px' }}>{open && children}</div>
         </div>
     );
 }
@@ -720,10 +736,10 @@ function CitizenComplaintSection({ current, meta }) {
 
     return (
         <>
-            <div style={{ fontSize: 14.5, fontStyle: 'italic', color: C.ink, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontSize: '0.90625rem', fontStyle: 'italic', color: C.ink, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
                 &ldquo;{current.raw_message || 'No message content.'}&rdquo;
             </div>
-            <div style={{ fontSize: 11.5, color: C.ink3, marginTop: 10 }}>
+            <div style={{ fontSize: '0.75rem', color: C.ink3, marginTop: 10 }}>
                 Received via WhatsApp{createdAt ? ` · ${createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · ${createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} IST` : ''}
                 {lang ? ` · original language: ${lang}` : ''}
             </div>
@@ -734,7 +750,7 @@ function CitizenComplaintSection({ current, meta }) {
                         <span style={{ ...monoLbl, marginBottom: 0 }}>Citizen follow-ups · {events.length}</span>
                         {hiddenCount > 0 && !showAllFollowups && (
                             <button type="button" onClick={() => setShowAllFollowups(true)} style={{
-                                background: 'none', border: 'none', color: C.green, fontSize: 11,
+                                background: 'none', border: 'none', color: C.green, fontSize: '0.75rem',
                                 fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0,
                             }}>
                                 View full conversation ({events.length})
@@ -744,12 +760,12 @@ function CitizenComplaintSection({ current, meta }) {
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                         {visibleEvents.map((event, idx) => (
                             <div key={idx} style={{ padding: '8px 0', borderTop: idx === 0 ? 'none' : `1px solid ${C.hair}` }}>
-                                <div style={{ fontSize: 10, color: C.ink3, marginBottom: 3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>
+                                <div style={{ fontSize: '0.75rem', color: C.ink3, marginBottom: 3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>
                                     {event.created_at
                                         ? new Date(event.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ' · ' + new Date(event.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
                                         : ''}
                                 </div>
-                                <div style={{ fontSize: 13, color: C.ink2, lineHeight: 1.55, fontStyle: 'italic' }}>&ldquo;{event.message || '—'}&rdquo;</div>
+                                <div style={{ fontSize: '0.8125rem', color: C.ink2, lineHeight: 1.55, fontStyle: 'italic' }}>&ldquo;{event.message || '—'}&rdquo;</div>
                             </div>
                         ))}
                     </div>
@@ -769,7 +785,7 @@ function ComplaintActionRow({ onConfirm, confirmLabel, onReply, onEscalate, esca
                 {escalateLabel && (
                     <button onClick={onEscalate} style={{
                         padding: '9px 16px', background: C.surface, color: C.saffron, border: `1px solid ${C.saffron}`,
-                        fontSize: 12, fontWeight: 700, letterSpacing: '0.04em',
+                        fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em',
                         cursor: 'pointer', fontFamily: 'inherit',
                         display: 'inline-flex', alignItems: 'center', gap: 7,
                     }}>
@@ -779,14 +795,14 @@ function ComplaintActionRow({ onConfirm, confirmLabel, onReply, onEscalate, esca
                 )}
                 <button onClick={onReply} style={{
                     padding: '9px 16px', background: 'transparent', border: `1px solid ${C.hairStrong}`, color: C.ink,
-                    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                 }}>
                     <Icon name="chat" size={12} color={C.ink} /> Reply
                 </button>
                 <button onClick={onConfirm} style={{
                     padding: '9px 16px', background: C.green, color: '#F5EFE0', border: 'none',
-                    fontSize: 12, fontWeight: 700, letterSpacing: '0.04em',
+                    fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em',
                     cursor: 'pointer', fontFamily: 'inherit',
                     display: 'inline-flex', alignItems: 'center', gap: 7,
                 }}>
@@ -795,7 +811,7 @@ function ComplaintActionRow({ onConfirm, confirmLabel, onReply, onEscalate, esca
                 </button>
             </div>
             {showEscalateHint && (
-                <div style={{ marginTop: 8, fontSize: 11, color: C.ink3 }}>
+                <div style={{ marginTop: 8, fontSize: '0.75rem', color: C.ink3 }}>
                     Escalate to open government portal filing for this complaint.
                 </div>
             )}
@@ -819,12 +835,12 @@ function AISuggestionBanner({ suggestion, onAccept, accepting }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
                 <Icon name="sparkle" size={13} color={C.saffron} stroke={2} />
                 <span style={{
-                    fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: 9.5,
+                    fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: '0.75rem',
                     letterSpacing: '0.18em', color: C.saffron, textTransform: 'uppercase', fontWeight: 700,
                 }}>Sansad AI · suggested triage</span>
             </div>
             <div style={{
-                fontSize: 16, fontWeight: 600, color: '#F5EFE0',
+                fontSize: '1rem', fontWeight: 600, color: '#F5EFE0',
                 letterSpacing: '-0.01em', lineHeight: 1.2, marginBottom: 6,
             }}>
                 Categorise as{' '}
@@ -835,7 +851,7 @@ function AISuggestionBanner({ suggestion, onAccept, accepting }) {
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                 {suggestion.detected_language && (
                     <span style={{
-                        fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: 9.5,
+                        fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: '0.75rem',
                         background: 'rgba(245,239,224,0.14)', color: '#F5EFE0',
                         padding: '2px 7px', letterSpacing: '0.06em',
                     }}>language · {suggestion.detected_language}</span>
@@ -844,7 +860,7 @@ function AISuggestionBanner({ suggestion, onAccept, accepting }) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={onAccept} disabled={accepting} style={{
                     background: C.saffron, color: '#fff', border: 'none',
-                    padding: '8px 16px', fontSize: 11.5, fontWeight: 700,
+                    padding: '8px 16px', fontSize: '0.75rem', fontWeight: 700,
                     letterSpacing: '0.06em', textTransform: 'uppercase',
                     cursor: accepting ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                     display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -890,7 +906,7 @@ function AiUnderstandingSection({
                     <span style={{ ...monoLbl, marginBottom: 0 }}>Verify or correct</span>
                     {geoLocked && (
                         <span style={{
-                            fontSize: 10, fontWeight: 600, padding: '2px 8px', background: C.greenTint, color: C.greenInk,
+                            fontSize: '0.75rem', fontWeight: 600, padding: '2px 8px', background: C.greenTint, color: C.greenInk,
                             textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4,
                         }}>
                             <Icon name="check" size={9} color={C.greenInk} stroke={2.5} /> Locked
@@ -901,15 +917,15 @@ function AiUnderstandingSection({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', border: `1px solid ${C.hair}`, borderRadius: 8, background: C.card, flex: '1 1 150px', minWidth: 130 }}>
                         <Icon name="pin" size={12} color={C.ink3} />
                         <input value={geoLocation} onChange={(e) => setGeoLocation(e.target.value)} placeholder="Village / ward"
-                            style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
+                            style={{ flex: 1, border: 'none', background: 'transparent', fontSize: '0.78125rem', color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', border: `1px solid ${C.hair}`, borderRadius: 8, background: C.card, flex: '1 1 150px', minWidth: 130 }}>
                         <input value={geoAssembly} onChange={(e) => setGeoAssembly(e.target.value)} placeholder="Assembly constituency"
-                            style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
+                            style={{ flex: 1, border: 'none', background: 'transparent', fontSize: '0.78125rem', color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
                     </div>
                     <button onClick={onSaveGeo} disabled={savingGeo} style={{
                         padding: '8px 14px', background: C.ink, color: C.card, border: 'none', borderRadius: 8, flexShrink: 0,
-                        fontSize: 12, fontWeight: 600, cursor: savingGeo ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                        fontSize: '0.75rem', fontWeight: 600, cursor: savingGeo ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                         display: 'inline-flex', alignItems: 'center', gap: 5, opacity: savingGeo ? 0.7 : 1,
                     }}>
                         {savingGeo && <Loader2 size={11} className="animate-spin" />}
@@ -929,29 +945,29 @@ function AiUnderstandingSection({
             {needsTranslation && (
                 <div style={{ marginBottom: 14, position: 'relative', border: `1px solid ${C.greenTint}`, background: C.greenWash, padding: '14px 16px 14px 38px' }}>
                     <span style={{
-                        position: 'absolute', top: 8, left: 12, fontSize: 22, lineHeight: 1,
+                        position: 'absolute', top: 8, left: 12, fontSize: '1.375rem', lineHeight: 1,
                         color: C.greenTint, fontFamily: 'Georgia, serif',
                     }}>&ldquo;</span>
                     {translationState?.translation ? (
                         <>
-                            <div style={{ fontSize: 13.5, color: C.ink, lineHeight: 1.55 }}>{translationState.translation}</div>
-                            <div style={{ marginTop: 8, textAlign: 'right', fontSize: 10.5, color: C.ink3 }}>
+                            <div style={{ fontSize: '0.84375rem', color: C.ink, lineHeight: 1.55 }}>{translationState.translation}</div>
+                            <div style={{ marginTop: 8, textAlign: 'right', fontSize: '0.75rem', color: C.ink3 }}>
                                 <Icon name="check" size={9} color={C.green} stroke={2.5} /> AI confidence: <strong style={{ color: C.greenInk }}>High</strong>
                             </div>
                         </>
                     ) : translationState?.loading ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: C.ink2 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.75rem', color: C.ink2 }}>
                             <Loader2 size={13} className="animate-spin" /> Translating…
                         </div>
                     ) : translationState?.error ? (
-                        <div style={{ fontSize: 12, color: C.ink2 }}>
+                        <div style={{ fontSize: '0.75rem', color: C.ink2 }}>
                             Translation unavailable right now.{' '}
                             <button type="button" onClick={onTranslate} style={{ background: 'none', border: 'none', color: C.green, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, padding: 0 }}>Try again</button>
                         </div>
                     ) : (
                         <button type="button" onClick={onTranslate} style={{
                             background: 'transparent', border: `1px solid ${C.green}`, color: C.greenInk,
-                            padding: '6px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                            padding: '6px 12px', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
                             cursor: 'pointer', fontFamily: 'inherit',
                         }}>
                             Translate to English
@@ -966,8 +982,8 @@ function AiUnderstandingSection({
             }}>
                 {rows.map(([label, value]) => (
                     <div key={label} style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 10, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', marginBottom: 2 }}>{label}</div>
-                        <div style={{ fontSize: 13, color: C.ink, fontWeight: 500, overflowWrap: 'anywhere' }}>{value}</div>
+                        <div style={{ fontSize: '0.75rem', color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', marginBottom: 2 }}>{label}</div>
+                        <div style={{ fontSize: '0.8125rem', color: C.ink, fontWeight: 500, overflowWrap: 'anywhere' }}>{value}</div>
                     </div>
                 ))}
             </div>
@@ -977,13 +993,13 @@ function AiUnderstandingSection({
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                             <Icon name="sparkle" size={11} color={C.green} stroke={2} />
-                            <span style={{ fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: 10, letterSpacing: '0.06em', color: C.greenInk, textTransform: 'uppercase' }}>AI summary</span>
+                            <span style={{ fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: '0.75rem', letterSpacing: '0.06em', color: C.greenInk, textTransform: 'uppercase' }}>AI summary</span>
                         </span>
                         {followupCount > 1 && (
-                            <span style={{ fontSize: 10, color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>Based on {followupCount} citizen messages</span>
+                            <span style={{ fontSize: '0.75rem', color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>Based on {followupCount} citizen messages</span>
                         )}
                     </div>
-                    <div style={{ fontSize: 12.5, color: C.ink2, lineHeight: 1.55 }}>{displaySummary}</div>
+                    <div style={{ fontSize: '0.78125rem', color: C.ink2, lineHeight: 1.55 }}>{displaySummary}</div>
                 </div>
             )}
         </>
@@ -1001,8 +1017,8 @@ function AttachmentsSection({ media, caseId }) {
                 display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 4,
             }}>
                 <Icon name="doc" size={16} color={C.ink3} />
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink2, marginTop: 4 }}>No attachments</div>
-                <div style={{ fontSize: 11.5, color: C.ink3 }}>If the citizen sends images/documents, they will appear here.</div>
+                <div style={{ fontSize: '0.78125rem', fontWeight: 600, color: C.ink2, marginTop: 4 }}>No attachments</div>
+                <div style={{ fontSize: '0.75rem', color: C.ink3 }}>If the citizen sends images/documents, they will appear here.</div>
             </div>
         )
     );
@@ -1046,7 +1062,7 @@ function StatusStepper({ activeIndex }) {
                             }}>
                                 <Icon name={done ? 'check' : step.icon} size={13} color={fg} stroke={2} />
                             </div>
-                            <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? C.ink : C.ink3, whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: active ? 700 : 500, color: active ? C.ink : C.ink3, whiteSpace: 'nowrap' }}>
                                 {step.label}
                             </span>
                         </div>
@@ -1082,7 +1098,7 @@ function StatusActions({ currentStatus, onStatusChange, updating }) {
                             onClick={() => !isCurrent && onStatusChange(opt.value)}
                             disabled={!!updating || isCurrent}
                             style={{
-                                padding: '8px 10px', fontSize: 11, fontWeight: 700, textAlign: 'center',
+                                padding: '8px 10px', fontSize: '0.75rem', fontWeight: 700, textAlign: 'center',
                                 letterSpacing: '0.02em', cursor: (updating || isCurrent) ? 'default' : 'pointer',
                                 fontFamily: 'inherit', opacity: updating && !isCurrent ? 0.7 : 1,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
@@ -1102,7 +1118,7 @@ function StatusActions({ currentStatus, onStatusChange, updating }) {
                         <button key={opt.value} onClick={() => onStatusChange(opt.value)} disabled={!!updating || opt.value === currentStatus}
                             style={{
                                 background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
-                                fontSize: 10.5, fontWeight: 600, color: opt.value === currentStatus ? C.ink3 : C.greenInk,
+                                fontSize: '0.75rem', fontWeight: 600, color: opt.value === currentStatus ? C.ink3 : C.greenInk,
                                 textDecoration: opt.value === currentStatus ? 'none' : 'underline', cursor: opt.value === currentStatus ? 'default' : 'pointer',
                             }}>
                             Mark {opt.label}
@@ -1146,7 +1162,7 @@ function ActivityTimeline({ activities, loading, bare }) {
                     <Loader2 size={16} color={C.ink3} className="animate-spin" />
                 </div>
             ) : activities.length === 0 ? (
-                <p style={{ fontSize: 12, color: C.ink3 }}>No activity yet.</p>
+                <p style={{ fontSize: '0.75rem', color: C.ink3 }}>No activity yet.</p>
             ) : (
                 <div>
                     {activities.map((act, i) => (
@@ -1162,13 +1178,13 @@ function ActivityTimeline({ activities, loading, bare }) {
                             }}>
                                 <Icon name={iconFor(act.action)} size={11} color={C.green} stroke={1.8} />
                             </div>
-                            <div style={{ fontSize: 12, color: C.ink, lineHeight: 1.4 }}>
+                            <div style={{ fontSize: '0.75rem', color: C.ink, lineHeight: 1.4 }}>
                                 <span style={{ fontWeight: 600 }}>{act.username || 'System'}</span>{' '}
                                 <span style={{ color: C.ink2 }}>{describe(act)}</span>
                             </div>
                             <div style={{
                                 fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace',
-                                fontSize: 10, color: C.ink3, whiteSpace: 'nowrap',
+                                fontSize: '0.75rem', color: C.ink3, whiteSpace: 'nowrap',
                             }}>
                                 {act.created_at
                                     ? new Date(act.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
@@ -1208,16 +1224,16 @@ function GovtSyncCopyField({ label, value }) {
     return (
         <div style={{ marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ fontSize: 9.5, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</span>
+                <span style={{ fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</span>
                 <button
                     type="button"
                     onClick={() => { navigator.clipboard?.writeText(value); toast.success(`${label} copied`); }}
-                    style={{ fontSize: 10, color: C.green, background: 'none', border: 'none', cursor: 'pointer', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}
+                    style={{ fontSize: '0.75rem', color: C.green, background: 'none', border: 'none', cursor: 'pointer', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}
                 >
                     copy
                 </button>
             </div>
-            <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.5, background: C.surface, border: `1px solid ${C.hair}`, padding: '8px 10px', whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontSize: '0.78125rem', color: C.ink, lineHeight: 1.5, background: C.surface, border: `1px solid ${C.hair}`, padding: '8px 10px', whiteSpace: 'pre-wrap' }}>
                 {value}
             </div>
         </div>
@@ -1301,8 +1317,8 @@ function GovtHistoryPanel({ history }) {
         ['Current position', latestKnown.current_position],
     ].filter(([, field]) => govtHistoryFieldValue(field));
     return (
-        <div style={{ fontSize: 11.5, color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: 10, marginBottom: 8 }}>
-            <div style={{ fontSize: 9.5, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+        <div style={{ fontSize: '0.75rem', color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: 10, marginBottom: 8 }}>
+            <div style={{ fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
                 Government case now
                 {formatGovtCheckedAt(history.current_state?.latest_successful_check_at) ? ` · last checked ${formatGovtCheckedAt(history.current_state.latest_successful_check_at)}` : ''}
             </div>
@@ -1380,10 +1396,10 @@ function JourneyStepper({ steps, activeIndex, narrow }) {
                                     {complete && <Icon name="check" size={13} color="#fff" stroke={2.5} />}
                                     {isCur && <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#fff' }} />}
                                 </div>
-                                <div style={{ fontSize: 11, fontWeight: isCur ? 700 : 400, color: complete || isCur ? C.ink : C.ink3, textAlign: 'center', width: 116, lineHeight: 1.25 }}>
+                                <div style={{ fontSize: '0.75rem', fontWeight: isCur ? 700 : 400, color: complete || isCur ? C.ink : C.ink3, textAlign: 'center', width: 116, lineHeight: 1.25 }}>
                                     {step.label}
                                 </div>
-                                <div style={{ fontSize: 10, color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>{step.date}</div>
+                                <div style={{ fontSize: '0.75rem', color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>{step.date}</div>
                             </div>
                             {idx < steps.length - 1 && (
                                 <div style={{ flex: 1, height: 2, background: complete ? C.green : C.hair, margin: '13px 4px 0', minWidth: 12 }} />
@@ -1407,9 +1423,9 @@ function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshi
     const alreadyFiled = isGovtAlreadyFiled(current);
 
     const cardStyle = { background: C.card, border: `1px solid ${C.hair}`, borderRadius: 12, padding: '20px 22px', marginBottom: 16 };
-    const headLbl = { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', color: C.ink3, textTransform: 'uppercase', marginBottom: 4 };
-    const metaLbl = { fontSize: 10.5, color: C.ink3, marginBottom: 3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', letterSpacing: '0.04em', textTransform: 'uppercase' };
-    const metaVal = { fontSize: 13, fontWeight: 600, color: C.ink, overflowWrap: 'anywhere' };
+    const headLbl = { fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.06em', color: C.ink3, textTransform: 'uppercase', marginBottom: 4 };
+    const metaLbl = { fontSize: '0.75rem', color: C.ink3, marginBottom: 3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', letterSpacing: '0.04em', textTransform: 'uppercase' };
+    const metaVal = { fontSize: '0.8125rem', fontWeight: 600, color: C.ink, overflowWrap: 'anywhere' };
     const gridStyle = { display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(3, 1fr)', gap: narrow ? 14 : 16, marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.hair}` };
 
     // ── Pre-filing — same card, government stages still pending, no invented
@@ -1426,7 +1442,7 @@ function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshi
             <div style={cardStyle}>
                 <div style={{ marginBottom: 16 }}>
                     <div style={headLbl}>Government grievance journey</div>
-                    <div style={{ fontSize: 14.5, fontWeight: 600, color: C.ink }}>Grievance ID not assigned</div>
+                    <div style={{ fontSize: '0.90625rem', fontWeight: 600, color: C.ink }}>Grievance ID not assigned</div>
                 </div>
                 <JourneyStepper steps={steps} activeIndex={1} narrow={narrow} />
                 <div style={gridStyle}>
@@ -1461,14 +1477,14 @@ function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshi
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
                 <div style={{ minWidth: 0 }}>
                     <div style={headLbl}>Government grievance journey</div>
-                    <div style={{ fontSize: 14.5, fontWeight: 600, color: C.ink }}>
+                    <div style={{ fontSize: '0.90625rem', fontWeight: 600, color: C.ink }}>
                         Grievance {grievanceNo} <span style={{ fontWeight: 400, color: C.ink2 }}>· {portalName}</span>
                     </div>
                 </div>
                 {onViewSubmission && (
                     <button type="button" onClick={onViewSubmission} style={{
                         flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer',
-                        fontFamily: 'inherit', fontSize: 12.5, color: C.green,
+                        fontFamily: 'inherit', fontSize: '0.78125rem', color: C.green,
                         display: 'inline-flex', alignItems: 'center', gap: 5,
                     }}>
                         View full submission
@@ -1596,12 +1612,12 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
     const canvas = (
         <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: connected ? C.greenInk : C.saffron, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: '0.75rem', color: connected ? C.greenInk : C.saffron, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: connected ? C.green : C.saffron, display: 'inline-block' }} />
                     {connected ? 'Live — staff input is relayed into the real portal session' : 'Connecting to live portal session…'}
                 </span>
                 {onClose && (
-                    <button type="button" onClick={onClose} style={{ fontSize: 10.5, color: C.ink3, background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <button type="button" onClick={onClose} style={{ fontSize: '0.75rem', color: C.ink3, background: 'none', border: 'none', cursor: 'pointer' }}>
                         Close session
                     </button>
                 )}
@@ -1609,7 +1625,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
             <canvas
                 ref={canvasRef}
                 tabIndex={0}
-                style={{ width: '100%', aspectRatio: `${vw} / ${vh}`, border: `1px solid ${C.hair}`, outline: 'none', cursor: 'default', background: '#fff' }}
+                style={{ width: '100%', aspectRatio: `${vw} / ${vh}`, border: `1px solid ${C.hair}`, cursor: 'default', background: '#fff' }}
                 onClick={(e) => { e.currentTarget.focus(); sendInput({ type: 'mousedown', ...scaled(e) }); sendInput({ type: 'mouseup', ...scaled(e) }); }}
                 onMouseMove={(e) => sendInput({ type: 'mousemove', ...scaled(e) })}
                 onMouseDown={(e) => sendInput({ type: 'mousedown', ...scaled(e) })}
@@ -1633,12 +1649,12 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
                 }}>
                     <div>
                         <div style={{ ...monoLbl, marginBottom: 4 }}>LOCAL/MOCK TEST · Experimental spike</div>
-                        <div style={{ fontSize: 17, fontWeight: 700, color: C.ink }}>Government Filing Workspace</div>
-                        <div style={{ fontSize: 12, color: C.ink2, marginTop: 3 }}>
+                        <div style={{ fontSize: '1.0625rem', fontWeight: 700, color: C.ink }}>Government Filing Workspace</div>
+                        <div style={{ fontSize: '0.75rem', color: C.ink2, marginTop: 3 }}>
                             {portalName || 'Government portal'} · real browser stream, no guessed autofill
                         </div>
                     </div>
-                    <div style={{ fontSize: 11, color: C.greenInk, background: C.greenWash, border: `1px solid ${C.green}`, padding: '7px 10px', fontWeight: 700 }}>
+                    <div style={{ fontSize: '0.75rem', color: C.greenInk, background: C.greenWash, border: `1px solid ${C.green}`, padding: '7px 10px', fontWeight: 700 }}>
                         Needle prepares → Human reviews → Portal submits
                     </div>
                 </div>
@@ -1653,7 +1669,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
                         {canvas}
                         <div style={{
                             marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))',
-                            border: `1px solid ${C.hair}`, background: C.paper, fontSize: 11, color: C.ink2,
+                            border: `1px solid ${C.hair}`, background: C.paper, fontSize: '0.75rem', color: C.ink2,
                         }}>
                             {[
                                 ['Clicks', interactionProof.clicks],
@@ -1662,20 +1678,20 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
                                 ['Moves', interactionProof.moves],
                             ].map(([label, value]) => (
                                 <div key={label} style={{ padding: '7px 8px', borderRight: label === 'Moves' ? 'none' : `1px solid ${C.hair}` }}>
-                                    <div style={{ fontSize: 9, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
+                                    <div style={{ fontSize: '0.75rem', color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
                                     <strong style={{ color: C.ink }}>{value}</strong>
                                 </div>
                             ))}
                         </div>
-                        <div style={{ marginTop: 6, fontSize: 11, color: C.ink3 }}>
+                        <div style={{ marginTop: 6, fontSize: '0.75rem', color: C.ink3 }}>
                             Interaction proof: {interactionProof.last}
                         </div>
                     </div>
                     <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
                         <div style={{ border: `1px solid ${C.hair}`, background: C.paper, padding: 10 }}>
                             <div style={{ ...monoLbl, marginBottom: 7 }}>Current step</div>
-                            <div style={{ fontSize: 13, color: C.ink, fontWeight: 700 }}>{connected ? 'Government login / filing form' : 'Starting government session'}</div>
-                            <div style={{ fontSize: 11.5, color: C.ink3, lineHeight: 1.5, marginTop: 5 }}>
+                            <div style={{ fontSize: '0.8125rem', color: C.ink, fontWeight: 700 }}>{connected ? 'Government login / filing form' : 'Starting government session'}</div>
+                            <div style={{ fontSize: '0.75rem', color: C.ink3, lineHeight: 1.5, marginTop: 5 }}>
                                 Staff completes login, CAPTCHA, OTP, navigation, field entry, review, and final submit manually inside this live session.
                             </div>
                         </div>
@@ -1683,14 +1699,14 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
                             <div style={{ ...monoLbl, marginBottom: 7 }}>Prepared Fields / Copy Source</div>
                             {preparedFields.length ? preparedFields.map(([label, value]) => (
                                 <div key={label} style={{ marginBottom: 8 }}>
-                                    <div style={{ fontSize: 9.5, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>{label}</div>
-                                    <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.45, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{value}</div>
+                                    <div style={{ fontSize: '0.75rem', color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>{label}</div>
+                                    <div style={{ fontSize: '0.78125rem', color: C.ink, lineHeight: 1.45, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{value}</div>
                                 </div>
                             )) : (
-                                <div style={{ fontSize: 12, color: C.ink3 }}>No prepared fields available yet.</div>
+                                <div style={{ fontSize: '0.75rem', color: C.ink3 }}>No prepared fields available yet.</div>
                             )}
                         </div>
-                        <div style={{ border: `1px solid ${C.saffron}`, background: C.saffronTint, padding: 10, fontSize: 11.5, color: C.ink2, lineHeight: 1.5 }}>
+                        <div style={{ border: `1px solid ${C.saffron}`, background: C.saffronTint, padding: 10, fontSize: '0.75rem', color: C.ink2, lineHeight: 1.5 }}>
                             <strong style={{ color: C.saffron }}>Final-submit protection:</strong> Needle does not click Submit. Stop before any real government submission during this spike.
                         </div>
                     </div>
@@ -2359,7 +2375,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 label={isTamilNaduPortal() && alreadyFiled && !tnVerificationMode ? 'Government status' : 'Government portal filing'}
                 trailing={
                     <span style={{
-                        fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                        fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
                         padding: '3px 10px', display: 'inline-flex', alignItems: 'center', gap: 5,
                         background: C.surface,
                         border: `1px solid ${locked ? C.saffron : (status === 'resolved' ? C.green : status === 'rejected' ? C.red : C.saffron)}`,
@@ -2382,7 +2398,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                     }}>
                         <Icon name="lock" size={14} color={C.saffron} stroke={2} />
                     </div>
-                    <div style={{ fontSize: 13, color: C.ink2, lineHeight: 1.5, maxWidth: 420 }}>
+                    <div style={{ fontSize: '0.8125rem', color: C.ink2, lineHeight: 1.5, maxWidth: 420 }}>
                         This section will be available after staff escalates this complaint.
                     </div>
                     <button
@@ -2395,7 +2411,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                         }}
                         style={{
                             marginTop: 4, padding: '9px 18px', background: C.surface, color: C.saffron,
-                            border: `1px solid ${C.saffron}`, fontSize: 12, fontWeight: 700, letterSpacing: '0.04em',
+                            border: `1px solid ${C.saffron}`, fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em',
                             cursor: 'pointer', fontFamily: 'inherit',
                             display: 'inline-flex', alignItems: 'center', gap: 7,
                         }}
@@ -2403,14 +2419,14 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                         <Icon name="lock" size={12} color={C.saffron} stroke={2.2} /> Escalate to proceed
                     </button>
                     {resolvedPortal?.portal && supported && (
-                        <div style={{ fontSize: 11, color: C.ink3, marginTop: 2 }}>
+                        <div style={{ fontSize: '0.75rem', color: C.ink3, marginTop: 2 }}>
                             Will file via <strong style={{ color: C.ink2 }}>{resolvedPortal.portal.portal_name}</strong>
                             {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} once escalated.
                             {' '}Escalate opens the official portal in a new tab and prepares the AI worksheet here to copy from.
                         </div>
                     )}
                     {!supported && (
-                        <div style={{ fontSize: 11, color: C.ink3, fontStyle: 'italic', marginTop: 2 }}>
+                        <div style={{ fontSize: '0.75rem', color: C.ink3, fontStyle: 'italic', marginTop: 2 }}>
                             No government portal configured yet for {resolvedPortal?.state ? `state "${resolvedPortal.state}"` : "this tenant's state (none on file)"}.
                             Ask an admin to add one under Government Portals settings.
                         </div>
@@ -2420,7 +2436,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 <>
                     {hostedSessions.length > 0 && showGovtVerificationWorkspace && (
                         <div style={{
-                            fontSize: 11.5, color: C.ink, background: C.saffronTint, border: `1px solid ${C.hair}`,
+                            fontSize: '0.75rem', color: C.ink, background: C.saffronTint, border: `1px solid ${C.hair}`,
                             padding: '8px 10px', marginBottom: 10,
                         }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
@@ -2458,7 +2474,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                     )}
 
                     {portalMismatch && (
-                        <div style={{ fontSize: 11.5, color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 10 }}>
+                        <div style={{ fontSize: '0.75rem', color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 10 }}>
                             ⚠ This was prepared for <strong>{govtState?.case?.portal_name || 'a different portal'}</strong>, but
                             this tenant should now use <strong>{resolvedPortal.portal.portal_name}</strong>
                             {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} — nothing's been filed with the government
@@ -2484,7 +2500,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                 <GovtSyncCopyField label="Contact number to enter on portal" value={worksheet.portal_contact_number} />
                             )}
                             {worksheet?.staff_action_note && (
-                                <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
+                                <div style={{ fontSize: '0.75rem', color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
                             )}
                             {(resolvedPortal?.portal?.entry_url || resolvedPortal?.portal?.base_url) && (
                                 // Filing is always external now (PR2) — Escalate already opened
@@ -2494,7 +2510,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                 <a
                                     href={resolvedPortal.portal.entry_url || resolvedPortal.portal.base_url}
                                     target="_blank" rel="noopener noreferrer"
-                                    style={{ fontSize: 11.5, color: C.green, display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 10 }}
+                                    style={{ fontSize: '0.75rem', color: C.green, display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 10 }}
                                 >
                                     <Icon name="external" size={12} stroke={2.2} /> Reopen {resolvedPortal.portal.portal_name}
                                 </a>
@@ -2523,12 +2539,12 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                             {isTamilNaduSession() && alreadyFiled && (
                                 <div style={{ border: `1px solid ${C.hair}`, background: C.surface, padding: 12, marginBottom: 10 }}>
                                     <div style={{ ...monoLbl, marginBottom: 8 }}>Tamil Nadu status check</div>
-                                    <div style={{ fontSize: 11.5, color: C.ink2, lineHeight: 1.5 }}>
+                                    <div style={{ fontSize: '0.75rem', color: C.ink2, lineHeight: 1.5 }}>
                                         Staff signs in and clears any OTP/CAPTCHA in this browser. Needle then only opens My Petitions and reads this grievance — it never submits, edits, or replies to anything. Use "Verify access" once signed in to enable normal inboard status checks.
                                     </div>
                                     {tnStatusResult && (
                                         <div style={{
-                                            fontSize: 11.5, marginTop: 8, padding: '8px 10px',
+                                            fontSize: '0.75rem', marginTop: 8, padding: '8px 10px',
                                             background: C.paper, border: `1px solid ${C.hair}`,
                                             color: tnStatusResult.checkpoint ? C.saffron : C.ink2,
                                         }}>
@@ -2550,7 +2566,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                 placeholder="Reference number from portal"
                                 value={refInput}
                                 onChange={(e) => setRefInput(e.target.value)}
-                                style={{ fontSize: 12.5, flex: '1 1 180px' }}
+                                style={{ fontSize: '0.78125rem', flex: '1 1 180px' }}
                             />
                             <Button size="sm" disabled={busy} onClick={handleSubmitRef}>
                                 {busy ? <Loader2 size={14} className="animate-spin" /> : 'Mark as submitted'}
@@ -2560,7 +2576,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
 
                     {alreadyFiled && (
                         <div style={{ marginTop: 8 }}>
-                            <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 8 }}>
+                            <div style={{ fontSize: '0.75rem', color: C.ink2, marginBottom: 8 }}>
                                 Ref: <strong style={{ color: C.ink }}>{govtState?.case?.govt_reference_number || '—'}</strong>
                                 {govtState?.case?.govt_status_updated_at && (
                                     <> · updated {new Date(govtState.case.govt_status_updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</>
@@ -2568,8 +2584,8 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                             </div>
                             <GovtHistoryPanel history={govtHistory} />
                             {formatGovtPortalDetailRows(govtState?.latest_status_check).length > 0 && (
-                                <div style={{ fontSize: 11.5, color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
-                                    <div style={{ fontSize: 9.5, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+                                <div style={{ fontSize: '0.75rem', color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
+                                    <div style={{ fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
                                         Current portal position
                                         {formatGovtCheckedAt(govtState?.latest_status_check?.checked_at) ? ` · checked ${formatGovtCheckedAt(govtState.latest_status_check.checked_at)}` : ''}
                                     </div>
@@ -2584,7 +2600,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                 </div>
                             )}
                             {needsGovtVerification && (
-                                <div style={{ fontSize: 11.5, color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 8 }}>
+                                <div style={{ fontSize: '0.75rem', color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 8 }}>
                                     ⚠ {isTamilNaduPortal()
                                         ? 'Tamil Nadu access needs verification. Please sign in again.'
                                         : 'This portal needs a fresh access verification before status can be checked again.'}
@@ -2598,7 +2614,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                 </div>
                             )}
                             {interactiveStatusCheck && interactiveAttempt && (
-                                <div style={{ fontSize: 11.5, color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
+                                <div style={{ fontSize: '0.75rem', color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
                                     <div style={{ marginBottom: 6 }}>Complete the verification below to check status:</div>
                                     {(interactiveAttempt.pending || []).map((req, idx) => {
                                         if (req.kind === 'captcha') {
@@ -2615,7 +2631,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                                         placeholder="CAPTCHA"
                                                         value={interactiveAnswers.captcha}
                                                         onChange={(e) => setInteractiveAnswers(a => ({ ...a, captcha: e.target.value }))}
-                                                        style={{ fontSize: 12.5, maxWidth: 180 }}
+                                                        style={{ fontSize: '0.78125rem', maxWidth: 180 }}
                                                     />
                                                 </div>
                                             );
@@ -2624,13 +2640,13 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                             return (
                                                 <div key={idx} style={{ marginBottom: 8 }}>
                                                     {req.challenge && (
-                                                        <div style={{ fontSize: 11, color: C.ink3, marginBottom: 4 }}>{req.challenge}</div>
+                                                        <div style={{ fontSize: '0.75rem', color: C.ink3, marginBottom: 4 }}>{req.challenge}</div>
                                                     )}
                                                     <Input
                                                         placeholder="OTP"
                                                         value={interactiveAnswers.otp}
                                                         onChange={(e) => setInteractiveAnswers(a => ({ ...a, otp: e.target.value }))}
-                                                        style={{ fontSize: 12.5, maxWidth: 180 }}
+                                                        style={{ fontSize: '0.78125rem', maxWidth: 180 }}
                                                     />
                                                 </div>
                                             );
@@ -2656,7 +2672,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                             )}
                             {isTamilNaduPortal() ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                    <div style={{ fontSize: 11, color: C.ink3, lineHeight: 1.5 }}>
+                                    <div style={{ fontSize: '0.75rem', color: C.ink3, lineHeight: 1.5 }}>
                                         {isTamilNaduSession()
                                             ? 'A Tamil Nadu portal session is open above — sign in there, then verify access for future inboard checks.'
                                             : (tamilNaduCookieVerified
@@ -2711,51 +2727,33 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
 });
 
 // ─── Notes + response section ─────────────────────────────────
-function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSave, saving, phone, isMp, onNotify, responseSectionRef, responseInputRef }) {
+function NotesSection({ notes, setNotes, draftSaved, onSave, saving, responseSectionRef }) {
     const ta = {
         width: '100%', minHeight: 60, padding: '10px 12px',
         border: `1px solid ${C.hair}`, borderRadius: 8, background: C.paper,
-        fontFamily: 'inherit', fontSize: 12.5, color: C.ink,
-        resize: 'vertical', outline: 'none', boxSizing: 'border-box', marginBottom: 10,
+        fontFamily: 'inherit', fontSize: '0.78125rem', color: C.ink,
+        resize: 'vertical', boxSizing: 'border-box', marginBottom: 10,
     };
     return (
         <div ref={responseSectionRef}>
             {draftSaved && (
-                <div style={{ fontSize: 10.5, color: C.saffron, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+                <div style={{ fontSize: '0.75rem', color: C.saffron, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
                     <span style={{ width: 5, height: 5, background: C.saffron, borderRadius: '50%' }} />
                     Draft saved locally
                 </div>
             )}
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
+            <textarea aria-label="Internal notes — office staff only" value={notes} onChange={(e) => setNotes(e.target.value)}
                 placeholder="Add notes visible to your office staff only…" style={ta} />
-
-            <span style={{ ...monoLbl, marginBottom: 6 }}>Response to citizen</span>
-            <textarea ref={responseInputRef} value={response} onChange={(e) => setResponse(e.target.value)}
-                placeholder="Custom WhatsApp message (optional)…" style={ta} />
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={onSave} disabled={saving} style={{
                     padding: '8px 14px', background: C.ink, color: C.card, border: 'none', borderRadius: 8,
-                    fontSize: 12, fontWeight: 600,
+                    fontSize: '0.75rem', fontWeight: 600,
                     cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                     display: 'inline-flex', alignItems: 'center', gap: 6, opacity: saving ? 0.7 : 1,
                 }}>
                     {saving && <Loader2 size={12} className="animate-spin" />}
                     Save notes
-                </button>
-                <button onClick={onNotify} disabled={!phone || !isMp}
-                    title={!isMp ? 'Only the primary account can send notifications' : !phone ? 'No phone on file' : ''}
-                    style={{
-                        padding: '8px 14px', background: 'transparent',
-                        border: `1px solid ${C.green}`, color: C.green, borderRadius: 8,
-                        fontSize: 12, fontWeight: 600,
-                        cursor: (!phone || !isMp) ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        opacity: (!phone || !isMp) ? 0.5 : 1,
-                    }}>
-                    <Icon name="whatsapp" size={12} color={C.green} />
-                    Send via WhatsApp
-                    {!isMp && <span style={{ fontSize: 10, opacity: 0.6 }}>(Primary only)</span>}
                 </button>
             </div>
         </div>
@@ -2776,9 +2774,9 @@ function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSa
 const PANEL_SEL = {
     width: '100%', padding: '9px 10px', borderRadius: 8,
     border: `1px solid ${C.hair}`, background: C.card,
-    fontSize: 13, color: C.ink, fontFamily: 'inherit', outline: 'none',
+    fontSize: '0.8125rem', color: C.ink, fontFamily: 'inherit',
 };
-const PANEL_LBL = { display: 'block', fontSize: 11, color: C.ink3, marginBottom: 5, letterSpacing: '0.02em' };
+const PANEL_LBL = { display: 'block', fontSize: '0.75rem', color: C.ink3, marginBottom: 5, letterSpacing: '0.02em' };
 
 // ─── Resolved-state summary (Action Panel) ───────────────────────────
 // Replaces the action-required workflow cards when the Needle case is
@@ -2788,15 +2786,15 @@ const PANEL_LBL = { display: 'block', fontSize: 11, color: C.ink3, marginBottom:
 // The Needle Status select below stays live so staff can reopen by moving
 // the status away from Resolved (existing mechanism).
 function ResolvedStateCard({ resolvedOn, citizenNotifiedOn, resolutionMessage, govtStatusLabel, govtRef }) {
-    const monoLbl2 = { fontSize: 9.5, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 };
-    const val = { fontSize: 12.5, fontWeight: 600, color: C.ink, overflowWrap: 'anywhere' };
+    const monoLbl2 = { fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 };
+    const val = { fontSize: '0.78125rem', fontWeight: 600, color: C.ink, overflowWrap: 'anywhere' };
     return (
         <div style={{ background: C.greenWash, border: `1px solid ${C.greenTint}`, borderRadius: 10, padding: '14px 16px', marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', color: C.greenInk, marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: C.greenInk, marginBottom: 8 }}>
                 <Icon name="check" size={13} color={C.greenInk} stroke={2} />
                 CASE RESOLVED
             </div>
-            <div style={{ fontSize: 13, lineHeight: 1.5, color: C.ink, marginBottom: (resolvedOn || citizenNotifiedOn || govtStatusLabel || resolutionMessage) ? 12 : 0 }}>
+            <div style={{ fontSize: '0.8125rem', lineHeight: 1.5, color: C.ink, marginBottom: (resolvedOn || citizenNotifiedOn || govtStatusLabel || resolutionMessage) ? 12 : 0 }}>
                 This case was closed by the office.
             </div>
             {(resolvedOn || citizenNotifiedOn || govtStatusLabel) && (
@@ -2809,7 +2807,7 @@ function ResolvedStateCard({ resolvedOn, citizenNotifiedOn, resolutionMessage, g
             {resolutionMessage && (
                 <>
                     <div style={monoLbl2}>Resolution message sent</div>
-                    <div style={{ fontSize: 12, color: C.ink2, lineHeight: 1.55, background: C.surface, border: `1px solid ${C.hair}`, padding: '8px 10px', whiteSpace: 'pre-wrap' }}>
+                    <div style={{ fontSize: '0.75rem', color: C.ink2, lineHeight: 1.55, background: C.surface, border: `1px solid ${C.hair}`, padding: '8px 10px', whiteSpace: 'pre-wrap' }}>
                         {resolutionMessage}
                     </div>
                 </>
@@ -2833,32 +2831,32 @@ function ResolutionReviewCard({
     const settled = followingUp && !open;
     const accent = settled ? C.slate : C.green;
     const bg = settled ? C.slateTint : C.greenTint;
-    const monoLbl2 = { fontSize: 9.5, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 };
-    const val = { fontSize: 12.5, fontWeight: 600, color: C.ink, overflowWrap: 'anywhere' };
+    const monoLbl2 = { fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 };
+    const val = { fontSize: '0.78125rem', fontWeight: 600, color: C.ink, overflowWrap: 'anywhere' };
     const btnPrimary = {
         width: '100%', background: C.green, color: '#fff', border: 'none', borderRadius: 8,
-        padding: '9px', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+        padding: '9px', fontSize: '0.8125rem', fontWeight: 600, fontFamily: 'inherit',
         cursor: updating ? 'not-allowed' : 'pointer', opacity: updating ? 0.6 : 1,
     };
     const btnGhost = {
         width: '100%', background: 'none', color: C.ink2, border: `1px solid ${C.hairStrong}`, borderRadius: 8,
-        padding: '9px', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', marginTop: 8,
+        padding: '9px', fontSize: '0.8125rem', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', marginTop: 8,
     };
     const linkBtn = {
         background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
-        fontSize: 12, color: C.green, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+        fontSize: '0.75rem', color: C.green, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
     };
 
     return (
         <div style={{ background: bg, border: `1px solid ${accent}`, borderRadius: 10, padding: '14px 16px', marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', color: accent, marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', color: accent, marginBottom: 8 }}>
                 <Icon name={settled ? 'clock' : 'check'} size={13} color={accent} stroke={2} />
                 {settled ? 'FOLLOWING UP' : 'GOVERNMENT MARKED RESOLVED'}
             </div>
 
             {!open ? (
                 <>
-                    <div style={{ fontSize: 13, lineHeight: 1.5, color: C.ink, marginBottom: 12 }}>
+                    <div style={{ fontSize: '0.8125rem', lineHeight: 1.5, color: C.ink, marginBottom: 12 }}>
                         {followingUp
                             ? 'The government marked this grievance resolved, but the case is being kept open for the citizen.'
                             : 'The government portal has marked this grievance resolved. Review the outcome before closing the case.'}
@@ -2876,7 +2874,7 @@ function ResolutionReviewCard({
                 </>
             ) : (
                 <>
-                    <div style={{ fontSize: 13, lineHeight: 1.5, color: C.ink, marginBottom: 12 }}>
+                    <div style={{ fontSize: '0.8125rem', lineHeight: 1.5, color: C.ink, marginBottom: 12 }}>
                         Confirm the government outcome resolves the citizen&rsquo;s complaint before closing the Needle case.
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
@@ -2886,12 +2884,12 @@ function ResolutionReviewCard({
                         <div><div style={monoLbl2}>Grievance ID</div><div style={val}>{data.grievanceId || '—'}</div></div>
                     </div>
                     {data.portal && (
-                        <div style={{ fontSize: 11.5, color: C.ink3, marginBottom: 10 }}>Portal · {data.portal}</div>
+                        <div style={{ fontSize: '0.75rem', color: C.ink3, marginBottom: 10 }}>Portal · {data.portal}</div>
                     )}
                     <button type="button" style={{ ...linkBtn, marginBottom: 12 }} onClick={onViewPortalDetail}>
                         View full portal position <Icon name="external" size={12} color={C.green} stroke={2} />
                     </button>
-                    <div style={{ fontSize: 11, color: C.ink3, lineHeight: 1.5, marginBottom: 12 }}>
+                    <div style={{ fontSize: '0.75rem', color: C.ink3, lineHeight: 1.5, marginBottom: 12 }}>
                         Government resolution remarks and any portal documents appear under Government Submission below.
                     </div>
                     <div style={{ height: 1, background: C.hair, margin: '0 0 12px' }} />
@@ -2906,6 +2904,15 @@ function ResolutionReviewCard({
     );
 }
 
+function ComplaintNextAction({ callout }) {
+    if (!callout) return null;
+    return <section aria-label="Next action" style={{ background: callout.bg, borderRadius: 12, padding: '1rem', marginBottom: '1.125rem' }}>
+        <div style={{ color: callout.accent, fontSize: '.75rem', fontWeight: 600, marginBottom: 8 }}>NEXT ACTION · {callout.tag}</div>
+        <p style={{ color: C.ink, fontSize: '.875rem', lineHeight: 1.5, marginBottom: 12 }}>{callout.text}</p>
+        {callout.cta && <button type="button" onClick={callout.onAction} style={{ width: '100%', background: C.green, color: '#fff', border: 0, borderRadius: 8, padding: '.625rem', font: 'inherit' }}>{callout.cta}</button>}
+    </section>;
+}
+
 function ActionPanel({
     current, meta, threadCount, open, onToggle,
     callout, resolutionReview, resolvedSummary,
@@ -2915,12 +2922,13 @@ function ActionPanel({
     createdAt, updatedAt, language,
     onViewSummary, narrow,
 }) {
+    const panelId = useId();
     const priorityValue = priority || (current.is_critical ? 'critical' : 'standard');
     const infoRows = [
         ['Channel', 'WhatsApp'],
         ['Language', language || 'English'],
-        ['Case created', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
-        ['Last updated', updatedAt ? updatedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
+        ['Complaint reference', current.case_ref || `#${current.id}`],
+        ['Complaints in thread', threadCount],
     ];
 
     return (
@@ -2930,46 +2938,26 @@ function ActionPanel({
                 padding: '16px 0 12px', background: C.surfaceWarm, zIndex: 1,
                 ...(narrow ? {} : { position: 'sticky', top: 0 }),
             }}>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: C.ink3 }}>ACTION PANEL</span>
-                <button type="button" onClick={onToggle} style={{ background: 'none', border: 'none', color: C.ink3, padding: 4, cursor: 'pointer', display: 'flex' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', color: C.ink3 }}>ACTION PANEL</span>
+                <button type="button" aria-label="Toggle complaint controls" aria-expanded={open} aria-controls={panelId} onClick={onToggle} style={{ background: 'none', border: 'none', color: C.ink3, padding: 4, cursor: 'pointer', display: 'flex' }}>
                     <Icon name="chevD" size={14} color={C.ink3} stroke={2} style={{ transform: open ? 'none' : 'rotate(-90deg)' }} />
                 </button>
             </div>
 
             {open && (
-                <div>
+                <div id={panelId}>
                     {resolvedSummary ? (
                         <ResolvedStateCard {...resolvedSummary} />
                     ) : resolutionReview ? (
                         <ResolutionReviewCard {...resolutionReview} />
-                    ) : callout ? (
-                        <div style={{
-                            background: callout.bg, border: `1px solid ${callout.border}`, borderRadius: 10,
-                            padding: '14px 16px', marginBottom: 18,
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', color: callout.accent, marginBottom: 8 }}>
-                                <Icon name={callout.icon || 'warn'} size={13} color={callout.accent} stroke={2} />
-                                {callout.tag}
-                            </div>
-                            <div style={{ fontSize: 13, lineHeight: 1.5, color: C.ink, marginBottom: 12 }}>{callout.text}</div>
-                            {callout.cta && (
-                                <button type="button" onClick={callout.onAction} style={{
-                                    width: '100%', background: callout.accent, color: '#fff', border: 'none', borderRadius: 8,
-                                    padding: '9px', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                                }}>
-                                    {callout.cta}
-                                </button>
-                            )}
-                        </div>
-                    ) : null}
+                    ) : <ComplaintNextAction callout={callout} />}
 
-                    <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', color: C.ink3, marginBottom: 10 }}>
-                        CASE-LEVEL — applies across all {threadCount} complaint{threadCount === 1 ? '' : 's'}
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', color: C.ink3, marginBottom: 10 }}>
+                        Current complaint · {current.case_ref || `#${current.id}`}
                     </div>
 
-                    <label style={PANEL_LBL}>NEEDLE STATUS</label>
-                    <select value={needleStatus} disabled={!!updating}
+                    <label htmlFor={`${panelId}-status`} style={PANEL_LBL}>NEEDLE STATUS</label>
+                    <select id={`${panelId}-status`} value={needleStatus} disabled={!!updating}
                         onChange={(e) => e.target.value !== needleStatus && onNeedleStatus(e.target.value)}
                         style={{ ...PANEL_SEL, marginBottom: 14 }}>
                         {STATUS_OPTIONS.map((o) => (
@@ -2977,29 +2965,29 @@ function ActionPanel({
                         ))}
                     </select>
 
-                    <label style={PANEL_LBL}>PRIORITY</label>
-                    <select value={priorityValue} onChange={(e) => onPriority(e.target.value)} style={{ ...PANEL_SEL, marginBottom: 14 }}>
+                    <label htmlFor={`${panelId}-priority`} style={PANEL_LBL}>PRIORITY</label>
+                    <select id={`${panelId}-priority`} value={priorityValue} onChange={(e) => onPriority(e.target.value)} style={{ ...PANEL_SEL, marginBottom: 14 }}>
                         <option value="critical">Critical</option>
                         <option value="high">High</option>
                         <option value="standard">Standard</option>
                         <option value="low">Low</option>
                     </select>
 
-                    <label style={PANEL_LBL}>ASSIGNED TO</label>
-                    <select value={assignee} onChange={(e) => onAssign(e.target.value)} style={{ ...PANEL_SEL, marginBottom: 6 }}>
+                    <label htmlFor={`${panelId}-assignee`} style={PANEL_LBL}>ASSIGNED TO</label>
+                    <select id={`${panelId}-assignee`} value={assignee} onChange={(e) => onAssign(e.target.value)} style={{ ...PANEL_SEL, marginBottom: 6 }}>
                         <option value="">Unassigned</option>
                         {staff.map((s) => (
                             <option key={s.username} value={s.username}>{s.display_name || s.username}</option>
                         ))}
                     </select>
-                    <button type="button" onClick={onAssignToMe} style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: 12, color: C.green, cursor: 'pointer' }}>
+                    <button type="button" onClick={onAssignToMe} style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: '0.75rem', color: C.green, cursor: 'pointer' }}>
                         Assign to me
                     </button>
 
                     <div style={{ height: 1, background: C.hair, margin: '18px 0' }} />
 
-                    <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', color: C.ink3, marginBottom: 10 }}>CASE INFORMATION</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12.5 }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em', color: C.ink3, marginBottom: 10 }}>CASE INFORMATION</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.78125rem' }}>
                         {infoRows.map(([k, v]) => (
                             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                                 <span style={{ color: C.ink3 }}>{k}</span>
@@ -3011,7 +2999,7 @@ function ActionPanel({
                     {onViewSummary && (
                         <button type="button" onClick={onViewSummary} style={{
                             marginTop: 14, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
-                            fontSize: 12.5, color: C.green, cursor: 'pointer',
+                            fontSize: '0.78125rem', color: C.green, cursor: 'pointer',
                             display: 'flex', alignItems: 'center', gap: 5,
                         }}>
                             View case summary
@@ -3038,7 +3026,8 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [loadingActivity, setLoadingActivity] = useState(false);
     const [draftSaved, setDraftSaved] = useState(false);
     const [notifyOpen, setNotifyOpen] = useState(false);
-    const [notifyInput, setNotifyInput] = useState('');
+    const [notifyError, setNotifyError] = useState('');
+    const [resolveOpen, setResolveOpen] = useState(false);
     const [notifySending, setNotifySending] = useState(false);
     const [fullCase, setFullCase] = useState(null);
     const [activeCaseId, setActiveCaseId] = useState(null);
@@ -3058,7 +3047,12 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     // complaint switch.
     const [resolutionReviewOpen, setResolutionReviewOpen] = useState(false);
     const responseSectionRef = useRef(null);
-    const responseInputRef = useRef(null);
+    const replyTriggerRef = useRef(null);
+    const resolveTriggerRef = useRef(null);
+    const mainScrollRef = useRef(null);
+    const railScrollRef = useRef(null);
+    const mobileScrollRef = useRef(null);
+    const sendLockRef = useRef(false);
     const govtSyncRef = useRef(null);      // imperative handle into GovtSyncSection — lets Escalate trigger its live-session flow
     const govtSectionRef = useRef(null);   // scroll target so Escalate brings that section into view
     const aiSectionRef = useRef(null);     // scroll target for "View AI summary" in the needs-review banner
@@ -3066,13 +3060,15 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
 
     useEffect(() => {
         if (!caseItem) return;
+        let cancelled = false;
         setFullCase(caseItem);
         setActiveCaseId(caseItem.id);
         apiGet(`/api/cases/${caseItem.id}`)
             .then((result) => {
-                setFullCase({ ...caseItem, ...result });
+                if (!cancelled) setFullCase({ ...caseItem, ...result });
             })
-            .catch(() => setFullCase(caseItem));
+            .catch(() => { if (!cancelled) setFullCase(caseItem); });
+        return () => { cancelled = true; };
     }, [caseItem?.id]);
 
     useEffect(() => {
@@ -3090,21 +3086,23 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         setGeoLocation(selectedCase.case_metadata?.matched_value || selectedCase.location || '');
         setGeoAssembly(selectedCase.case_metadata?.assembly_constituency || selectedCase.assembly || '');
 
+        let cancelled = false;
         setLoadingActivity(true);
         apiGet(`/api/cases/${selectedCase.id}/activity`)
-            .then((result) => setActivities(result.activities || []))
-            .catch(() => setActivities([]))
-            .finally(() => setLoadingActivity(false));
+            .then((result) => { if (!cancelled) setActivities(result.activities || []); })
+            .catch(() => { if (!cancelled) setActivities([]); })
+            .finally(() => { if (!cancelled) setLoadingActivity(false); });
+        return () => { cancelled = true; };
     }, [caseItem?.id, activeCaseId, fullCase]);
 
     useEffect(() => {
-        if (!activeCaseId) return;
-        localStorage.setItem(`draft_notes_${activeCaseId}`, notes);
-        localStorage.setItem(`draft_response_${activeCaseId}`, response);
-    }, [notes, response, activeCaseId]);
-
-    useEffect(() => {
         setResolutionReviewOpen(false);
+        setNotifyOpen(false);
+        setResolveOpen(false);
+        setNotifyError('');
+        [mainScrollRef, railScrollRef, mobileScrollRef].forEach((ref) => { if (ref.current) ref.current.scrollTop = 0; });
+        const tab = document.getElementById(`complaint-tab-${activeCaseId}`);
+        if (tab?.parentElement) tab.parentElement.scrollLeft = Math.max(0, tab.offsetLeft - tab.parentElement.offsetLeft);
     }, [activeCaseId]);
 
     const handleGovtStateChange = useCallback((targetId, govtCase) => {
@@ -3208,27 +3206,27 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     // just bring the existing submission into view.
     function handleEscalateClick() {
         setGovtOpenSignal((n) => n + 1);
-        govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        govtSectionRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
         if (alreadyFiledFlag) return;
         govtSyncRef.current?.openLiveSession();
     }
     function handleGovernmentStatusClick() {
         console.info('[GOVT_STATUS_DIAG] action panel click', {
-            caseId,
+            caseId: current.id,
             action: 'check_government_status',
         });
         const action = govtSyncRef.current?.checkGovernmentStatus();
         if (action === 'verification_required') {
             setGovtOpenSignal((n) => n + 1);
-            govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            govtSectionRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
         }
     }
     function openLocationRow() {
         setLocationOpenSignal((n) => n + 1);
-        detailCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        detailCardRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     }
     function viewCaseSummary() {
-        aiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        aiSectionRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     }
 
     // Per-complaint contextual callout for the action panel (mirrors
@@ -3320,7 +3318,8 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         }
     };
 
-    const handleStatusChange = async (newStatus) => {
+    const handleStatusChange = async (newStatus, confirmed = false) => {
+        if (newStatus === 'resolved' && !confirmed) { setResolveOpen(true); return; }
         setUpdating(newStatus);
         try {
             await apiPatch(`/api/cases/${current.id}/status`, { status: newStatus });
@@ -3329,10 +3328,20 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 const nextThreadCases = (existing.thread_cases || []).map((item) =>
                     item.id === current.id ? { ...item, status: newStatus } : item
                 );
-                return { ...existing, thread_cases: nextThreadCases };
+                return { ...existing, ...(existing.id === current.id ? { status: newStatus } : {}), thread_cases: nextThreadCases };
             });
-            onStatusChange(current.id, newStatus);
-            toast.success(`Case marked as ${newStatus}`);
+            onStatusChange(current.id, newStatus, { keepWorkspaceOpen: true });
+            // Read canonical resolution dates instead of inventing a client timestamp.
+            apiGet(`/api/cases/${current.id}`).then((fresh) => {
+                const patch = { status: fresh.status || newStatus, resolved_at: fresh.resolved_at || null };
+                setFullCase((existing) => existing ? {
+                    ...existing,
+                    ...(existing.id === current.id ? patch : {}),
+                    thread_cases: (existing.thread_cases || []).map((item) => item.id === current.id ? { ...item, ...patch } : item),
+                } : existing);
+            }).catch(() => {});
+            setResolveOpen(false);
+            toast.success(`Complaint marked as ${newStatus}`);
         } catch {
             toast.error('Failed to update status');
         } finally {
@@ -3345,17 +3354,15 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         try {
             await apiPatch(`/api/cases/${current.id}`, {
                 notes_for_staff: notes || null,
-                response_to_citizen: response || null,
             });
             setFullCase((existing) => {
                 if (!existing) return existing;
                 const nextThreadCases = (existing.thread_cases || []).map((item) =>
-                    item.id === current.id ? { ...item, notes_for_staff: notes || null, response_to_citizen: response || null } : item
+                    item.id === current.id ? { ...item, notes_for_staff: notes || null } : item
                 );
-                return { ...existing, thread_cases: nextThreadCases };
+                return { ...existing, ...(existing.id === current.id ? { notes_for_staff: notes || null } : {}), thread_cases: nextThreadCases };
             });
             localStorage.removeItem(`draft_notes_${current.id}`);
-            localStorage.removeItem(`draft_response_${current.id}`);
             setDraftSaved(false);
             toast.success('Notes saved');
         } catch {
@@ -3398,7 +3405,11 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     };
 
     const sendNotification = async () => {
+        if (sendLockRef.current || !isMp || !current.user_phone || !response.trim()) return;
+        sendLockRef.current = true;
+        const targetId = current.id;
         setNotifySending(true);
+        setNotifyError('');
         try {
             const customMessage = response?.trim() || null;
             await apiPost(`/api/cases/${current.id}/notify/send`, {
@@ -3406,14 +3417,25 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 response_to_citizen: customMessage,
             });
             setNotifyOpen(false);
-            setNotifyInput('');
-            toast.success('WhatsApp update sent — case moved to Resolved');
-            onStatusChange(current.id, 'resolved');
-            onClose();
+            // Keep an empty draft marker so reopening cannot prefill and resend
+            // the historical response_to_citizen value as a new message.
+            localStorage.setItem(`draft_response_${targetId}`, '');
+            setResponse('');
+            setFullCase((existing) => existing ? {
+                ...existing,
+                ...(existing.id === targetId ? { response_to_citizen: customMessage } : {}),
+                thread_cases: (existing.thread_cases || []).map((item) => item.id === targetId ? { ...item, response_to_citizen: customMessage } : item),
+            } : existing);
+            toast.success('WhatsApp reply sent — complaint status unchanged');
+            // A failed history refresh must never offer to resend a successful message.
+            apiGet(`/api/cases/${targetId}/activity`)
+                .then((result) => setActivities(result.activities || []))
+                .catch(() => {});
         } catch (error) {
-            toast.error(error.message || 'Failed to send notification');
+            setNotifyError(error.message || 'Failed to send reply. Your draft has been kept.');
         } finally {
             setNotifySending(false);
+            sendLockRef.current = false;
         }
     };
 
@@ -3426,7 +3448,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 const nextThreadCases = (existing.thread_cases || []).map((item) =>
                     item.id === current.id ? { ...item, assigned_to: username || null } : item
                 );
-                return { ...existing, thread_cases: nextThreadCases };
+                return { ...existing, ...(existing.id === current.id ? { assigned_to: username || null } : {}), thread_cases: nextThreadCases };
             });
             onStatusChange(current.id, currentStatus);
             toast.success(username ? `Assigned to ${username}` : 'Unassigned');
@@ -3514,23 +3536,13 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         }
     };
 
-    const defaultNotifyMessage = (() => {
-        const msgs = {
-            new:         `Your grievance (${caseRef}) has been received and is being reviewed.`,
-            in_progress: `Update on your grievance (${caseRef}): We are actively working on this.`,
-            resolved:    `Good news! Your grievance (${caseRef}) has been resolved. Reply 'NO' to reopen.`,
-            completed:   `Good news! Your grievance (${caseRef}) has been resolved. Reply 'NO' to reopen.`,
-            closed:      `Your grievance (${caseRef}) has been closed. Thank you for reaching out.`,
-        };
-        return response?.trim() || msgs[current.status] || `Update on your grievance (${caseRef}): Status is now '${current.status}'.`;
-    })();
 
     return (
         <>
             <Sheet open={!!caseItem} onOpenChange={(open) => { if (!open) onClose(); }}>
                 <SheetContent
                     side="right"
-                    className="w-full !max-w-none lg:w-[calc(100vw-216px)] lg:!max-w-[1240px] p-0 flex overflow-hidden [&>button]:hidden rounded-none"
+                    className="case-detail-workspace w-full !max-w-none lg:w-[calc(100vw-216px)] lg:!max-w-[1240px] p-0 flex overflow-hidden [&>button]:hidden rounded-none"
                     style={{
                         background: C.paper,
                         fontFamily: '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif',
@@ -3538,7 +3550,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         border: 'none',
                     }}
                 >
-                    <div style={{
+                    <div ref={mobileScrollRef} style={{
                         flex: 1, minWidth: 0, minHeight: '100%',
                         display: 'flex', flexDirection: 'column', background: C.paper,
                         // Desktop: header/strip/footer are fixed and the two inner
@@ -3548,6 +3560,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                     }}>
                     <SheetTitle className="sr-only">Case {caseRef}</SheetTitle>
                     <SheetDescription className="sr-only">Case detail workspace for {caseRef}</SheetDescription>
+                    <div className="sr-only" aria-live="polite">Complaint {caseRef} selected. Needle status: {currentStatus.replaceAll('_', ' ')}.</div>
                     <DrawerHeader
                         caseRef={caseRef}
                         status={currentStatus}
@@ -3584,8 +3597,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         overflowY: isMobile ? 'visible' : 'hidden',
                     }}>
                         {/* MAIN COLUMN */}
-                        <div style={{ flex: 1, minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', padding: isMobile ? '16px 20px 24px' : '20px 28px 28px' }}>
-                            <ContactQueueNotice current={current} />
+                        <div ref={mainScrollRef} id="case-complaint-panel" role="tabpanel" aria-labelledby={`complaint-tab-${current.id}`} style={{ flex: 1, minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', padding: isMobile ? '16px 20px 24px' : '20px 28px 28px' }}>
 
                             {/* One structural Case Detail path for every Needle
                                 state. Resolution is a state transition — the
@@ -3594,31 +3606,27 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 mounted; only the Action Panel content changes
                                 (see resolvedSummary below). */}
                             <>
-                                    {currentStatus === 'pending_review' && (
-                                        <ReviewReasonBanner
-                                            current={current}
-                                            meta={meta}
-                                            onViewSummary={viewCaseSummary}
-                                        />
-                                    )}
-
                                     {/* Citizen complaint — moved up from the detail
                                         accordion so the citizen's own words sit
                                         directly under the complaint selector. Same
                                         component/props, rendered once. */}
-                                    <div style={{ background: C.card, border: `1px solid ${C.hair}`, borderRadius: 12, padding: '14px 18px', marginBottom: 16 }}>
+                                    <div className="case-citizen-card">
                                         <span style={monoLbl}>Citizen complaint</span>
                                         <CitizenComplaintSection current={current} meta={meta} />
                                     </div>
 
                                     <CaseHero current={current} meta={meta} />
+                                    {currentStatus === 'pending_review' && <ReviewReasonBanner current={current} meta={meta} onViewSummary={viewCaseSummary} />}
 
                                     <GovernmentJourneyPanel
                                         current={current}
                                         narrow={isMobile}
-                                        onViewSubmission={() => { setGovtOpenSignal((n) => n + 1); govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                                        onViewSubmission={() => { setGovtOpenSignal((n) => n + 1); govtSectionRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); }}
                                         onRefresh={handleGovernmentStatusClick}
                                     />
+
+                                    {isMobile && !isResolved && !showResolutionReview && <ComplaintNextAction callout={contextCallout} />}
+                                    <ContactQueueNotice current={current} />
 
                                     <div ref={detailCardRef} style={{ border: `1px solid ${C.hair}`, borderRadius: 12, overflow: 'hidden', background: C.card }}>
                                         <AccordionRow icon="sparkle" label="AI UNDERSTANDING" forwardedRef={aiSectionRef}>
@@ -3661,6 +3669,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
 
                                         <AccordionRow icon="external" label="GOVERNMENT SUBMISSION" forwardedRef={govtSectionRef} forceOpenKey={govtOpenSignal}>
                                             <GovtSyncSection
+                                                key={current.id}
                                                 ref={govtSyncRef}
                                                 caseId={current.id}
                                                 isMp={isMp}
@@ -3676,7 +3685,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                         <AccordionRow icon="check" label="INTERNAL NOTES" last forceOpenKey={notesOpenSignal}>
                                             <NotesSection
                                                 notes={notes}
-                                                setNotes={setNotes}
+                                                setNotes={(value) => { setNotes(value); localStorage.setItem(`draft_notes_${current.id}`, value); setDraftSaved(true); }}
                                                 response={response}
                                                 setResponse={setResponse}
                                                 draftSaved={draftSaved}
@@ -3685,8 +3694,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                                 phone={current.user_phone}
                                                 isMp={isMp}
                                                 responseSectionRef={responseSectionRef}
-                                                responseInputRef={responseInputRef}
-                                                onNotify={() => { setNotifyInput(''); setNotifyOpen(true); }}
                                             />
                                         </AccordionRow>
                                     </div>
@@ -3694,7 +3701,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         </div>
 
                         {/* ACTION PANEL */}
-                        <div style={{
+                        <div ref={railScrollRef} style={{
                             width: isMobile ? 'auto' : 328, flexShrink: 0,
                             borderLeft: isMobile ? 'none' : `1px solid ${C.hair}`,
                             borderTop: isMobile ? `1px solid ${C.hair}` : 'none',
@@ -3708,7 +3715,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 threadCount={threadCases.length}
                                 open={panelOpen}
                                 onToggle={() => setPanelOpen((v) => !v)}
-                                callout={isResolved ? null : contextCallout}
+                                callout={isResolved || isMobile ? null : contextCallout}
                                 resolvedSummary={isResolved ? {
                                     resolvedOn: current.resolved_at
                                         ? new Date(current.resolved_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -3739,7 +3746,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                     onCollapse: () => setResolutionReviewOpen(false),
                                     onViewPortalDetail: () => {
                                         setGovtOpenSignal((n) => n + 1);
-                                        govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                        govtSectionRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
                                     },
                                     onMarkResolved: () => handleStatusChange('resolved'),
                                     onContinueFollowUp: async () => {
@@ -3775,8 +3782,8 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                     {/* FOOTER — two actions only (Main.dc.html). Desktop: right-
                         aligned pair, unchanged. Narrow: full-width split row,
                         honouring the bottom safe-area inset. */}
-                    {!isResolved && (
-                        <div style={{
+                    {(
+                        <div className="case-detail-footer" style={{
                             flexShrink: 0, borderTop: `1px solid ${C.hair}`, background: C.card,
                             padding: isMobile
                                 ? '12px 20px calc(12px + env(safe-area-inset-bottom, 0px))'
@@ -3785,24 +3792,27 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                             justifyContent: isMobile ? 'stretch' : 'flex-end',
                             ...(isMobile ? { position: 'sticky', bottom: 0, zIndex: 6 } : {}),
                         }}>
-                            <button
-                                onClick={() => { setNotesOpenSignal((n) => n + 1); responseSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+                            <span style={{ flex: '1 1 auto', color: C.ink3, fontSize: '.75rem' }}>{!isMp ? 'Citizen replies are available to the primary account.' : 'Replying does not change complaint status.'}</span>
+                            {!isResolved && <button ref={resolveTriggerRef}
+                                disabled={!!updating}
+                                onClick={() => setResolveOpen(true)}
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                                     flex: isMobile ? '1 1 46%' : '0 0 auto',
                                     border: `1px solid ${C.hair}`, borderRadius: 9, background: 'none',
-                                    padding: '10px 18px', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, color: C.ink, cursor: 'pointer',
+                                    padding: '10px 18px', fontFamily: 'inherit', fontSize: '0.84375rem', fontWeight: 600, color: C.ink, cursor: 'pointer',
                                     whiteSpace: 'nowrap',
                                 }}>
-                                <Icon name="check" size={14} color={C.ink} stroke={2} /> Add internal note
-                            </button>
-                            <button
-                                onClick={() => { setNotifyInput(''); setNotifyOpen(true); }}
+                                <Icon name="check" size={14} color={C.ink} stroke={2} /> Resolve complaint
+                            </button>}
+                            <button ref={replyTriggerRef}
+                                disabled={!isMp || !current.user_phone || notifySending}
+                                onClick={() => { setNotifyError(''); setNotifyOpen(true); }}
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                                     flex: isMobile ? '1 1 46%' : '0 0 auto',
                                     border: 'none', borderRadius: 9, background: C.green, color: '#fff',
-                                    padding: '10px 20px', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+                                    padding: '10px 20px', fontFamily: 'inherit', fontSize: '0.84375rem', fontWeight: 600, cursor: 'pointer',
                                     whiteSpace: 'nowrap',
                                 }}>
                                 <Icon name="whatsapp" size={14} color="#fff" stroke={2} /> Reply to citizen
@@ -3813,42 +3823,21 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 </SheetContent>
             </Sheet>
 
-            <Dialog open={notifyOpen} onOpenChange={(open) => { setNotifyOpen(open); if (!open) setNotifyInput(''); }}>
-                <DialogContent className="max-w-sm" style={{ background: C.paper, fontFamily: 'inherit' }}>
+            <CitizenReplyDialog open={notifyOpen} onOpenChange={setNotifyOpen} response={response}
+                onChange={(value) => { setResponse(value); localStorage.setItem(`draft_response_${current.id}`, value); }}
+                onSend={sendNotification} sending={notifySending} error={notifyError} phone={current.user_phone}
+                caseRef={caseRef} status={currentStatus} triggerRef={replyTriggerRef} />
+            <Dialog open={resolveOpen} onOpenChange={(open) => { if (!updating) setResolveOpen(open); }}>
+                <DialogContent className="case-detail-dialog max-w-md" onCloseAutoFocus={(event) => { event.preventDefault(); resolveTriggerRef.current?.focus(); }}>
                     <DialogHeader>
-                        <DialogTitle style={{ color: C.ink }}>Send WhatsApp Update</DialogTitle>
-                        <DialogDescription style={{ color: C.ink3 }}>
-                            Type <strong style={{ color: C.ink }}>{caseRef}</strong> to confirm sending a message to the citizen.
-                        </DialogDescription>
+                        <DialogTitle>Resolve this complaint?</DialogTitle>
+                        <DialogDescription>Only complaint {caseRef} will be marked resolved. Other complaints and the government grievance status remain unchanged.</DialogDescription>
                     </DialogHeader>
-                    <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{
-                            background: C.paperDeep, border: `1px solid ${C.hair}`,
-                            padding: '10px 12px', fontSize: 12.5, color: C.ink, lineHeight: 1.5,
-                        }}>
-                            {defaultNotifyMessage}
-                        </div>
-                        {response?.trim() && (
-                            <p style={{ fontSize: 11, color: C.greenInk, fontWeight: 600 }}>✓ Using your custom response message</p>
-                        )}
-                        <Input
-                            placeholder={`Type ${caseRef} to confirm`}
-                            value={notifyInput}
-                            onChange={(e) => setNotifyInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && notifyInput === caseRef && sendNotification()}
-                            autoFocus
-                        />
-                    </div>
+                    <p className="case-reply-meta">Government status: {GOVT_STATUS_LABEL[current.govt_status] || 'Not forwarded'}</p>
+                    {!activities.some((item) => item.action === 'citizen_notified') && <p className="case-reply-meta">No citizen reply is recorded. Resolving will not send a WhatsApp message.</p>}
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => { setNotifyOpen(false); setNotifyInput(''); }}>Cancel</Button>
-                        <Button
-                            onClick={sendNotification}
-                            disabled={notifyInput !== caseRef || notifySending}
-                            style={{ background: C.green, color: '#F5EFE0', border: 'none' }}
-                        >
-                            {notifySending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-                            Confirm &amp; Send
-                        </Button>
+                        <Button variant="outline" disabled={!!updating} onClick={() => setResolveOpen(false)}>Keep open</Button>
+                        <Button disabled={!!updating} onClick={() => handleStatusChange('resolved', true)} style={{ background: C.green, color: '#fff' }}>{updating ? 'Resolving…' : 'Confirm resolution'}</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

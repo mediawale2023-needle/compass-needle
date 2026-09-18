@@ -148,9 +148,9 @@ def test_reopening_resolved_clears_resolved_at():
     assert row["status_changed_at"] is not None
 
 
-# ── citizen-notify auto-resolve ─────────────────────────────────────────
+# ── citizen replies preserve lifecycle timestamps ──────────────────────
 
-def test_notify_auto_resolve_stamps_both_timestamps(monkeypatch):
+def test_notify_preserves_status_and_timestamps(monkeypatch):
     _seed_database()
     headers = _auth_headers("mp_arun")
     _set_status_col(101, status="in_progress", status_changed_at="2026-01-01 00:00:00")
@@ -166,11 +166,11 @@ def test_notify_auto_resolve_stamps_both_timestamps(monkeypatch):
     assert r.status_code == 200, r.text
 
     row = _row()
-    assert row["status"] == "resolved"
-    assert row["status_changed_at"] is not None
-    assert row["status_changed_at"] != "2026-01-01 00:00:00"
-    assert row["resolved_at"] is not None
-    assert "status_change" in _activity_actions()
+    assert row["status"] == "in_progress"
+    assert row["status_changed_at"] == "2026-01-01 00:00:00"
+    assert row["resolved_at"] is None
+    assert "status_change" not in _activity_actions()
+    assert "citizen_notified" in _activity_actions()
 
 
 # ── govt filing side-effect ────────────────────────────────────────────

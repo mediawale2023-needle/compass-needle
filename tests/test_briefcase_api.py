@@ -638,7 +638,7 @@ def test_briefcase_manual_category_confirmation_validates_and_logs():
     assert "category_confirmed" in actions
 
 
-def test_briefcase_notify_send_is_mp_only_and_auto_resolves(monkeypatch):
+def test_briefcase_notify_send_is_mp_only_and_keeps_status(monkeypatch):
     _seed_database()
     outbound = []
 
@@ -655,6 +655,7 @@ def test_briefcase_notify_send_is_mp_only_and_auto_resolves(monkeypatch):
     )
     assert pr_resp.status_code == 403, pr_resp.text
 
+    before = client.get('/api/cases/101', headers=_auth_headers('mp_arun')).json()
     notify_resp = client.post(
         "/api/cases/101/notify/send",
         headers=_auth_headers("mp_arun"),
@@ -667,14 +668,16 @@ def test_briefcase_notify_send_is_mp_only_and_auto_resolves(monkeypatch):
     detail_resp = client.get("/api/cases/101", headers=_auth_headers("mp_arun"))
     assert detail_resp.status_code == 200, detail_resp.text
     detail = detail_resp.json()
-    assert detail["status"] == "resolved"
+    assert detail["status"] == before["status"]
+    assert detail.get("resolved_at") == before.get("resolved_at")
+    assert detail.get("govt_status") == before.get("govt_status")
     assert detail["response_to_citizen"] == "Water tanker arranged for tonight."
 
     activity_resp = client.get("/api/cases/101/activity", headers=_auth_headers("mp_arun"))
     assert activity_resp.status_code == 200, activity_resp.text
     latest = activity_resp.json()["activities"][0]
     assert latest["action"] == "citizen_notified"
-    assert latest["new_value"] == "resolved"
+    assert latest["new_value"] == "whatsapp_sent"
 
 
 def test_briefcase_delete_restore_and_deleted_list_respect_roles():
@@ -759,7 +762,7 @@ def test_briefcase_escalation_endpoints_are_removed():
     assert history_resp.status_code == 404, history_resp.text
 
 
-def test_briefcase_pilot_flow_assign_note_notify_resolves(monkeypatch):
+def test_briefcase_pilot_flow_assign_note_reply_then_explicitly_resolve(monkeypatch):
     _seed_database()
     headers = _auth_headers("mp_arun")
     outbound = []
@@ -806,6 +809,10 @@ def test_briefcase_pilot_flow_assign_note_notify_resolves(monkeypatch):
         )
     ]
 
+    after_reply = client.get('/api/cases/101', headers=headers).json()
+    assert after_reply['status'] == 'new'
+    resolution = client.patch('/api/cases/101/status', headers=headers, json={'status': 'resolved'})
+    assert resolution.status_code == 200, resolution.text
     final_detail = client.get("/api/cases/101", headers=headers).json()
     assert final_detail["status"] == "resolved"
     assert final_detail["assigned_to"] == "pr_meera"
@@ -1031,4 +1038,3 @@ def test_briefcase_newest_grouping_ignores_staff_updated_at():
 
     updated_rows = api_router._group_briefcase_cases([older, newer], sort="updated")
     assert [row["id"] for row in updated_rows] == [1, 2]
-
