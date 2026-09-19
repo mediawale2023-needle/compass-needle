@@ -3429,6 +3429,10 @@ def _latest_govt_status_check_payload(tenant_id: int, case_id: int) -> dict | No
         "portal_detail": _parse_meta(payload.get("portal_detail")),
         "portal": payload.get("portal"),
         "changed": bool(payload.get("changed")),
+        "status_changed": bool(payload.get("status_changed", payload.get("changed"))),
+        "change_types": payload.get("change_types") or [],
+        "new_portal_history_event_count": int(payload.get("new_portal_history_event_count") or 0),
+        "latest_meaningful_event_id": payload.get("latest_meaningful_event_id"),
     }
 
 
@@ -3919,10 +3923,20 @@ def get_govt_forward_state(case_id: int, user=Depends(get_current_user)):
         "WHERE tenant_id = :tid AND case_id = :cid ORDER BY created_at ASC",
         {"tid": tid, "cid": case_id},
     )
+    from modules.govt_sync.portal_history import latest_terminal_portal_history_event
+    with engine.connect() as conn:
+        latest_terminal_event = latest_terminal_portal_history_event(
+            conn=conn,
+            tenant_id=tid,
+            case_id=case_id,
+            portal_id=case.get("govt_portal_id"),
+            reference_number=case.get("govt_reference_number"),
+        )
     return {
         "case": case,
         "log": log,
         "latest_status_check": _latest_govt_status_check_payload(tid, case_id),
+        "latest_terminal_portal_history_event": latest_terminal_event,
     }
 
 
@@ -3951,6 +3965,32 @@ def get_govt_status_history(case_id: int, limit: int = Query(default=25, ge=1, l
         )
 
 
+@router.get("/cases/{case_id}/govt/portal-history")
+def get_govt_portal_history(case_id: int, limit: int = Query(default=25, ge=1, le=100), before_id: int | None = Query(default=None, ge=1), user=Depends(get_current_user)):
+    """Portal-authored history for one exact tenant/case/portal/reference."""
+    tid = get_tenant_or_fail(user)
+    case = _q_one(
+        """SELECT c.id, c.govt_portal_id, c.govt_reference_number,
+                  p.id AS portal_id, p.portal_name, p.state AS portal_state
+           FROM cases c LEFT JOIN govt_portals p ON p.id = c.govt_portal_id
+           WHERE c.id = :cid AND c.tenant_id = :tid
+             AND (c.is_deleted = false OR c.is_deleted IS NULL)""",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    from modules.govt_sync.portal_history import build_portal_history_response
+
+    with engine.connect() as conn:
+        return build_portal_history_response(
+            conn=conn,
+            tenant_id=tid,
+            case=case,
+            limit=limit,
+            before_id=before_id,
+        )
+
+
 @router.post("/cases/{case_id}/govt/resolution-review")
 def record_govt_resolution_review(case_id: int, body: GovtResolutionReviewRequest, user=Depends(get_current_user)):
     """Record a staff workflow decision after they reviewed the government's
@@ -3967,7 +4007,7 @@ def record_govt_resolution_review(case_id: int, body: GovtResolutionReviewReques
         raise HTTPException(400, "Unsupported resolution-review decision")
 
     case = _q_one(
-        "SELECT govt_status, govt_reference_number, govt_status_updated_at "
+        "SELECT id, govt_portal_id, govt_status, govt_reference_number, govt_status_updated_at "
         "FROM cases WHERE id = :cid AND tenant_id = :tid",
         {"cid": case_id, "tid": tid},
     )
@@ -3977,6 +4017,16 @@ def record_govt_resolution_review(case_id: int, body: GovtResolutionReviewReques
         raise HTTPException(409, "The government portal has not marked this grievance resolved")
 
     cycle_marker = _coerce_iso(case.get("govt_status_updated_at"))
+    from modules.govt_sync.portal_history import latest_terminal_portal_history_event
+    with engine.connect() as conn:
+        latest_terminal_event = latest_terminal_portal_history_event(
+            conn=conn,
+            tenant_id=tid,
+            case_id=case_id,
+            portal_id=case.get("govt_portal_id"),
+            reference_number=case.get("govt_reference_number"),
+        )
+    terminal_event_id = latest_terminal_event.get("id") if latest_terminal_event else None
     _log_case_activity(
         tid, case_id, user.get("username", ""),
         "govt_resolution_reviewed", new_value=decision,
@@ -3985,9 +4035,15 @@ def record_govt_resolution_review(case_id: int, body: GovtResolutionReviewReques
             "govt_status": str(case.get("govt_status") or "").strip().lower(),
             "govt_reference_number": case.get("govt_reference_number") or None,
             "govt_status_updated_at": cycle_marker,
+            "portal_history_event_id": terminal_event_id,
         }),
     )
-    return {"success": True, "decision": decision, "govt_status_updated_at": cycle_marker}
+    return {
+        "success": True,
+        "decision": decision,
+        "govt_status_updated_at": cycle_marker,
+        "portal_history_event_id": terminal_event_id,
+    }
 
 
 @router.post("/cases/{case_id}/govt/submit")
@@ -4132,16 +4188,27 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
         )
         return diagnostic_response({"success": True, "changed": False, "govt_status": case["govt_status"], "note": _GOVT_NO_STATUS_CHANGE_NOTE})
 
-    from modules.govt_sync.orchestrator import persist_successful_status_result
+    from modules.govt_sync.orchestrator import persist_successful_sync_result
 
-    changed = persist_successful_status_result(
+    history_result = None
+    if getattr(adapter, "supports_history", False):
+        try:
+            history_result = adapter.fetch_history(case["govt_reference_number"], tenant_id=tid)
+        except Exception:
+            logger.exception("Portal history fetch failed case=%s adapter=%s", case_id, adapter_name)
+    change_set = persist_successful_sync_result(
         tenant_id=tid, case_id=case_id, case_row=case, result=result,
+        history_result=history_result,
         actor_username=user.get("username"),
     )
 
     return diagnostic_response({
         "success": True,
-        "changed": changed,
+        "changed": change_set.changed,
+        "status_changed": change_set.status_changed,
+        "change_types": list(change_set.change_types),
+        "new_portal_history_event_count": len(change_set.new_portal_event_ids),
+        "latest_meaningful_event_id": change_set.latest_meaningful_event_id,
         "govt_status": result.status,
         "raw_portal_status": result.raw_portal_status,
         "portal_detail": getattr(result, "portal_detail", None) or {},

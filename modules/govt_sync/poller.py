@@ -18,7 +18,7 @@ from sansadx_backend.db import engine
 from sqlalchemy import text
 
 from modules.govt_sync.adapters import get_adapter
-from modules.govt_sync.orchestrator import persist_successful_status_result
+from modules.govt_sync.orchestrator import persist_successful_sync_result
 
 logger = logging.getLogger("needle.govt_sync.poller")
 
@@ -121,15 +121,25 @@ def poll_all_pending() -> dict:
             _log_inconclusive(row, result, "status_check_inconclusive")
             continue
 
-        changed_this_case = persist_successful_status_result(
+        history_result = None
+        if getattr(adapter, "supports_history", False):
+            try:
+                history_result = adapter.fetch_history(row["govt_reference_number"], tenant_id=row["tenant_id"])
+            except Exception:
+                logger.exception(
+                    "Portal history fetch failed case=%s portal=%s",
+                    row["case_id"], row["portal_name"],
+                )
+        change_set = persist_successful_sync_result(
             tenant_id=row["tenant_id"], case_id=row["case_id"], case_row=row, result=result,
+            history_result=history_result,
             actor_username=None,
         )
-        if changed_this_case:
+        if change_set.changed:
             changed += 1
             logger.info(
-                f"Govt sync poll: case={row['case_id']} portal={row['portal_name']} "
-                f"{row['govt_status']} -> {result.status}"
+                "Govt sync poll: case=%s portal=%s changes=%s",
+                row["case_id"], row["portal_name"], ",".join(change_set.change_types),
             )
 
     logger.info(f"Govt sync poll complete: {checked} checked, {changed} changed (of {len(rows)} pending)")

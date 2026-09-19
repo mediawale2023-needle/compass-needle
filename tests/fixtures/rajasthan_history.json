@@ -1,0 +1,29 @@
+[
+  {
+    "FormatDate": "19/09/2026 10:30 AM",
+    "complainStatus": "Disposed / Resolved",
+    "complainStatusRegional": "निस्तारित",
+    "fromDetails": "Urban Improvement Trust",
+    "fromDetailsRegional": "नगर विकास न्यास",
+    "toDetails": "Urban Improvement Trust",
+    "toDetailsRegional": "नगर विकास न्यास",
+    "Remarks": "  Necessary action has been taken.  ",
+    "DocId": "7812,7813"
+  },
+  {
+    "FormatDate": "12/09/2026 04:15 PM",
+    "complainStatus": "Under Process",
+    "fromDetails": "Public Works Department",
+    "toDetails": "Urban Improvement Trust",
+    "Remarks": "Work has been completed.",
+    "DocId": 0
+  },
+  {
+    "FormatDate": null,
+    "complainStatus": "Under Process",
+    "fromDetails": null,
+    "toDetails": null,
+    "Remarks": null,
+    "DocId": null
+  }
+]

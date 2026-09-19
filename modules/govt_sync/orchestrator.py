@@ -55,11 +55,21 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import text
 
 logger = logging.getLogger("needle.govt_sync.orchestrator")
+
+
+@dataclass(frozen=True)
+class GovtSyncChangeSet:
+    changed: bool
+    status_changed: bool
+    change_types: tuple[str, ...] = ()
+    new_portal_event_ids: tuple[int, ...] = ()
+    latest_meaningful_event_id: int | None = None
 
 
 def _utcnow() -> datetime:
@@ -72,18 +82,152 @@ def _payload_expr(engine, bind_name: str) -> str:
     return f"CAST(:{bind_name} AS JSONB)"
 
 
-def _status_poll_payload(case_row: dict, result) -> dict:
+def _status_poll_payload(case_row: dict, result, change_set: GovtSyncChangeSet, *, include_change_intelligence: bool) -> dict:
     """Identical shape to what both callers already built independently
     (api_router.py's _govt_status_poll_payload / poller.py's
     _status_poll_payload) — moved here verbatim, not redesigned."""
-    return {
+    payload = {
         "old_status": case_row.get("govt_status"),
         "new_status": result.status,
         "raw_portal_status": result.raw_portal_status,
         "portal_detail": getattr(result, "portal_detail", None) or {},
         "portal": case_row.get("portal_name"),
-        "changed": result.status != case_row.get("govt_status"),
+        "changed": change_set.changed,
     }
+    if include_change_intelligence:
+        payload.update({
+            "status_changed": change_set.status_changed,
+            "change_types": list(change_set.change_types),
+            "new_portal_history_event_count": len(change_set.new_portal_event_ids),
+            "latest_meaningful_event_id": change_set.latest_meaningful_event_id,
+        })
+    return payload
+
+
+def _build_change_set(*, status_changed: bool, new_status: str | None, persisted_history) -> GovtSyncChangeSet:
+    inserted_events = tuple(getattr(persisted_history, "inserted_events", ()) or ())
+    inserted_ids = tuple(getattr(persisted_history, "inserted_event_ids", ()) or ())
+    change_types: list[str] = []
+    if status_changed:
+        change_types.append("status_changed")
+    if inserted_events:
+        change_types.append("portal_history_event_added")
+    if any((event.comment or "").strip() for event in inserted_events):
+        change_types.append("government_remark_added")
+    def _routing_changed(event) -> bool:
+        if event.event_type == "routing_update":
+            return True
+        from_route = (event.from_department, event.from_office, event.from_display)
+        to_route = (event.to_department, event.to_office, event.to_display)
+        return any(from_route + to_route) and from_route != to_route
+
+    if any(_routing_changed(event) for event in inserted_events):
+        change_types.append("routing_changed")
+    if (status_changed and new_status in {"resolved", "disposed"}) or any(
+        event.status in {"resolved", "disposed"} or event.event_type == "resolution"
+        for event in inserted_events
+    ):
+        change_types.append("resolution_reported")
+    return GovtSyncChangeSet(
+        changed=bool(change_types),
+        status_changed=status_changed,
+        change_types=tuple(change_types),
+        new_portal_event_ids=inserted_ids,
+        latest_meaningful_event_id=(
+            max(
+                zip(inserted_ids, inserted_events),
+                key=lambda pair: (
+                    (
+                        pair[1].occurred_at.astimezone(timezone.utc).replace(tzinfo=None)
+                        if pair[1].occurred_at and pair[1].occurred_at.tzinfo
+                        else pair[1].occurred_at
+                    ) or datetime.min,
+                    pair[0],
+                ),
+            )[0]
+            if inserted_ids else None
+        ),
+    )
+
+
+def persist_successful_sync_result(
+    *,
+    tenant_id: int,
+    case_id: int,
+    case_row: dict,
+    result,
+    history_result=None,
+    actor_username: str | None = None,
+) -> GovtSyncChangeSet:
+    """Persist current status plus any securely retrieved portal-authored events."""
+    from sansadx_backend.db import engine
+    from modules.govt_sync.portal_history import HistoryAvailability, persist_portal_history_events
+
+    persisted_history = None
+    if history_result is not None and history_result.availability is HistoryAvailability.AVAILABLE:
+        persisted_history = persist_portal_history_events(
+            tenant_id=tenant_id,
+            case_id=case_id,
+            portal_id=case_row.get("portal_id") or case_row.get("govt_portal_id"),
+            reference_number=case_row.get("govt_reference_number"),
+            events=history_result.events,
+            observed_at=history_result.checked_at,
+        )
+
+    status_changed = result.status != case_row.get("govt_status")
+    change_set = _build_change_set(
+        status_changed=status_changed,
+        new_status=result.status,
+        persisted_history=persisted_history,
+    )
+    payload_expr = _payload_expr(engine, "payload")
+    with engine.begin() as conn:
+        if status_changed:
+            conn.execute(
+                text(
+                    "UPDATE cases SET govt_status = :status, govt_status_updated_at = :now "
+                    "WHERE id = :cid AND tenant_id = :tid"
+                ),
+                {"status": result.status, "now": _utcnow(), "cid": case_id, "tid": tenant_id},
+            )
+        conn.execute(
+            text(
+                "INSERT INTO govt_submission_log (tenant_id, case_id, action, actor_username, payload, created_at) "
+                f"VALUES (:tid, :cid, 'status_polled', :actor, {payload_expr}, :now)"
+            ),
+            {
+                "tid": tenant_id,
+                "cid": case_id,
+                "actor": actor_username,
+                "payload": json.dumps(
+                    _status_poll_payload(
+                        case_row, result, change_set,
+                        include_change_intelligence=history_result is not None,
+                    ),
+                    default=str,
+                ),
+                "now": _utcnow(),
+            },
+        )
+
+    try:
+        from modules.govt_sync.status_snapshot import persist_status_snapshot
+
+        persist_status_snapshot(
+            tenant_id=tenant_id,
+            case_id=case_id,
+            portal_id=case_row.get("portal_id") or case_row.get("govt_portal_id"),
+            reference_number=case_row.get("govt_reference_number"),
+            adapter_key=case_row.get("status_check_adapter") or case_row.get("portal_type"),
+            result=result,
+            portal_name=case_row.get("portal_name"),
+            source_url=case_row.get("status_check_url") or case_row.get("base_url"),
+            created_by=actor_username,
+        )
+    except Exception:
+        logger.exception("Govt status snapshot observer failed tenant=%s case=%s", tenant_id, case_id)
+
+    return change_set
 
 
 def persist_successful_status_result(
@@ -122,48 +266,12 @@ def persist_successful_status_result(
     its own response/summary shape — this function owns no HTTP response
     construction and no batch/pending-case selection.
     """
-    from sansadx_backend.db import engine
-
-    changed = result.status != case_row.get("govt_status")
-    payload_expr = _payload_expr(engine, "payload")
-    with engine.begin() as conn:
-        if changed:
-            conn.execute(
-                text(
-                    "UPDATE cases SET govt_status = :status, govt_status_updated_at = :now "
-                    "WHERE id = :cid AND tenant_id = :tid"
-                ),
-                {"status": result.status, "now": _utcnow(), "cid": case_id, "tid": tenant_id},
-            )
-        conn.execute(
-            text(
-                "INSERT INTO govt_submission_log (tenant_id, case_id, action, actor_username, payload, created_at) "
-                f"VALUES (:tid, :cid, 'status_polled', :actor, {payload_expr}, :now)"
-            ),
-            {
-                "tid": tenant_id,
-                "cid": case_id,
-                "actor": actor_username,
-                "payload": json.dumps(_status_poll_payload(case_row, result), default=str),
-                "now": _utcnow(),
-            },
-        )
-
-    try:
-        from modules.govt_sync.status_snapshot import persist_status_snapshot
-
-        persist_status_snapshot(
-            tenant_id=tenant_id,
-            case_id=case_id,
-            portal_id=case_row.get("portal_id") or case_row.get("govt_portal_id"),
-            reference_number=case_row.get("govt_reference_number"),
-            adapter_key=case_row.get("status_check_adapter") or case_row.get("portal_type"),
-            result=result,
-            portal_name=case_row.get("portal_name"),
-            source_url=case_row.get("status_check_url") or case_row.get("base_url"),
-            created_by=actor_username,
-        )
-    except Exception:
-        logger.exception("Govt status snapshot observer failed tenant=%s case=%s", tenant_id, case_id)
-
-    return changed
+    change_set = persist_successful_sync_result(
+        tenant_id=tenant_id,
+        case_id=case_id,
+        case_row=case_row,
+        result=result,
+        history_result=None,
+        actor_username=actor_username,
+    )
+    return change_set.status_changed

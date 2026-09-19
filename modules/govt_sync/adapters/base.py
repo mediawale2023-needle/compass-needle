@@ -15,8 +15,14 @@ check_status() behavior for free — see the mixin's own docstring below.
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
+
+from modules.govt_sync.portal_history import (
+    HistoryAvailability,
+    HistoryCapability,
+    PortalHistoryResult,
+)
 
 logger = logging.getLogger("needle.govt_sync.adapter")
 
@@ -155,9 +161,33 @@ class GovtPortalAdapter(ABC):
     # docstring for why that mixin is a different mechanism from
     # OtpGatedStatusMixin, not a variant of it.
     supports_unattended_status_check: bool = True
+    history_capability: HistoryCapability = HistoryCapability.NOT_SUPPORTED
+    # Terminal polling remains opt-in per adapter. No current adapter enables
+    # it, and a security-blocked adapter must never use it.
+    terminal_history_grace_period: timedelta = timedelta(0)
 
     def __init__(self, portal_row: dict):
         self.portal = portal_row or {}
+
+    @property
+    def supports_history(self) -> bool:
+        return self.history_capability is HistoryCapability.SUPPORTED
+
+    def fetch_history(self, reference_number: str, tenant_id: int | None = None) -> PortalHistoryResult:
+        """Optional read-only portal history capability.
+
+        The default performs no I/O. Adapters remain status-compatible until
+        they explicitly opt into a reviewed, authorized history mechanism.
+        """
+        diagnostic_code = (
+            "history_route_not_authorized"
+            if self.history_capability is HistoryCapability.SECURITY_BLOCKED
+            else "history_not_supported"
+        )
+        return PortalHistoryResult(
+            availability=HistoryAvailability.UNAVAILABLE,
+            diagnostic_code=diagnostic_code,
+        )
 
     @abstractmethod
     def prepare_submission(self, submission: dict) -> SubmissionResult:

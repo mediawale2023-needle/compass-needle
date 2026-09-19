@@ -88,6 +88,7 @@ import uuid
 
 from .base import OtpGatedStatusMixin
 from .manual import ManualAssistedAdapter
+from modules.govt_sync.portal_history import HistoryCapability
 
 logger = logging.getLogger("needle.govt_sync.adapter.rajasthan_sampark")
 
@@ -186,6 +187,11 @@ class RajasthanSamparkAPIAdapter(OtpGatedStatusMixin, ManualAssistedAdapter):
     HTML-scrape version; prepare_submission() still comes from
     ManualAssistedAdapter unchanged (filing is still a real human on the
     real portal — see module docstring's SCOPE note)."""
+
+    # The only known history route is documented in this repository as
+    # lacking proper access control. Do not override fetch_history() here:
+    # the base implementation is intentionally a zero-I/O blocked result.
+    history_capability = HistoryCapability.SECURITY_BLOCKED
 
     def _send_otp(self, mobile_no: str, anchor_reference: str) -> dict:
         return send_otp(mobile_no, anchor_reference)

@@ -8,6 +8,7 @@ import time
 import bcrypt
 import logging
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, JSON, Float, LargeBinary, text as sa_text, UniqueConstraint, Index
+from sqlalchemy.dialects.postgresql import JSONB
 try:
     from sqlalchemy.orm import declarative_base
 except ImportError:
@@ -370,6 +371,56 @@ class GovtStatusSnapshotEvent(Base):
     old_value_json = Column(JSON, nullable=True)
     new_value_json = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class GovtPortalHistoryEvent(Base):
+    """Immutable event authored by a government portal, not a Needle poll diff."""
+    __tablename__ = "govt_portal_history_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "case_id", "portal_id", "reference_number", "event_identity",
+            name="uq_govt_portal_history_event_identity",
+        ),
+        Index("idx_govt_portal_history_portal_ref", "tenant_id", "portal_id", "reference_number"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    portal_id = Column(Integer, ForeignKey("govt_portals.id"), nullable=False, index=True)
+    reference_number = Column(String, nullable=False, index=True)
+    event_identity = Column(String, nullable=False)
+    identity_quality = Column(String, nullable=False)
+    source = Column(String, nullable=False, default="unknown")
+    source_event_id = Column(String, nullable=True)
+    occurred_at = Column(DateTime, nullable=True, index=True)
+    event_type = Column(String, nullable=True, index=True)
+    status = Column(String, nullable=True, index=True)
+    raw_status = Column(Text, nullable=True)
+    sub_status = Column(Text, nullable=True)
+    from_department = Column(Text, nullable=True)
+    from_office = Column(Text, nullable=True)
+    from_display = Column(Text, nullable=True)
+    to_department = Column(Text, nullable=True)
+    to_office = Column(Text, nullable=True)
+    to_display = Column(Text, nullable=True)
+    actor = Column(Text, nullable=True)
+    designation = Column(Text, nullable=True)
+    comment = Column(Text, nullable=True)
+    documents = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    source_metadata = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    first_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+Index(
+    "idx_govt_portal_history_case",
+    GovtPortalHistoryEvent.tenant_id,
+    GovtPortalHistoryEvent.case_id,
+    GovtPortalHistoryEvent.occurred_at.desc(),
+    GovtPortalHistoryEvent.id.desc(),
+)
 
 
 class Case(Base):

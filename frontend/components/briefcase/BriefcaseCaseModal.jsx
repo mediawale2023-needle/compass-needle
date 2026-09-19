@@ -700,7 +700,7 @@ export function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
 // One contained card; each row is a header button + chevron with the
 // section body nested below when open. Section components render `bare`
 // (no own chrome) inside.
-export function AccordionRow({ icon, label, defaultOpen = false, last = false, forwardedRef, forceOpenKey = 0, children }) {
+export function AccordionRow({ icon, label, defaultOpen = false, last = false, forwardedRef, forceOpenKey = 0, mountWhenClosed = false, children }) {
     const regionId = useId();
     const [open, setOpen] = useState(defaultOpen);
     useEffect(() => { if (forceOpenKey) setOpen(true); }, [forceOpenKey]);
@@ -717,7 +717,7 @@ export function AccordionRow({ icon, label, defaultOpen = false, last = false, f
                 </span>
                 <Icon name="chevD" size={14} color={C.ink3} stroke={2} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 140ms ease' }} />
             </button>
-            <div id={regionId} role="region" aria-labelledby={`${regionId}-trigger`} hidden={!open} style={{ padding: '0 18px 16px' }}>{open && children}</div>
+            <div id={regionId} role="region" aria-labelledby={`${regionId}-trigger`} hidden={!open} style={{ padding: '0 18px 16px' }}>{(open || mountWhenClosed) && children}</div>
         </div>
     );
 }
@@ -1360,6 +1360,7 @@ function GovtHistoryPanel({ history }) {
             {snapshots.length > 0 && (
                 <div style={{ display: 'grid', gap: 5 }}>
                     <div style={{ ...monoLbl, marginBottom: 0 }}>Full history</div>
+                    <div style={{ color: C.ink3, marginBottom: 2 }}>Needle&rsquo;s government status checks</div>
                     {snapshots.map((snapshot) => (
                         <div key={snapshot.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                             <span>{formatGovtCheckedAt(snapshot.captured_at) || `Snapshot #${snapshot.id}`}</span>
@@ -1372,6 +1373,89 @@ function GovtHistoryPanel({ history }) {
             )}
         </div>
     );
+}
+
+export function portalHistoryEventLabel(event) {
+    if (event?.event_type === 'resolution' || ['resolved', 'disposed'].includes(String(event?.status || '').toLowerCase())) return 'Resolved';
+    if (event?.event_type === 'routing_update') return 'Routing update';
+    if (event?.event_type === 'department_remark' || event?.comment) return 'Department remark';
+    if (event?.event_type === 'status_update') return 'Status update';
+    return String(event?.event_type || 'Portal update').replace(/_/g, ' ');
+}
+
+function formatPortalHistoryDate(value) {
+    if (!value) return 'Date unavailable';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Date unavailable';
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+export function GovernmentPortalHistoryPanel({ history }) {
+    const [expanded, setExpanded] = useState(false);
+    const events = Array.isArray(history?.events) ? history.events : [];
+    if (events.length === 0) return null;
+    const visible = expanded ? events : events.slice(0, 3);
+    const regionId = `government-portal-history-${events[0]?.id || 'events'}`;
+    return (
+        <section aria-labelledby={`${regionId}-title`} style={{ fontSize: '0.75rem', color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: 10, marginBottom: 8 }}>
+            <h4 id={`${regionId}-title`} style={{ ...monoLbl, margin: 0, marginBottom: 3 }}>Government portal history</h4>
+            <div style={{ color: C.ink3, lineHeight: 1.45, marginBottom: 10 }}>Updates reported by the government portal</div>
+            <ol id={regionId} style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {visible.map((event, index) => {
+                    const routing = event.to_department || event.to_office || event.to_display || event.from_department || event.from_office || event.from_display;
+                    const documents = Array.isArray(event.documents) ? event.documents : [];
+                    return (
+                        <li key={event.id || `${event.occurred_at}-${index}`} style={{ position: 'relative', display: 'grid', gridTemplateColumns: '14px minmax(0, 1fr)', gap: 8, paddingBottom: index === visible.length - 1 ? 2 : 14 }}>
+                            <span aria-hidden="true" style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+                                <span style={{ width: 7, height: 7, marginTop: 4, borderRadius: '50%', background: C.green, zIndex: 1 }} />
+                                {index < visible.length - 1 && <span style={{ position: 'absolute', top: 11, bottom: -14, width: 1, background: C.hairStrong }} />}
+                            </span>
+                            <div style={{ minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap', marginBottom: 3 }}>
+                                    <time dateTime={event.occurred_at || undefined} style={{ color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontVariantNumeric: 'tabular-nums' }}>
+                                        {formatPortalHistoryDate(event.occurred_at)}
+                                    </time>
+                                    <span aria-hidden="true" style={{ color: C.hairStrong }}>·</span>
+                                    <strong style={{ color: C.greenInk, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{portalHistoryEventLabel(event)}</strong>
+                                </div>
+                                {routing && <div style={{ color: C.ink, fontWeight: 650, marginBottom: event.comment ? 3 : 0, overflowWrap: 'anywhere' }}>{routing}</div>}
+                                {event.comment && <div style={{ color: C.ink2, lineHeight: 1.5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{event.comment}</div>}
+                                {documents.length > 0 && (
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: C.ink3, marginTop: 5 }}>
+                                        <Icon name="doc" size={11} color={C.ink3} />
+                                        {documents.length === 1 ? 'Document listed on portal' : `${documents.length} documents listed on portal`}
+                                    </div>
+                                )}
+                            </div>
+                        </li>
+                    );
+                })}
+            </ol>
+            {events.length > 3 && (
+                <button
+                    type="button"
+                    aria-expanded={expanded}
+                    aria-controls={regionId}
+                    onClick={() => setExpanded((value) => !value)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 44, marginTop: 4, padding: '8px 0', background: 'none', border: 0, color: C.green, font: 'inherit', fontWeight: 700, cursor: 'pointer' }}
+                >
+                    {expanded ? 'Show fewer updates' : `Show ${events.length - 3} older update${events.length - 3 === 1 ? '' : 's'}`}
+                    <Icon name="chevD" size={12} color={C.green} style={{ transform: expanded ? 'rotate(180deg)' : 'none' }} />
+                </button>
+            )}
+        </section>
+    );
+}
+
+export function govtPollSuccessMessage(result) {
+    const raw = result?.raw_portal_status;
+    const statusChanged = result?.status_changed ?? result?.changed;
+    const types = Array.isArray(result?.change_types) ? result.change_types : [];
+    if (statusChanged) return `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}`;
+    if (result?.changed && types.includes('government_remark_added')) return 'Government portal added a new remark.';
+    if (result?.changed && types.includes('routing_changed')) return 'Government portal routing was updated.';
+    if (result?.changed && types.includes('portal_history_event_added')) return 'Government portal added a new update.';
+    return raw ? `Portal still says: ${raw}` : (result?.note || 'No change yet');
 }
 
 // The government lifecycle stepper — identical visual for every state; only
@@ -1799,6 +1883,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const [resolvedPortal, setResolvedPortal] = useState(null); // /api/govt-portal response
     const [govtState, setGovtState] = useState(null); // /api/cases/{id}/govt response
     const [govtHistory, setGovtHistory] = useState(null); // /api/cases/{id}/govt/history response
+    const [govtPortalHistory, setGovtPortalHistory] = useState(null); // portal-authored events, separate from Needle snapshots
     const [worksheet, setWorksheet] = useState(null);  // response from /govt/translate (includes portal_contact_number, staff_action_note)
     const [refInput, setRefInput] = useState('');
     const [busy, setBusy] = useState(false);
@@ -1831,6 +1916,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         setTnVerificationMode(false);
         apiGet(`/api/cases/${caseId}/govt`).then(setGovtState).catch(() => setGovtState(null));
         apiGet(`/api/cases/${caseId}/govt/history`).then(setGovtHistory).catch(() => setGovtHistory(null));
+        apiGet(`/api/cases/${caseId}/govt/portal-history`).then(setGovtPortalHistory).catch(() => setGovtPortalHistory(null));
     }, [caseId]);
 
     useEffect(() => {
@@ -1869,7 +1955,10 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     }, []);
 
     useEffect(() => {
-        onGovtStateChange?.(caseId, govtState?.case || null);
+        onGovtStateChange?.(caseId, govtState?.case ? {
+            ...govtState.case,
+            latest_terminal_portal_history_event: govtState.latest_terminal_portal_history_event || null,
+        } : null);
     }, [caseId, govtState, onGovtStateChange]);
 
     // Whether this tenant's config actually turns on live browser automation.
@@ -1956,6 +2045,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
         setGovtState(refreshed);
         apiGet(`/api/cases/${caseId}/govt/history`).then(setGovtHistory).catch(() => setGovtHistory(null));
+        apiGet(`/api/cases/${caseId}/govt/portal-history`).then(setGovtPortalHistory).catch(() => setGovtPortalHistory(null));
         return refreshed;
     }
 
@@ -2220,8 +2310,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
             if (result.needs_verification) {
                 toast.warning(result.note || 'This portal needs access verification before status can be checked.');
             } else {
-                const raw = String(result.raw_portal_status || '').trim();
-                toast.success(result.changed ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}` : (raw ? `Portal still says: ${raw}` : (result.note || 'No change yet')));
+                toast.success(govtPollSuccessMessage(result));
             }
         } catch (e) {
             console.error('[GOVT_STATUS_DIAG] poll request error', {
@@ -2315,8 +2404,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 await refreshGovtViews();
                 setInteractiveAttempt(null);
                 setInteractiveAnswers({ captcha: '', otp: '' });
-                const raw = String(result.raw_portal_status || '').trim();
-                toast.success(result.changed ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}` : (raw ? `Portal still says: ${raw}` : (result.note || 'No change yet')));
+                toast.success(govtPollSuccessMessage(result));
                 return;
             }
             // Still awaiting input — a later stage of a multi-stage flow
@@ -2599,6 +2687,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                     </div>
                                 </div>
                             )}
+                            <GovernmentPortalHistoryPanel history={govtPortalHistory} />
                             {needsGovtVerification && (
                                 <div style={{ fontSize: '0.75rem', color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 8 }}>
                                     ⚠ {isTamilNaduPortal()
@@ -2824,7 +2913,7 @@ function ResolvedStateCard({ resolvedOn, citizenNotifiedOn, resolutionMessage, g
 // Every value here comes from real case fields; the full portal position
 // (remarks / disposed date / officer / office) is in the existing
 // GOVERNMENT SUBMISSION section, reached via "View full portal position".
-function ResolutionReviewCard({
+export function ResolutionReviewCard({
     open, followingUp, updating, data,
     onOpen, onCollapse, onViewPortalDetail, onMarkResolved, onContinueFollowUp,
 }) {
@@ -2885,6 +2974,25 @@ function ResolutionReviewCard({
                     </div>
                     {data.portal && (
                         <div style={{ fontSize: '0.75rem', color: C.ink3, marginBottom: 10 }}>Portal · {data.portal}</div>
+                    )}
+                    {data.finalRemark?.comment && (
+                        <div style={{ background: C.surface, border: `1px solid ${C.hair}`, padding: '10px 12px', marginBottom: 12 }}>
+                            <div style={{ ...monoLbl2, color: C.greenInk, marginBottom: 5 }}>Government&rsquo;s final remark</div>
+                            <div style={{ fontSize: '0.78125rem', color: C.ink, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                                {data.finalRemark.comment}
+                            </div>
+                            {(data.finalRemark.routing || data.finalRemark.occurredAt) && (
+                                <div style={{ fontSize: '0.75rem', color: C.ink3, marginTop: 6 }}>
+                                    {[data.finalRemark.routing, formatPortalHistoryDate(data.finalRemark.occurredAt)].filter(Boolean).join(' · ')}
+                                </div>
+                            )}
+                            {data.finalRemark.documentCount > 0 && (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.75rem', color: C.ink3, marginTop: 6 }}>
+                                    <Icon name="doc" size={11} color={C.ink3} />
+                                    {data.finalRemark.documentCount === 1 ? 'Document listed on portal' : `${data.finalRemark.documentCount} documents listed on portal`}
+                                </div>
+                            )}
+                        </div>
                     )}
                     <button type="button" style={{ ...linkBtn, marginBottom: 12 }} onClick={onViewPortalDetail}>
                         View full portal position <Icon name="external" size={12} color={C.green} stroke={2} />
@@ -3109,27 +3217,35 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         if (!targetId) return;
         const nextStatus = govtCase?.govt_status ?? null;
         const nextRef = govtCase?.govt_reference_number ?? null;
+        const nextTerminalEvent = govtCase?.latest_terminal_portal_history_event ?? null;
         setFullCase((existing) => {
             if (!existing) return existing;
             const sameRoot = existing.id !== targetId
-                || (existing.govt_status === nextStatus && existing.govt_reference_number === nextRef);
+                || (existing.govt_status === nextStatus
+                    && existing.govt_reference_number === nextRef
+                    && existing.latest_terminal_portal_history_event?.id === nextTerminalEvent?.id);
             const thread = existing.thread_cases;
             if (!Array.isArray(thread) || thread.length === 0) {
                 if (sameRoot) return existing;
-                return { ...existing, govt_status: nextStatus, govt_reference_number: nextRef };
+                return { ...existing, govt_status: nextStatus, govt_reference_number: nextRef, latest_terminal_portal_history_event: nextTerminalEvent };
             }
             let changed = !sameRoot;
             const nextThread = thread.map((item) => {
                 if (item.id !== targetId) return item;
-                if (item.govt_status === nextStatus && item.govt_reference_number === nextRef) return item;
+                if (item.govt_status === nextStatus && item.govt_reference_number === nextRef
+                    && item.latest_terminal_portal_history_event?.id === nextTerminalEvent?.id) return item;
                 changed = true;
-                return { ...item, govt_status: nextStatus, govt_reference_number: nextRef };
+                return { ...item, govt_status: nextStatus, govt_reference_number: nextRef, latest_terminal_portal_history_event: nextTerminalEvent };
             });
             if (!changed) return existing;
             return {
                 ...existing,
                 thread_cases: nextThread,
-                ...(existing.id === targetId ? { govt_status: nextStatus, govt_reference_number: nextRef } : {}),
+                ...(existing.id === targetId ? {
+                    govt_status: nextStatus,
+                    govt_reference_number: nextRef,
+                    latest_terminal_portal_history_event: nextTerminalEvent,
+                } : {}),
             };
         });
     }, []);
@@ -3190,7 +3306,11 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         try { d = latest.details ? JSON.parse(latest.details) : {}; } catch { d = {}; }
         const reviewedCycle = String(d.govt_status_updated_at || '');
         const currentCycle = String(current.govt_status_updated_at || '');
-        return reviewedCycle && reviewedCycle === currentCycle ? latest : null;
+        const reviewedPortalEvent = d.portal_history_event_id == null ? '' : String(d.portal_history_event_id);
+        const currentPortalEvent = current.latest_terminal_portal_history_event?.id == null
+            ? ''
+            : String(current.latest_terminal_portal_history_event.id);
+        return reviewedCycle && reviewedCycle === currentCycle && reviewedPortalEvent === currentPortalEvent ? latest : null;
     })();
     const followingUp = !!followUpDecision;
     const confirmLabel = (isUncategorised && suggestedTriage?.ai_category)
@@ -3667,7 +3787,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                             <AttachmentsSection media={current.media || []} caseId={current.id} />
                                         </AccordionRow>
 
-                                        <AccordionRow icon="external" label="GOVERNMENT SUBMISSION" forwardedRef={govtSectionRef} forceOpenKey={govtOpenSignal}>
+                                        <AccordionRow icon="external" label="GOVERNMENT SUBMISSION" forwardedRef={govtSectionRef} forceOpenKey={govtOpenSignal} mountWhenClosed>
                                             <GovtSyncSection
                                                 key={current.id}
                                                 ref={govtSyncRef}
@@ -3741,6 +3861,18 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                         department: current.govt_department || '',
                                         portal: current.portal_name || current.govt_portal_name || '',
                                         grievanceId: current.govt_reference_number || '',
+                                        finalRemark: current.latest_terminal_portal_history_event ? {
+                                            comment: current.latest_terminal_portal_history_event.comment || '',
+                                            occurredAt: current.latest_terminal_portal_history_event.occurred_at || '',
+                                            routing: current.latest_terminal_portal_history_event.to_department
+                                                || current.latest_terminal_portal_history_event.to_office
+                                                || current.latest_terminal_portal_history_event.to_display
+                                                || current.govt_department
+                                                || '',
+                                            documentCount: Array.isArray(current.latest_terminal_portal_history_event.documents)
+                                                ? current.latest_terminal_portal_history_event.documents.length
+                                                : 0,
+                                        } : null,
                                     },
                                     onOpen: () => setResolutionReviewOpen(true),
                                     onCollapse: () => setResolutionReviewOpen(false),

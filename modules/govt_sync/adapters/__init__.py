@@ -173,6 +173,7 @@ from .rajasthan_sampark import RajasthanSamparkAPIAdapter
 from .karnataka_ipgrs import KarnatakaAPIAdapter
 from .maharashtra_aaplesarkar import MaharashtraAapleSarkarAdapter
 from .tamil_nadu_http import TamilNaduHTTPStatusAdapter
+from modules.govt_sync.portal_history import HistoryAvailability, HistoryCapability, PortalHistoryDocument, PortalHistoryEvent, PortalHistoryResult
 
 # portal_type -> adapter class. All current portals (state_branded, cpgrams)
 # use the manual-assisted adapter — see modules/govt_sync/__init__.py for why
@@ -208,4 +209,7 @@ def get_adapter(portal_row: dict) -> GovtPortalAdapter:
     return adapter_cls(portal_row)
 
 
-__all__ = ["GovtPortalAdapter", "OtpGatedStatusMixin", "StatusResult", "SubmissionResult", "get_adapter"]
+__all__ = [
+    "GovtPortalAdapter", "OtpGatedStatusMixin", "StatusResult", "SubmissionResult", "get_adapter",
+    "HistoryAvailability", "HistoryCapability", "PortalHistoryDocument", "PortalHistoryEvent", "PortalHistoryResult",
+]

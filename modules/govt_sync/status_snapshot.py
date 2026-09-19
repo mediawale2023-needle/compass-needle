@@ -11,12 +11,13 @@ from __future__ import annotations
 import json
 import logging
 import re
-import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import text
+
+from modules.govt_sync.identity import communication_identity
 
 logger = logging.getLogger("needle.govt_sync.status_snapshot")
 
@@ -370,20 +371,6 @@ def _normalize_communication_items(value: Any) -> list[dict]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, dict)]
-
-
-def communication_identity(item: dict) -> dict:
-    stable_id = item.get("id") or item.get("portal_message_id") or item.get("message_id")
-    if stable_id:
-        return {"identity": f"stable:{stable_id}", "identity_quality": "stable"}
-    author = _clean_text(item.get("author") or item.get("by") or item.get("sender"))
-    posted_at = _clean_text(item.get("posted_at") or item.get("created_at") or item.get("date") or item.get("time"))
-    text_value = _clean_text(item.get("text") or item.get("message") or item.get("body") or item.get("reply"))
-    if author and posted_at and text_value:
-        digest = hashlib.sha256(_json_dump({"author": author, "posted_at": posted_at, "text": text_value}).encode("utf-8")).hexdigest()
-        return {"identity": f"derived:{digest}", "identity_quality": "derived"}
-    digest = hashlib.sha256(_json_dump(item).encode("utf-8")).hexdigest()
-    return {"identity": f"weak:{digest}", "identity_quality": "weak"}
 
 
 def _communication_identities(field: GovtStatusField | dict | None) -> dict[str, dict]:

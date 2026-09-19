@@ -1368,6 +1368,49 @@ try:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshot_events_case ON govt_status_snapshot_events (tenant_id, case_id, created_at DESC)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshot_events_snapshot ON govt_status_snapshot_events (snapshot_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshot_events_type ON govt_status_snapshot_events (event_type)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS govt_portal_history_events (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+                portal_id INTEGER NOT NULL REFERENCES govt_portals(id),
+                reference_number VARCHAR NOT NULL,
+                event_identity VARCHAR NOT NULL,
+                identity_quality VARCHAR NOT NULL,
+                source VARCHAR NOT NULL DEFAULT 'unknown',
+                source_event_id VARCHAR,
+                occurred_at TIMESTAMP,
+                event_type VARCHAR,
+                status VARCHAR,
+                raw_status TEXT,
+                sub_status TEXT,
+                from_department TEXT,
+                from_office TEXT,
+                from_display TEXT,
+                to_department TEXT,
+                to_office TEXT,
+                to_display TEXT,
+                actor TEXT,
+                designation TEXT,
+                comment TEXT,
+                documents JSONB,
+                source_metadata JSONB,
+                first_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_govt_portal_history_event_identity UNIQUE (
+                    tenant_id, case_id, portal_id, reference_number, event_identity
+                )
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_govt_portal_history_case "
+            "ON govt_portal_history_events (tenant_id, case_id, occurred_at DESC, id DESC)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_govt_portal_history_portal_ref "
+            "ON govt_portal_history_events (tenant_id, portal_id, reference_number)"
+        ))
     logger.info("Migration: Government Department Sync tables/columns ready")
 except Exception as _govt_sync_exc:
     logger.warning(f"Government Department Sync migration skipped: {_govt_sync_exc}")
