@@ -3492,6 +3492,11 @@ def get_resolved_govt_portal(user=Depends(get_current_user)):
         "state": state,
         "supported": portal is not None,
         "live_automation_enabled": _govt_live_automation_enabled(),
+        # This tenant's own portal contact number (the office's, never a
+        # constituent's). Surfaced so Settings can show what is on file and
+        # let the primary account set it — without it, a tenant with no
+        # number could only ever see "Send OTP" fail with no way to fix it.
+        "portal_contact_number": _get_portal_contact_number(tid),
         "portal": (
             {
                 "id": portal["id"], "portal_name": portal["portal_name"], "base_url": portal["base_url"],
@@ -3572,6 +3577,102 @@ def _get_portal_contact_number(tid: int) -> str | None:
         {"tid": tid},
     ) or {}
     return tenant_row.get("govt_contact_primary_number") or tenant_row.get("govt_contact_fallback_number")
+
+
+def _normalize_govt_contact_number(raw: str) -> str | None:
+    """Indian mobile -> bare 10 digits, or None if it isn't one.
+
+    Government portals' own contact fields take a plain 10-digit mobile, so
+    that is what gets stored and what `_send_otp()` later submits verbatim.
+    Accepts the shapes people actually paste (spaces, dashes, +91, 0091, a
+    leading 0) and strips them rather than rejecting; anything that does not
+    reduce to a valid 10-digit mobile (first digit 6-9) is rejected outright
+    instead of being stored in a form the portal would silently refuse.
+    """
+    digits = re.sub(r"\D", "", raw or "")
+    # Strip any leading zeros first (0..., 0091...), then the 91 country
+    # code. Safe in that order because a real Indian mobile never starts
+    # with 0, so nothing significant can be removed by the lstrip.
+    digits = digits.lstrip("0")
+    if len(digits) == 12 and digits.startswith("91"):
+        digits = digits[2:]
+    if len(digits) != 10 or digits[0] not in "6789":
+        return None
+    return digits
+
+
+def _mask_contact_number(number: str | None) -> str | None:
+    """'9876543210' -> '******3210'. Audit rows and logs record only this.
+
+    A government portal contact number is operational PII: enough of it is
+    kept to let a reviewer confirm *which* number an audit row refers to
+    (and spot an unexpected change), never enough to reconstruct it.
+    """
+    if not number:
+        return None
+    tail = number[-4:]
+    return f"{'*' * max(len(number) - 4, 0)}{tail}"
+
+
+class GovtPortalContactRequest(BaseModel):
+    contact_number: str
+
+
+@router.patch("/govt-portal/contact-number")
+def update_govt_portal_contact_number(req: GovtPortalContactRequest, user=Depends(get_current_user)):
+    """Set the contact number this tenant submits to its government portal.
+
+    This is the office's own number that Needle-managed staff enter into the
+    portal's contact field — never a constituent's. It is what the portal
+    sends OTPs to, and what government correspondence is matched against, so
+    it is deliberately writable only by the primary workspace account
+    (owner/MP), not by every staff login, and only ever for the caller's own
+    tenant (`get_tenant_or_fail`) — never a tenant id supplied by the client.
+
+    Only the primary number is settable here; `govt_contact_fallback_number`
+    stays admin-managed (admin_api.py's update_mp_govt_contact).
+    """
+    if not _is_primary_workspace_user(user):
+        raise HTTPException(403, "Only the primary account can change the government portal number")
+
+    tid = get_tenant_or_fail(user)
+    number = _normalize_govt_contact_number(req.contact_number)
+    if not number:
+        # Rejected before any write — an invalid entry can never clear or
+        # overwrite a good number already on file.
+        raise HTTPException(400, "Enter a valid 10-digit Indian mobile number")
+
+    had_previous = bool(_get_portal_contact_number(tid))
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE tenants SET govt_contact_primary_number = :number WHERE id = :tid"),
+                {"number": number, "tid": tid},
+            )
+    except Exception:
+        # Deliberately not logging the exception's own payload context — the
+        # submitted number must never reach a log line, even on failure.
+        logger.exception("update_govt_portal_contact_number failed for tenant=%s", tid)
+        raise HTTPException(500, "Internal server error")
+
+    # Durable audit via the same append-only log every other tenant-config
+    # change in this file uses, and the same `govt_contact` target_type the
+    # admin-side equivalent writes (admin_api.py's update_mp_govt_contact).
+    # Only the masked number is ever recorded.
+    _append_admin_audit_log(
+        user.get("username", "unknown"),
+        "updated",
+        "govt_contact",
+        f"tenant_id={tid}",
+        {
+            "tenant_id": tid,
+            "contact_number_masked": _mask_contact_number(number),
+            "replaced_existing": had_previous,
+            "source": "mp_settings",
+        },
+    )
+    logger.info("Govt portal contact number updated by %s for tenant=%s", user.get("username"), tid)
+    return {"success": True, "contact_number": number}
 
 
 class GovtOtpVerifyRequest(BaseModel):

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
-import { api, apiGet, apiPost } from '@/lib/api';
+import { api, apiGet, apiPost, apiPatch } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import {
     User, Shield, Info, Lock, LifeBuoy, ExternalLink,
@@ -591,7 +591,7 @@ function ProfileCard({ user, color }) {
 // is null for every other portal, which just uses "Check status now" on the
 // case directly with no separate verification step).
 
-function GovtPortalCard({ color }) {
+function GovtPortalCard({ color, canEditNumber }) {
     const [data, setData]           = useState(null);
     const [loading, setLoading]     = useState(true);
     const [otp, setOtp]             = useState('');
@@ -599,12 +599,22 @@ function GovtPortalCard({ color }) {
     const [verifying, setVerifying] = useState(false);
     const [otpRequested, setOtpRequested] = useState(false);
     const [msg, setMsg]             = useState({ type: '', text: '' });
+    // Portal contact number — the office's own number submitted to the
+    // portal, which is where its OTP goes. Editable here because without it
+    // "Send OTP" can only ever fail (see PATCH /govt-portal/contact-number).
+    const [contactNumber, setContactNumber] = useState('');
+    const [editingNumber, setEditingNumber] = useState(false);
+    const [savingNumber, setSavingNumber]   = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
         try {
             const res = await apiGet('/api/govt-portal');
             setData(res);
+            setContactNumber(res?.portal_contact_number || '');
+            // Auto-open the editor when nothing is on file — that is the one
+            // state where the card is otherwise a dead end.
+            setEditingNumber(!res?.portal_contact_number);
         } catch {
             setData(null);
         } finally {
@@ -615,6 +625,9 @@ function GovtPortalCard({ color }) {
     useEffect(() => { load(); }, [load]);
 
     const verification = data?.portal?.otp_verification;
+    // What is actually persisted, as opposed to whatever is being typed into
+    // the input — drives the display value and gates "Send OTP".
+    const savedNumber = data?.portal_contact_number || '';
 
     const handleSendOtp = async () => {
         setSending(true);
@@ -628,6 +641,26 @@ function GovtPortalCard({ color }) {
             setMsg({ type: 'error', text: err.message || 'Could not send OTP' });
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleSaveNumber = async (e) => {
+        e.preventDefault();
+        if (!contactNumber.trim()) return;
+        setSavingNumber(true);
+        setMsg({ type: '', text: '' });
+        try {
+            const res = await apiPatch('/api/govt-portal/contact-number', {
+                contact_number: contactNumber.trim(),
+            });
+            setContactNumber(res.contact_number || contactNumber.trim());
+            setEditingNumber(false);
+            setMsg({ type: 'success', text: 'Portal contact number saved. You can now send an OTP.' });
+            await load();
+        } catch (err) {
+            setMsg({ type: 'error', text: err.message || 'Could not save the number' });
+        } finally {
+            setSavingNumber(false);
         }
     };
 
@@ -699,6 +732,68 @@ function GovtPortalCard({ color }) {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+                {/* Portal contact number — must exist before any OTP can be sent. */}
+                <div className="rounded-lg border bg-muted/30 px-3 py-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <div>
+                                <p className="text-sm font-medium text-foreground">Portal contact number</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {savedNumber
+                                        ? 'Government OTPs and correspondence are matched against this number.'
+                                        : 'Add the office number to use on this portal before verifying access.'}
+                                </p>
+                            </div>
+                        </div>
+                        {!editingNumber && savedNumber && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium tabular-nums">{savedNumber}</span>
+                                {canEditNumber && (
+                                    <Button size="sm" variant="ghost" onClick={() => setEditingNumber(true)}>
+                                        <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {editingNumber && (canEditNumber ? (
+                        <form onSubmit={handleSaveNumber} className="flex items-center gap-2">
+                            <Input
+                                inputMode="numeric"
+                                autoComplete="tel"
+                                placeholder="10-digit mobile number"
+                                value={contactNumber}
+                                onChange={e => setContactNumber(e.target.value)}
+                                className="max-w-[220px]"
+                            />
+                            <Button
+                                type="submit"
+                                size="sm"
+                                disabled={savingNumber || !contactNumber.trim()}
+                                style={{ background: color }}
+                            >
+                                {savingNumber ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                            </Button>
+                            {savedNumber && (
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => { setEditingNumber(false); setContactNumber(savedNumber); }}
+                                >
+                                    Cancel
+                                </Button>
+                            )}
+                        </form>
+                    ) : (
+                        <p className="text-xs text-muted-foreground">
+                            Ask the workspace lead to add the portal contact number.
+                        </p>
+                    ))}
+                </div>
+
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
                         <p className={`text-sm font-medium ${statusColor}`}>{statusLabel}</p>
@@ -713,7 +808,13 @@ function GovtPortalCard({ color }) {
                             </p>
                         )}
                     </div>
-                    <Button size="sm" variant="outline" disabled={sending} onClick={handleSendOtp}>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={sending || !savedNumber}
+                        title={savedNumber ? undefined : 'Add a portal contact number first'}
+                        onClick={handleSendOtp}
+                    >
                         {sending
                             ? <Loader2 className="h-4 w-4 animate-spin" />
                             : (verification.status === 'verified' ? 'Re-verify access' : 'Send OTP')
@@ -884,7 +985,7 @@ export default function SettingsPage() {
             </Card>
 
             {/* Government Portal — only renders for OTP-gated portals (currently Rajasthan Sampark) */}
-            <GovtPortalCard color={color} />
+            <GovtPortalCard color={color} canEditNumber={isPrimaryAccount(user)} />
 
             {/* Support Card */}
             <Card>
