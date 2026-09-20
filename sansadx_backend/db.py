@@ -372,6 +372,28 @@ class GovtStatusSnapshotEvent(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class CitizenSegmentCheckpoint(Base):
+    """Inert durable identity for future transactional buffered intake.
+
+    No live writer is wired to this table. In particular, checkpoint creation
+    must be committed in the SAME transaction as case creation before enabling
+    structured intake.
+    """
+    __tablename__ = "citizen_segment_checkpoints"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, nullable=False, index=True)
+    buffer_id = Column(Integer, nullable=False, index=True)
+    segment_ordinal = Column(Integer, nullable=False)
+    segment_key = Column(String(64), nullable=False, unique=True, index=True)
+    source_ledger_ids = Column(JSON, nullable=False)
+    case_id = Column(Integer, nullable=True, index=True)
+    state = Column(String(32), nullable=False, default="pending")
+    acknowledgement_state = Column(String(32), nullable=False, default="not_attempted")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
 class Case(Base):
     __tablename__ = "cases"
 
