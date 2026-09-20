@@ -6078,18 +6078,43 @@ def _flush_text_buffer(sender: str, tenant_id: int, receiver_number: str) -> Non
                     )
                 except Exception:
                     logger.exception("Buffer provenance shadow failed: buffer_id=%s", buffer_id)
+            # Opt-in structured grouping: reconstruct text from original messages
+            # and retain every contributing ledger ID. Disabled by default.
+            verified_grouped_segments = None
+            if os.getenv("CITIZEN_INDEX_GROUPING_INTAKE_ENABLED", "").lower() == "true":
+                try:
+                    from sansadx_backend.ai_engine import get_client
+                    from modules.citizen_index_grouping_shadow import propose_grouping_with_client
+                    from modules.whatsapp_segment_provenance import attribute_indexed_segments
+                    nonempty_items = [
+                        item for item in items if str(item.get("body") or "").strip()
+                    ]
+                    grouping = propose_grouping_with_client(nonempty_items, get_client())
+                    if grouping.verified:
+                        provenance = attribute_indexed_segments(nonempty_items, grouping.groups)
+                        if provenance and all(part.verified for part in provenance):
+                            verified_grouped_segments = provenance
+                except Exception:
+                    logger.exception("Structured grouping unavailable for buffer %s", buffer_id)
+            if verified_grouped_segments is not None:
+                segments = [part.segment_text for part in verified_grouped_segments]
             logger.info(
                 "Text buffer %s flushed: %d message(s) → %d grievance segment(s) from %s (tenant=%s)",
                 buffer_id, len(bodies), len(segments), sender, tenant_id,
             )
             for idx, segment_text in enumerate(segments):
                 source = items[idx] if idx < len(items) else items[-1]
+                verified_part = (
+                    verified_grouped_segments[idx]
+                    if verified_grouped_segments is not None else None
+                )
                 _process_incoming_message(
                     sender,
                     segment_text,
                     receiver_number,
-                    str(source.get("msg_id") or ""),
-                    inbound_ledger_id=source.get("inbound_ledger_id"),
+                    verified_part.source_message_ids[0] if verified_part else str(source.get("msg_id") or ""),
+                    inbound_ledger_id=verified_part.inbound_ledger_ids[0] if verified_part else source.get("inbound_ledger_id"),
+                    **({"source_inbound_ledger_ids": verified_part.inbound_ledger_ids} if verified_part else {}),
                 )
             _mark_text_buffer_status(buffer_id, "done")
         except Exception:
