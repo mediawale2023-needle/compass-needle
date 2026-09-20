@@ -48,3 +48,47 @@ def attribute_segments(
             verified=verified,
         ))
     return tuple(result)
+
+
+def attribute_indexed_segments(
+    messages: Sequence[dict],
+    groups: Sequence[Sequence[int]],
+) -> tuple[SegmentProvenance, ...]:
+    """Validate explicit zero-based source indices; never infer them from text.
+
+    Every source message must appear exactly once across groups. The caller
+    must obtain grouping from a trusted segmentation result, not guess it
+    from the number or ordering of generated segment strings.
+    """
+    if not messages or not groups:
+        return ()
+    flat = [index for group in groups for index in group]
+    valid = (
+        all(group for group in groups)
+        and all(type(index) is int and 0 <= index < len(messages) for index in flat)
+        and sorted(flat) == list(range(len(messages)))
+    )
+    if not valid:
+        return tuple(SegmentProvenance("", (), (), False) for _ in groups)
+    results = []
+    for group in groups:
+        sources = [messages[index] for index in group]
+        ids = tuple(str(item.get("msg_id") or "").strip() for item in sources)
+        try:
+            ledgers = tuple(int(item.get("inbound_ledger_id")) for item in sources)
+        except (TypeError, ValueError):
+            ledgers = ()
+        verified = (
+            all(ids) and len(set(ids)) == len(ids)
+            and len(ledgers) == len(sources)
+            and all(value > 0 for value in ledgers)
+            and len(set(ledgers)) == len(ledgers)
+        )
+        results.append(SegmentProvenance(
+            segment_text="\\n".join(str(item.get("body") or "").strip() for item in sources)
+                if verified else "",
+            source_message_ids=ids if verified else (),
+            inbound_ledger_ids=ledgers if verified else (),
+            verified=bool(verified),
+        ))
+    return tuple(results)
