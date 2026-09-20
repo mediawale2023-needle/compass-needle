@@ -5036,6 +5036,7 @@ def _process_incoming_message(
     wa_reply_to_msg_id: str = "",
     inbound_ledger_id: int | None = None,
     existing_case_id: int | None = None,
+    source_inbound_ledger_ids: tuple[int, ...] | None = None,
 ):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:
@@ -5057,8 +5058,15 @@ def _process_incoming_message(
     sender_bare = sender_digits[2:] if sender_digits.startswith("91") and len(sender_digits) == 12 else sender_digits
 
     def _link_inbound_to_case(case_id: int | None) -> None:
-        if inbound_ledger_id and case_id:
-            _set_inbound_ledger_case_id(inbound_ledger_id, case_id)
+        if not case_id:
+            return
+        ledger_ids = (
+            source_inbound_ledger_ids
+            if source_inbound_ledger_ids is not None
+            else (inbound_ledger_id,) if inbound_ledger_id else ()
+        )
+        for source_ledger_id in ledger_ids:
+            _set_inbound_ledger_case_id(source_ledger_id, case_id)
 
     # ── Staff query routing (check BEFORE spam / citizen flow) ───────────────
     # If the sender's phone is a registered staff user for this tenant,
