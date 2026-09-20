@@ -7,8 +7,6 @@ WhatsApp messages. Database uniqueness guards concurrent attempts.
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
-from sqlalchemy.exc import IntegrityError
-
 from modules.citizen_segment_checkpoint import stable_segment_key
 
 
@@ -44,6 +42,9 @@ def create_or_reuse_case(
                 segment_key=key
             ).with_for_update().one_or_none()
             if checkpoint is not None:
+                if (checkpoint.tenant_id != tenant_id or checkpoint.buffer_id != buffer_id
+                        or checkpoint.segment_ordinal != ordinal):
+                    raise ValueError("checkpoint identity mismatch")
                 if tuple(checkpoint.source_ledger_ids) != ids:
                     raise ValueError("checkpoint source mismatch")
                 if checkpoint.case_id is None:
