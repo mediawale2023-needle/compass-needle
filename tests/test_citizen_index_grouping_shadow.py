@@ -33,3 +33,33 @@ def test_offline_grouping_requires_source_ids():
     assert group_synthetic_collection(messages, {"groups": [[0, 1], [2]]}).verified
     messages[1]["inbound_ledger_id"] = None
     assert not group_synthetic_collection(messages, {"groups": [[0, 1], [2]]}).verified
+
+
+def test_model_grouping_with_injected_client():
+    from types import SimpleNamespace
+    from modules.citizen_index_grouping_shadow import propose_grouping_with_client
+    class FakeCompletions:
+        def create(self, **kwargs):
+            assert "0:" in kwargs["messages"][1]["content"]
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content='{"groups": [[0, 1], [2]]}'))])
+    client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    messages = [
+        {"body": "Water", "msg_id": "a", "inbound_ledger_id": 1},
+        {"body": "Ward five", "msg_id": "b", "inbound_ledger_id": 2},
+        {"body": "Road", "msg_id": "c", "inbound_ledger_id": 3},
+    ]
+    assert propose_grouping_with_client(messages, client).groups == ((0, 1), (2,))
+
+
+def test_model_grouping_rejects_hallucinated_index():
+    from types import SimpleNamespace
+    from modules.citizen_index_grouping_shadow import propose_grouping_with_client
+    class FakeCompletions:
+        def create(self, **kwargs):
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content='{"groups": [[0, 99]]}'))])
+    client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    result = propose_grouping_with_client(
+        [{"body": "Water", "msg_id": "a", "inbound_ledger_id": 1}], client)
+    assert not result.verified
