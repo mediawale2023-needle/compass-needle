@@ -1021,6 +1021,82 @@ def _dashboard_govt_sync_map(tenant_id: int, case_ids: list[int]) -> dict[int, d
     return sync
 
 
+def _naive_utc(value):
+    """Normalise a datetime or ISO string to naive UTC, or None.
+
+    Case timestamps reach the queue as tz-aware "Z" strings (via
+    _prepare_briefcase_list_case) while wa_inbound_messages.last_received_at
+    comes back as a naive datetime. Both are compared when ordering the
+    Attention Queue, so they must be reduced to the same representation.
+    """
+    dt = _coerce_datetime(value)
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _dashboard_latest_inbound_map(tenant_id: int, case_ids: list[int]) -> dict[int, datetime]:
+    """Return {case_id: latest inbound citizen message timestamp}.
+
+    wa_inbound_messages is the durable inbound ledger — one row per message
+    Meta delivered. A row only carries a case_id once the citizen pipeline
+    linked it (_link_inbound_to_case, main.py), and every one of those call
+    sites sits in the citizen flow *after* the staff/PA branch has returned.
+    So "case_id IS NOT NULL" is already the citizen-inbound filter: staff
+    query messages never acquire a case_id, and outbound replies live in a
+    different table entirely (wa_outbound_messages).
+
+    last_received_at is the authoritative receipt time — it is set on insert
+    and bumped by the ON CONFLICT clause when Meta re-delivers the same
+    message id, so it tracks the real arrival of the message rather than
+    when processing happened to finish.
+    """
+    if not case_ids:
+        return {}
+    placeholders = ", ".join(f":in_id_{i}" for i in range(len(case_ids)))
+    params = {"tid": tenant_id}
+    for i, cid in enumerate(case_ids):
+        params[f"in_id_{i}"] = cid
+    rows = _q(  # nosec B608 - ids are bound params; placeholders are generated locally.
+        f"""
+        SELECT case_id, MAX(last_received_at) AS last_inbound_at
+        FROM wa_inbound_messages
+        WHERE tenant_id = :tid
+          AND case_id IS NOT NULL
+          AND case_id IN ({placeholders})
+        GROUP BY case_id
+        """,
+        params,
+    )
+    latest = {}
+    for row in rows:
+        stamp = _naive_utc(row.get("last_inbound_at"))
+        if stamp is not None:
+            latest[row["case_id"]] = stamp
+    return latest
+
+
+def _dashboard_latest_citizen_activity(members: list[dict], inbound_map: dict[int, datetime]):
+    """Newest inbound citizen message across every case in a thread bundle.
+
+    Falls back to the newest case creation time in the bundle so legacy and
+    imported cases — which have no inbound ledger rows — still sort and still
+    appear, rather than dropping to the bottom or out of the queue.
+    """
+    stamps = []
+    for member in members:
+        inbound_at = inbound_map.get(member.get("id"))
+        if inbound_at is not None:
+            stamps.append(inbound_at)
+    if stamps:
+        return max(stamps), True
+    created = [_naive_utc(m.get("created_at")) for m in members]
+    created = [c for c in created if c is not None]
+    return (max(created) if created else None), False
+
+
 def _dashboard_is_govt_filed(case: dict) -> bool:
     if str(case.get("govt_reference_number") or "").strip():
         return True
@@ -1167,6 +1243,17 @@ def dashboard_overview(user=Depends(get_current_user)):
         filing_ids.append(anchor.get("govt_filing_case_id") or anchor.get("id"))
     sync_map = _dashboard_govt_sync_map(tid, [cid for cid in filing_ids if cid is not None])
 
+    # Attention Queue ordering is driven by the newest inbound citizen message
+    # across every case in a thread, so the map covers all members, not just
+    # the anchors. Tenant-scoped in the query as well as by the id list.
+    member_case_ids = [
+        member.get("id")
+        for bundle in bundles
+        for member in bundle["members_by_received"]
+        if member.get("id") is not None
+    ]
+    inbound_map = _dashboard_latest_inbound_map(tid, member_case_ids)
+
     counts = {
         "needs_review": 0,
         "needs_location": 0,
@@ -1219,6 +1306,7 @@ def dashboard_overview(user=Depends(get_current_user)):
             counts[attention_bucket] += 1
             action = _dashboard_action_for_case(anchor, sync)
             thread_count = int(anchor.get("thread_case_count") or 1)
+            latest_activity_at, has_inbound = _dashboard_latest_citizen_activity(members, inbound_map)
             govt_status_raw = str(anchor.get("govt_status") or "").strip()
             govt_status_label = govt_status_raw.replace("_", " ").title() if govt_status_raw else "Not filed"
             assigned_to = str(anchor.get("assigned_to") or "").strip()
@@ -1231,7 +1319,7 @@ def dashboard_overview(user=Depends(get_current_user)):
                 "meta": " · ".join([
                     "Thread" if thread_count > 1 else "Case",
                     f"{thread_count} complaint" + ("" if thread_count == 1 else "s"),
-                    _dashboard_time_ago(anchor.get("created_at")),
+                    _dashboard_time_ago(latest_activity_at),
                 ]).strip(" ·"),
                 "message": anchor.get("raw_message") or "",
                 "issue": _dashboard_issue_label(anchor),
@@ -1240,16 +1328,31 @@ def dashboard_overview(user=Depends(get_current_user)):
                 "needle_status": (anchor.get("status") or "new").replace("_", " ").title(),
                 "govt_status": govt_status_label,
                 "assigned_to": assigned_to or None,
-                "recency": _dashboard_time_ago(anchor.get("created_at")),
+                "recency": _dashboard_time_ago(latest_activity_at),
                 "action": action,
                 "critical": bool(anchor.get("is_critical")),
                 "bucket": attention_bucket,
                 "created_at": anchor.get("created_at"),
                 "updated_at": anchor.get("updated_at"),
+                "latest_citizen_message_at": _coerce_iso(latest_activity_at),
+                "has_inbound_citizen_message": has_inbound,
+                "_sort_at": latest_activity_at,
             })
 
-    order = {"needs_review": 0, "needs_location": 1, "sync_issues": 2, "govt_updates": 3, "ready_to_file": 4}
-    bucketed.sort(key=lambda row: (order.get(row["bucket"], 9), row.get("created_at") or ""), reverse=False)
+    # Newest citizen message first. Deliberately NOT keyed on bucket priority,
+    # status, creation time or case id: a ten-day-old case that just received a
+    # WhatsApp message outranks one created minutes ago. Cases with no inbound
+    # ledger row fall back to their newest creation time (see
+    # _dashboard_latest_citizen_activity) so legacy rows still place sensibly.
+    # datetime.min keeps rows with no usable timestamp at the bottom instead of
+    # raising on the None comparison, and case id descending breaks ties so the
+    # order is deterministic for identical timestamps.
+    bucketed.sort(
+        key=lambda row: (row.get("_sort_at") or datetime.min, int(row.get("id") or 0)),
+        reverse=True,
+    )
+    for row in bucketed:
+        row.pop("_sort_at", None)
     attention_queue = bucketed[:12]
 
     sync_issue_rows = [row for row in bucketed if row["bucket"] == "sync_issues"][:3]
