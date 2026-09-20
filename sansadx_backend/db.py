@@ -380,6 +380,10 @@ class CitizenSegmentCheckpoint(Base):
     structured intake.
     """
     __tablename__ = "citizen_segment_checkpoints"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "buffer_id", "segment_ordinal",
+                         name="uq_citizen_segment_buffer_ordinal"),
+    )
 
     id = Column(Integer, primary_key=True)
     tenant_id = Column(Integer, nullable=False, index=True)
