@@ -37,3 +37,30 @@ def test_ambiguous_or_incomplete_provenance_fails_closed(messages, segments):
     assert result
     assert not any(item.verified for item in result)
     assert all(not item.source_message_ids and not item.inbound_ledger_ids for item in result)
+
+
+def test_explicit_grouping_preserves_all_source_ids():
+    from modules.whatsapp_segment_provenance import attribute_indexed_segments
+    messages = [message("Water issue", "wa-1", 101),
+                message("Ward five", "wa-2", 102),
+                message("Road issue", "wa-3", 103)]
+    result = attribute_indexed_segments(messages, [[0, 1], [2]])
+    assert all(segment.verified for segment in result)
+    assert result[0].source_message_ids == ("wa-1", "wa-2")
+    assert result[0].inbound_ledger_ids == (101, 102)
+    assert result[1].source_message_ids == ("wa-3",)
+
+
+@pytest.mark.parametrize("groups", [[[0], [0, 1]], [[0]], [[0, 3]], [[], [0, 1]], [[True, 1]]])
+def test_invalid_explicit_grouping_fails_closed(groups):
+    from modules.whatsapp_segment_provenance import attribute_indexed_segments
+    result = attribute_indexed_segments(
+        [message("Water", "wa-1", 101), message("Road", "wa-2", 102)], groups)
+    assert all(not segment.verified for segment in result)
+
+
+def test_explicit_grouping_rejects_missing_ledger():
+    from modules.whatsapp_segment_provenance import attribute_indexed_segments
+    result = attribute_indexed_segments(
+        [message("Water", "wa-1", 101), message("Ward", "wa-2", None)], [[0, 1]])
+    assert not result[0].verified
