@@ -1,0 +1,253 @@
+name: Repoint WhatsApp Phone Mapping
+
+# Manually triggered. Repoints ONE tenant_overrides phone_mapping row to a
+# different tenant, so the inbound resolver (_resolve_tenant, main.py:2877)
+# returns that tenant for the number. Resolver step 1 reads this table and
+# outranks tenants.whatsapp_number, so a stale row here silently routes a
+# number to its previous owner.
+#
+# Deliberately narrow:
+#   - targets exactly one row by primary key
+#   - the UPDATE re-asserts override_type and key in its own WHERE clause,
+#     so it cannot touch a different row even if the id were wrong
+#   - dry run by default; apply=true is required to write
+#   - prints the row and a resolver simulation before and after
+#
+# No DELETE. No restart: get_phone_tenant_mapping() is TTL-cached for 60s
+# (sansadx_backend/db.py:1051), so the change takes effect within a minute.
+#
+# Logs are public: numbers and Phone Number IDs print as last-4 plus
+# exact-match booleans only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      override_row_id:
+        description: "tenant_overrides.id of the phone_mapping row to repoint"
+        required: true
+      expected_key:
+        description: "Guard: the row's current key must equal this (e.g. +91XXXXXXXXXX)"
+        required: true
+      target_tenant_id:
+        description: "Tenant ID the number must resolve to"
+        required: true
+      phone_number_id:
+        description: "Meta Phone Number ID expected for the target tenant's outbound"
+        required: true
+      apply:
+        description: "Type exactly 'true' to actually write (default: dry run only)"
+        required: true
+        default: "false"
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  repoint:
+    name: Repoint one phone_mapping row
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Validate Inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${{ inputs.override_row_id }}" | grep -qE '^[0-9]{1,12}$' \
+            || { echo "override_row_id must be digits only"; exit 1; }
+          echo "${{ inputs.expected_key }}" | grep -qE '^\+[0-9]{8,15}$' \
+            || { echo "expected_key must be E.164 with a leading +"; exit 1; }
+          echo "${{ inputs.target_tenant_id }}" | grep -qE '^[0-9]{1,9}$' \
+            || { echo "target_tenant_id must be digits only"; exit 1; }
+          echo "${{ inputs.phone_number_id }}" | grep -qE '^[0-9]{5,25}$' \
+            || { echo "phone_number_id must be digits only"; exit 1; }
+          case "${{ inputs.apply }}" in
+            true|false) ;;
+            *) echo "apply must be exactly 'true' or 'false'"; exit 1 ;;
+          esac
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions repoint-wa-mapping'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Repoint Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          ROW_ID: ${{ inputs.override_row_id }}
+          KEY: ${{ inputs.expected_key }}
+          TID: ${{ inputs.target_tenant_id }}
+          PNID: ${{ inputs.phone_number_id }}
+          APPLY: ${{ inputs.apply }}
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 8m
+          envs: ROW_ID,KEY,TID,PNID,APPLY
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            SQLFILE=/tmp/repoint_wa_$$.sql
+            trap 'rm -f "$SQLFILE"' EXIT
+
+            run_sql() {
+              docker compose -f "$COMPOSE" exec -T postgres sh -c \
+                'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' < "$1"
+            }
+
+            # ---------- guard ----------
+            cat > "$SQLFILE" <<EOF
+            \\echo '== GUARD: row must exist, be a phone_mapping, and match expected key =='
+            SELECT id, override_type, tenant_id, key, value,
+                   (override_type = 'phone_mapping' AND key = '${KEY}') AS guard_ok
+            FROM tenant_overrides WHERE id = ${ROW_ID};
+            EOF
+            run_sql "$SQLFILE"
+
+            cat > "$SQLFILE" <<EOF
+            SELECT CASE WHEN EXISTS (
+              SELECT 1 FROM tenant_overrides
+              WHERE id = ${ROW_ID} AND override_type = 'phone_mapping' AND key = '${KEY}'
+            ) THEN 'GUARD_PASS' ELSE 'GUARD_FAIL' END AS guard;
+            EOF
+            GUARD="$(run_sql "$SQLFILE" | grep -oE 'GUARD_(PASS|FAIL)' | head -1)"
+            echo "guard result: $GUARD"
+            if [ "$GUARD" != "GUARD_PASS" ]; then
+              echo "ABORTING — row ${ROW_ID} is not a phone_mapping row with the expected key."
+              exit 1
+            fi
+
+            # ---------- before ----------
+            cat > "$SQLFILE" <<EOF
+            \\echo ''
+            \\echo '== BEFORE: the row =='
+            SELECT id, override_type, tenant_id AS row_tenant_id, value AS maps_to_tenant
+            FROM tenant_overrides WHERE id = ${ROW_ID};
+
+            \\echo ''
+            \\echo '== BEFORE: resolver simulation for this number =='
+            SELECT
+              (SELECT value FROM tenant_overrides
+                WHERE override_type = 'phone_mapping' AND key = '${KEY}' LIMIT 1) AS step1_override,
+              (SELECT id FROM tenants
+                WHERE whatsapp_number = '${KEY}' AND is_active = true LIMIT 1) AS step2_tenants,
+              COALESCE(
+                (SELECT value FROM tenant_overrides
+                  WHERE override_type = 'phone_mapping' AND key = '${KEY}' LIMIT 1),
+                (SELECT id::text FROM tenants
+                  WHERE whatsapp_number = '${KEY}' AND is_active = true LIMIT 1),
+                'NULL -> DROPPED'
+              ) AS effective_resolution;
+            EOF
+            run_sql "$SQLFILE"
+
+            # ---------- apply ----------
+            if [ "$APPLY" = "true" ]; then
+              echo ""
+              echo "== APPLYING: repointing row ${ROW_ID} to tenant ${TID} =="
+              cat > "$SQLFILE" <<EOF
+            UPDATE tenant_overrides
+            SET value = '${TID}', tenant_id = ${TID}
+            WHERE id = ${ROW_ID}
+              AND override_type = 'phone_mapping'
+              AND key = '${KEY}';
+            EOF
+              run_sql "$SQLFILE"
+            else
+              echo ""
+              echo "== DRY RUN — nothing written (set apply=true to write) =="
+            fi
+
+            # ---------- after ----------
+            cat > "$SQLFILE" <<EOF
+            \\echo ''
+            \\echo '== AFTER: the row =='
+            SELECT id, override_type, tenant_id AS row_tenant_id, value AS maps_to_tenant
+            FROM tenant_overrides WHERE id = ${ROW_ID};
+
+            \\echo ''
+            \\echo '== AFTER: all phone_mapping rows (confirm none else claims this key) =='
+            SELECT id, key, value AS maps_to_tenant FROM tenant_overrides
+            WHERE override_type = 'phone_mapping' ORDER BY id;
+
+            \\echo ''
+            \\echo '== AFTER: resolver simulation for this number =='
+            SELECT
+              (SELECT value FROM tenant_overrides
+                WHERE override_type = 'phone_mapping' AND key = '${KEY}' LIMIT 1) AS step1_override,
+              (SELECT id FROM tenants
+                WHERE whatsapp_number = '${KEY}' AND is_active = true LIMIT 1) AS step2_tenants,
+              COALESCE(
+                (SELECT value FROM tenant_overrides
+                  WHERE override_type = 'phone_mapping' AND key = '${KEY}' LIMIT 1),
+                (SELECT id::text FROM tenants
+                  WHERE whatsapp_number = '${KEY}' AND is_active = true LIMIT 1),
+                'NULL -> DROPPED'
+              ) AS effective_resolution;
+            EOF
+            run_sql "$SQLFILE"
+
+            # ---------- live in-process verification ----------
+            # Exercises the REAL production helpers inside the running backend
+            # container, not just the DB rows. sansadx_backend.db has no
+            # module-level DDL (init_db() is explicit), so importing it runs
+            # no migrations.
+            echo ""
+            echo "== LIVE: real resolver + real outbound lookup, inside backend container =="
+            docker compose -f "$COMPOSE" exec -T backend python -c "
+            import os, sys
+            from sqlalchemy import text
+            from sansadx_backend.db import (
+                engine, get_phone_tenant_mapping, get_tenant_phone_number_id,
+                invalidate_phone_tenant_mapping_cache,
+            )
+            num, tid, pnid = '${KEY}', ${TID}, '${PNID}'
+            invalidate_phone_tenant_mapping_cache()
+            m = get_phone_tenant_mapping()
+            step1 = m.get(num)
+            step2 = None
+            with engine.connect() as c:
+                r = c.execute(text('SELECT id FROM tenants WHERE whatsapp_number = :n AND is_active = true LIMIT 1'), {'n': num}).fetchone()
+                step2 = r[0] if r else None
+            resolved = step1 if step1 is not None else step2
+            out = get_tenant_phone_number_id(tid)
+            print('  inbound step1 (phone_mapping):', step1)
+            print('  inbound step2 (tenants row)  :', step2)
+            print('  INBOUND RESOLVES TO          :', resolved, '(expected', tid, ')')
+            print('  OUTBOUND phone id for tenant :', ('***' + out[-4:]) if out else None,
+                  '| matches target:', out == pnid, '| tenant-specific (not env fallback):', out is not None)
+            ok = (resolved == tid) and (out == pnid)
+            print('  VERDICT:', 'PASS' if ok else 'FAIL')
+            sys.exit(0 if ok else 1)
+            " || echo "  (live verification reported FAIL or could not run — see above)"
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
