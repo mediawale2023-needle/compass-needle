@@ -38,14 +38,18 @@ def create_or_reuse_case(
     key = stable_segment_key(tenant_id, buffer_id, ordinal, ids)
     with session_factory() as session:
         with session.begin():
+            # Look up the stable slot, not the hash: a changed grouping must
+            # never create a second case for an existing buffer ordinal.
             checkpoint = session.query(CitizenSegmentCheckpoint).filter_by(
-                segment_key=key
+                tenant_id=tenant_id,
+                buffer_id=buffer_id,
+                segment_ordinal=ordinal,
             ).with_for_update().one_or_none()
             if checkpoint is not None:
                 if (checkpoint.tenant_id != tenant_id or checkpoint.buffer_id != buffer_id
                         or checkpoint.segment_ordinal != ordinal):
                     raise ValueError("checkpoint identity mismatch")
-                if tuple(checkpoint.source_ledger_ids) != ids:
+                if checkpoint.segment_key != key or tuple(checkpoint.source_ledger_ids) != ids:
                     raise ValueError("checkpoint source mismatch")
                 if checkpoint.case_id is None:
                     raise RuntimeError("checkpoint has no committed case")
