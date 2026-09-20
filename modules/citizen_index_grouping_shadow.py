@@ -68,7 +68,7 @@ def propose_grouping_with_client(
     bodies = [str(item.get("body") or "").strip() for item in messages]
     if not all(bodies):
         return GroupingResult((), False, "empty_message")
-    numbered = "\\n".join(
+    numbered = "\n".join(
         f"{index}: {json.dumps(body, ensure_ascii=False)}"
         for index, body in enumerate(bodies)
     )
