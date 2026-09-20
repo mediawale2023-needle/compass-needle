@@ -101,6 +101,36 @@ jobs:
             trap 'rm -f "$SQLFILE"' EXIT
 
             cat > "$SQLFILE" <<EOF
+            \\echo '== STAGE 0: registered staff/PA phones for this tenant =='
+            \\echo '   Staff messages route to the case-query engine or PA letter'
+            \\echo '   intake, so they get a reply but NEVER create a case. An'
+            \\echo '   unlinked ledger row from one of these is expected, not a fault.'
+            SELECT id, username, role, is_active,
+                   '***'||RIGHT(REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g'), 4) AS phone_tail
+            FROM users
+            WHERE tenant_id = ${TID} AND phone IS NOT NULL
+            ORDER BY id;
+
+            \\echo ''
+            \\echo '== STAGE 0b: unlinked inbound rows — staff sender or genuine loss? =='
+            SELECT w.id,
+                   '***'||RIGHT(w.sender_phone,4) AS sender,
+                   w.message_type,
+                   w.status,
+                   EXISTS (
+                     SELECT 1 FROM users u
+                     WHERE u.tenant_id = ${TID} AND u.is_active = true AND u.phone IS NOT NULL
+                       AND RIGHT(REGEXP_REPLACE(u.phone, '[^0-9]', '', 'g'), 10)
+                           = RIGHT(REGEXP_REPLACE(w.sender_phone, '[^0-9]', '', 'g'), 10)
+                   ) AS sender_is_staff,
+                   w.last_received_at
+            FROM wa_inbound_messages w
+            WHERE w.receiver_number = '${NUM}'
+              AND w.case_id IS NULL
+              AND w.last_received_at > NOW() - INTERVAL '${MINS} minutes'
+            ORDER BY w.id DESC;
+
+            \\echo ''
             \\echo '== STAGE 1-3: webhook -> wa_inbound_messages -> tenant resolution =='
             SELECT id,
                    '...'||RIGHT(meta_message_id, 18) AS meta_msg_id_tail,
