@@ -94,6 +94,74 @@ describe('Briefcase STATUS cell — government primary layer', () => {
     });
 });
 
+// The reference number used to be attached only inside the REGISTERED branch,
+// so it disappeared the moment a case advanced to RESOLVED / REJECTED /
+// DEPARTMENT ACTION / SYNC ISSUE — the states where staff most need it to
+// chase the department.
+describe('Briefcase STATUS cell — grievance reference number on filed cases', () => {
+    it.each([
+        ['RESOLVED', { govt_status: 'resolved', resolved_at: '2026-09-01T10:00:00Z' }],
+        ['RESOLVED', { govt_status: 'disposed' }],
+        ['REJECTED', { govt_status: 'rejected' }],
+        ['DEPARTMENT ACTION', { govt_status: 'under_review', govt_department: 'PWD' }],
+        ['DEPARTMENT ACTION', { govt_status: 'escalated' }],
+        ['DEPARTMENT ACTION', { govt_status: 'forwarded' }],
+    ])('shows #reference on a filed case at stage %s', (stage, overrides) => {
+        renderTable([makeCase({
+            status: 'in_progress',
+            govt_reference_number: 'RAJ-4477',
+            ...overrides,
+        })]);
+        expect(screen.getByText(stage)).toBeInTheDocument();
+        expect(screen.getByText('#RAJ-4477')).toBeInTheDocument();
+    });
+
+    it('shows #reference alongside the supporting line rather than replacing it', () => {
+        renderTable([makeCase({
+            status: 'in_progress',
+            govt_status: 'under_review',
+            govt_department: 'Public Health Engineering',
+            govt_reference_number: 'RAJ-4477',
+        })]);
+        expect(screen.getByText('Public Health Engineering')).toBeInTheDocument();
+        expect(screen.getByText('#RAJ-4477')).toBeInTheDocument();
+    });
+
+    it('shows #reference on a sync-issue case so staff can still quote it', () => {
+        renderTable([makeCase({
+            status: 'in_progress',
+            govt_status: 'submitted',
+            govt_reference_number: 'KAR-9001',
+            govt_sync_state: 'failed',
+        })]);
+        expect(screen.getByText('SYNC ISSUE')).toBeInTheDocument();
+        expect(screen.getByText('#KAR-9001')).toBeInTheDocument();
+    });
+
+    it('renders the reference exactly once when the case is registered', () => {
+        renderTable([makeCase({
+            status: 'in_progress',
+            govt_status: 'submitted',
+            govt_reference_number: 'KAR-9001',
+            govt_portal_name: 'Karnataka iPGRS',
+        })]);
+        expect(screen.getAllByText('#KAR-9001')).toHaveLength(1);
+    });
+
+    it('shows no reference line when the case is not filed with government', () => {
+        // Note: the CASE / THREAD column renders its own "#<id>", so this
+        // asserts on the government reference specifically.
+        renderTable([makeCase({ status: 'new', govt_status: null, govt_reference_number: null })]);
+        expect(screen.getAllByText('NOT FILED').length).toBeGreaterThan(0);
+        expect(screen.queryByText(/^#[A-Z]{2,}-/)).toBeNull();
+    });
+
+    it('treats a bare reference number with no govt_status as filed', () => {
+        renderTable([makeCase({ status: 'in_progress', govt_status: null, govt_reference_number: 'MH-77' })]);
+        expect(screen.getByText('#MH-77')).toBeInTheDocument();
+    });
+});
+
 describe('Briefcase STATUS cell — Needle secondary layer', () => {
     it('renders the Needle pill from the real cases.status', () => {
         renderTable([makeCase({ status: 'in_progress' })]);

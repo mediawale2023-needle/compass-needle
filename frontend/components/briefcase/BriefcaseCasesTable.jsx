@@ -75,8 +75,9 @@ function isGovtFiled(item) {
     return FILED_STATUSES.includes(String(item.govt_status || '').toLowerCase());
 }
 // STATUS cell = government status (primary) + short divider + Needle pill &
-// "since" (secondary). Government stage + AT MOST ONE supporting line; the
-// reference number gets its own line only when the case is registered.
+// "since" (secondary). Government stage + AT MOST ONE supporting line, plus
+// the grievance reference number on its own line whenever the case is filed
+// with government — see the ref block below.
 // "Ready for government portal" is NEVER inferred from status === in_progress;
 // it requires the real govt_status = 'pending_staff_submit'.
 function govtPresentation(item) {
@@ -104,7 +105,7 @@ function govtPresentation(item) {
         if (item.govt_department) lines = [String(item.govt_department)];
     } else if (isGovtFiled(item)) {
         stage = 'REGISTERED WITH GOVT PORTAL'; tone = 'green';
-        lines = [portal, ref ? `#${ref}` : ''].filter(Boolean);
+        lines = [portal].filter(Boolean);
     } else if (s === 'pending_staff_submit') {
         stage = 'NOT FILED'; lines = ['Ready for government portal'];
     } else if (needleStatus === 'pending_review') {
@@ -113,6 +114,18 @@ function govtPresentation(item) {
         stage = 'NOT FILED'; lines = ['Location needed first'];
     } else {
         stage = 'NOT FILED';
+    }
+
+    // The grievance reference number is the citizen-facing proof the complaint
+    // exists on the government portal, and staff quote it when chasing the
+    // department. It was previously attached only inside the REGISTERED branch,
+    // so it vanished from the STATUS column as soon as the case moved on to
+    // RESOLVED / REJECTED / DEPARTMENT ACTION / SYNC ISSUE — exactly the states
+    // where someone is most likely to need it. Append it for every filed stage
+    // instead. It always lands last so it keeps the mono/faint treatment the
+    // cell gives supporting lines.
+    if (ref && isGovtFiled(item) && !lines.includes(`#${ref}`)) {
+        lines = [...lines, `#${ref}`];
     }
 
     const filed = !['NOT FILED', 'SYNC ISSUE'].includes(stage) || isGovtFiled(item);
