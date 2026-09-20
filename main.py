@@ -6056,7 +6056,14 @@ def _flush_text_buffer(sender: str, tenant_id: int, receiver_number: str) -> Non
             return
 
         try:
-            if len(bodies) == 1:
+            structured_grouping_enabled = (
+                os.getenv("CITIZEN_INDEX_GROUPING_INTAKE_ENABLED", "").lower() == "true"
+            )
+            # Do not invoke the legacy text segmenter when structured grouping
+            # is selected: it can rewrite text and has no source provenance.
+            if structured_grouping_enabled:
+                segments = []
+            elif len(bodies) == 1:
                 segments = [bodies[0]]
             else:
                 segments = segment_citizen_messages(bodies)
@@ -6081,7 +6088,7 @@ def _flush_text_buffer(sender: str, tenant_id: int, receiver_number: str) -> Non
             # Opt-in structured grouping: reconstruct text from original messages
             # and retain every contributing ledger ID. Disabled by default.
             verified_grouped_segments = None
-            if os.getenv("CITIZEN_INDEX_GROUPING_INTAKE_ENABLED", "").lower() == "true":
+            if structured_grouping_enabled:
                 try:
                     from sansadx_backend.ai_engine import get_client
                     from modules.citizen_index_grouping_shadow import propose_grouping_with_client
@@ -6096,6 +6103,12 @@ def _flush_text_buffer(sender: str, tenant_id: int, receiver_number: str) -> Non
                             verified_grouped_segments = provenance
                 except Exception:
                     logger.exception("Structured grouping unavailable for buffer %s", buffer_id)
+            if structured_grouping_enabled and verified_grouped_segments is None:
+                # No guessed ledger links and no silent switch to legacy intake.
+                # Leave the claimed collection for operator/recovery handling.
+                logger.error("Structured grouping rejected buffer %s; no cases created", buffer_id)
+                _mark_text_buffer_status(buffer_id, "failed")
+                return
             if verified_grouped_segments is not None:
                 segments = [part.segment_text for part in verified_grouped_segments]
             logger.info(
