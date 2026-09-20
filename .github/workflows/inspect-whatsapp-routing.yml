@@ -1,0 +1,193 @@
+name: Inspect WhatsApp Number Routing
+
+# Manually triggered, STRICTLY READ-ONLY. Reports how one WhatsApp display
+# number and one Meta Phone Number ID are currently routed: the owning
+# tenant row, every phone_mapping override that could outrank it, any
+# ownership conflict, and a SQL simulation of _resolve_tenant's exact
+# three-step resolution order (main.py:2877).
+#
+# Writes nothing. Logs are public: full phone numbers and Phone Number IDs
+# are never printed — only last-4 digits plus exact-match booleans, which
+# is enough to verify configuration without publishing the values.
+
+on:
+  workflow_dispatch:
+    inputs:
+      display_number:
+        description: "WhatsApp display number in resolver-normalized form, e.g. +91XXXXXXXXXX"
+        required: true
+      phone_number_id:
+        description: "Meta Phone Number ID to look for"
+        required: true
+      tenant_id:
+        description: "Tenant ID that should own them"
+        required: true
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Report current routing for one WhatsApp identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Validate Inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${{ inputs.display_number }}" | grep -qE '^\+[0-9]{8,15}$' \
+            || { echo "display_number must be E.164 with a leading +"; exit 1; }
+          echo "${{ inputs.phone_number_id }}" | grep -qE '^[0-9]{5,25}$' \
+            || { echo "phone_number_id must be digits only"; exit 1; }
+          echo "${{ inputs.tenant_id }}" | grep -qE '^[0-9]{1,9}$' \
+            || { echo "tenant_id must be digits only"; exit 1; }
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions inspect-wa-routing'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Inspect Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          NUM: ${{ inputs.display_number }}
+          PNID: ${{ inputs.phone_number_id }}
+          TID: ${{ inputs.tenant_id }}
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 8m
+          envs: NUM,PNID,TID
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            SQLFILE=/tmp/inspect_wa_routing_$$.sql
+            trap 'rm -f "$SQLFILE"' EXIT
+
+            # Bare-digit form of the number, for catching unnormalized variants.
+            BARE="${NUM#+}"
+
+            cat > "$SQLFILE" <<EOF
+            \\echo '== 1. target tenant row =='
+            SELECT id,
+                   name,
+                   is_active,
+                   COALESCE('***'||RIGHT(whatsapp_number,4),'(null)') AS wa_number_tail,
+                   (whatsapp_number = '${NUM}') AS wa_number_matches_target,
+                   COALESCE('***'||RIGHT(config->>'meta_phone_number_id',4),'(null)') AS pnid_tail,
+                   (config->>'meta_phone_number_id' = '${PNID}') AS pnid_matches_target
+            FROM tenants WHERE id = ${TID};
+
+            \\echo ''
+            \\echo '== 2. ALL phone_mapping overrides (resolver step 1 - highest priority) =='
+            SELECT id,
+                   tenant_id AS row_tenant_id,
+                   key,
+                   value AS maps_to_tenant
+            FROM tenant_overrides
+            WHERE override_type = 'phone_mapping'
+            ORDER BY id;
+
+            \\echo ''
+            \\echo '== 3. phone_mapping rows that would WIN for this number =='
+            \\echo '   (exact key match is the only thing resolver step 1 checks)'
+            SELECT id, key, value AS maps_to_tenant,
+                   (value = '${TID}') AS points_at_target_tenant
+            FROM tenant_overrides
+            WHERE override_type = 'phone_mapping' AND key = '${NUM}';
+
+            \\echo ''
+            \\echo '== 4. ANY override row of ANY type mentioning this number =='
+            \\echo '   (variants: bare digits, whatsapp: prefix, spacing)'
+            SELECT id, override_type, tenant_id AS row_tenant_id, key, value
+            FROM tenant_overrides
+            WHERE override_type <> 'geography_data'
+              AND (key LIKE '%${BARE}%' OR value LIKE '%${BARE}%')
+            ORDER BY id;
+
+            \\echo ''
+            \\echo '== 5. ownership conflict: tenants claiming this number =='
+            SELECT id, name, is_active,
+                   (whatsapp_number = '${NUM}') AS exact_match
+            FROM tenants
+            WHERE whatsapp_number = '${NUM}'
+               OR whatsapp_number = '${BARE}'
+               OR REGEXP_REPLACE(COALESCE(whatsapp_number,''), '[^0-9]', '', 'g') = '${BARE}'
+            ORDER BY id;
+
+            \\echo ''
+            \\echo '== 6. ownership conflict: tenants claiming this Phone Number ID =='
+            SELECT id, name, is_active
+            FROM tenants
+            WHERE config->>'meta_phone_number_id' = '${PNID}'
+            ORDER BY id;
+
+            \\echo ''
+            \\echo '== 7. SIMULATION of _resolve_tenant (main.py:2877) resolution order =='
+            SELECT
+              (SELECT value FROM tenant_overrides
+                WHERE override_type = 'phone_mapping' AND key = '${NUM}'
+                LIMIT 1) AS step1_override_result,
+              (SELECT id FROM tenants
+                WHERE whatsapp_number = '${NUM}' AND is_active = true
+                LIMIT 1) AS step2_tenants_result,
+              COALESCE(
+                (SELECT value FROM tenant_overrides
+                  WHERE override_type = 'phone_mapping' AND key = '${NUM}' LIMIT 1),
+                (SELECT id::text FROM tenants
+                  WHERE whatsapp_number = '${NUM}' AND is_active = true LIMIT 1),
+                'NULL -> MESSAGE DROPPED'
+              ) AS effective_resolution;
+
+            \\echo ''
+            \\echo '== 8. GROUND TRUTH: receiver_number strings the resolver actually saw (30d) =='
+            \\echo '   These are the exact keys _resolve_tenant is called with.'
+            SELECT COALESCE('***'||RIGHT(receiver_number,4),'(null/empty)') AS receiver_tail,
+                   LENGTH(receiver_number) AS len,
+                   (receiver_number = '${NUM}') AS equals_target_exactly,
+                   tenant_id AS resolved_tenant,
+                   status,
+                   COUNT(*) AS rows,
+                   MAX(last_received_at) AS most_recent
+            FROM wa_inbound_messages
+            WHERE last_received_at > NOW() - INTERVAL '30 days'
+            GROUP BY receiver_number, tenant_id, status
+            ORDER BY most_recent DESC
+            LIMIT 40;
+            EOF
+
+            docker compose -f "$COMPOSE" exec -T postgres sh -c \
+              'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' < "$SQLFILE"
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
