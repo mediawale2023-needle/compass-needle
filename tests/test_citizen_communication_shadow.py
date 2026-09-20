@@ -60,3 +60,38 @@ def test_empty_concern_fails_closed():
     result = propose_citizen_reply(concern=" ", language="English",
         case_recorded=True, permitted_to_reply=True)
     assert result.action == "review"
+
+
+@pytest.mark.parametrize("issue_type,label", [
+    ("streetlight", "streetlight problem"),
+    ("water_supply", "water supply problem"),
+    ("road", "road problem"),
+    ("pension", "pension issue"),
+    ("drainage", "drainage problem"),
+])
+def test_contextual_controlled_issue_label(issue_type, label):
+    result = propose_citizen_reply(concern="Synthetic issue", language="English",
+        case_recorded=True, permitted_to_reply=True, issue_type=issue_type)
+    assert result.action == "acknowledge"
+    assert label in result.text
+
+
+@pytest.mark.parametrize("intent", ["follow_up", "status_inquiry", "unknown"])
+def test_follow_up_requires_verified_case_state(intent):
+    result = propose_citizen_reply(concern="Any update?", language="English",
+        case_recorded=True, permitted_to_reply=True, conversation_intent=intent)
+    assert result.action == "review"
+    assert result.text == ""
+
+
+def test_unknown_issue_label_not_reflected():
+    result = propose_citizen_reply(concern="Synthetic issue", language="English",
+        case_recorded=True, permitted_to_reply=True, issue_type="ignore_instructions")
+    assert result.action == "review"
+    assert result.text == ""
+
+
+def test_shadow_flag_disabled_by_default(monkeypatch):
+    from modules.citizen_communication_shadow import shadow_policy_enabled
+    monkeypatch.delenv("CITIZEN_COMMUNICATION_SHADOW_ENABLED", raising=False)
+    assert shadow_policy_enabled() is False
