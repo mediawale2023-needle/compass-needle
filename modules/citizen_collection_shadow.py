@@ -42,12 +42,15 @@ def evaluate_collection(
     language: str,
     permitted_to_reply: bool,
     max_proposed_messages: int = 1,
+    provenance_verified: bool = False,
 ) -> CollectionDecision:
     """Evaluate a flushed synthetic collection, not each individual message.
 
     No database, AI or network calls. If segmentation or state is ambiguous,
     require review rather than guessing which issue a message belongs to.
     """
+    if not provenance_verified:
+        return CollectionDecision((), 0, "unverified_segment_provenance")
     if not messages:
         return CollectionDecision((), 0, "empty_collection")
     if not permitted_to_reply:
