@@ -13,7 +13,7 @@ def issue(key="one", **overrides):
 
 def evaluate(messages, issues=None, **kwargs):
     return evaluate_collection(messages, [issue()] if issues is None else issues,
-        language="English", permitted_to_reply=True, **kwargs)
+        language="English", permitted_to_reply=True, provenance_verified=True, **kwargs)
 
 
 def test_multiple_messages_one_issue_one_proposed_reply():
@@ -54,7 +54,7 @@ def test_status_inquiry_needs_verified_status():
 
 def test_no_reply_when_not_permitted():
     result = evaluate_collection([SyntheticMessage("Streetlight", "one")],
-        [issue()], language="English", permitted_to_reply=False)
+        [issue()], language="English", permitted_to_reply=False, provenance_verified=True)
     assert result.proposed_message_count == 0
 
 
@@ -73,6 +73,13 @@ def test_unconfirmed_case_does_not_claim_recorded():
 def test_disabled_flag_never_evaluates(monkeypatch):
     monkeypatch.delenv("CITIZEN_COMMUNICATION_SHADOW_ENABLED", raising=False)
     result = evaluate_collection_if_enabled([SyntheticMessage("Streetlight", "one")],
-        [issue()], language="English", permitted_to_reply=True)
+        [issue()], language="English", permitted_to_reply=True, provenance_verified=True)
     assert result.reason == "shadow_disabled"
+    assert result.proposed_message_count == 0
+
+
+def test_unverified_segment_provenance_fails_closed():
+    result = evaluate_collection([SyntheticMessage("Streetlight", "one")],
+        [issue()], language="English", permitted_to_reply=True)
+    assert result.reason == "unverified_segment_provenance"
     assert result.proposed_message_count == 0
