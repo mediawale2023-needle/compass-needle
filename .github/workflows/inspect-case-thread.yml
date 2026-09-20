@@ -1,0 +1,141 @@
+name: Inspect Case Thread Intake
+
+# Manually triggered, STRICTLY READ-ONLY. Explains why a follow-up WhatsApp
+# message attached to an existing case instead of creating a new one: prints
+# the case's contact-thread metadata, the recorded intake action, and the
+# contact_message_events the citizen pipeline appended.
+#
+# Writes nothing. Logs are public: citizen message text is NEVER printed —
+# only event types, lengths and timestamps.
+
+on:
+  workflow_dispatch:
+    inputs:
+      case_id:
+        description: "Case ID to inspect"
+        required: true
+      tenant_id:
+        description: "Tenant ID that owns it"
+        required: true
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Explain how a message was attached to a case
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Validate Inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${{ inputs.case_id }}" | grep -qE '^[0-9]{1,12}$' || { echo "case_id must be digits"; exit 1; }
+          echo "${{ inputs.tenant_id }}" | grep -qE '^[0-9]{1,9}$' || { echo "tenant_id must be digits"; exit 1; }
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions inspect-case-thread'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Inspect Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          CID: ${{ inputs.case_id }}
+          TID: ${{ inputs.tenant_id }}
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 8m
+          envs: CID,TID
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            SQLFILE=/tmp/inspect_thread_$$.sql
+            trap 'rm -f "$SQLFILE"' EXIT
+
+            cat > "$SQLFILE" <<EOF
+            \\echo '== case row =='
+            SELECT id, tenant_id, status, category, LENGTH(raw_message) AS msg_len,
+                   created_at, updated_at, status_changed_at
+            FROM cases WHERE id = ${CID} AND tenant_id = ${TID};
+
+            \\echo ''
+            \\echo '== contact-thread metadata (how intake classified the traffic) =='
+            SELECT case_metadata->>'contact_intake_action'        AS intake_action,
+                   case_metadata->>'contact_thread_id'            AS thread_id,
+                   case_metadata->>'contact_thread_state'         AS thread_state,
+                   case_metadata->>'distinct_issue_count'         AS distinct_issues,
+                   case_metadata->>'contact_thread_last_activity_at' AS last_activity,
+                   case_metadata->>'citizen_ack_last_action'      AS ack_action,
+                   jsonb_array_length(COALESCE(case_metadata->'contact_message_events','[]'::jsonb)) AS event_count
+            FROM cases WHERE id = ${CID} AND tenant_id = ${TID};
+
+            \\echo ''
+            \\echo '== contact_message_events (types/lengths only, no text) =='
+            SELECT ord AS seq,
+                   ev->>'event_type'    AS event_type,
+                   LENGTH(COALESCE(ev->>'text', ev->>'body','')) AS text_len,
+                   ev->>'detected_language' AS lang,
+                   ev->>'received_at'   AS received_at
+            FROM cases c,
+                 LATERAL jsonb_array_elements(COALESCE(c.case_metadata->'contact_message_events','[]'::jsonb))
+                   WITH ORDINALITY AS t(ev, ord)
+            WHERE c.id = ${CID} AND c.tenant_id = ${TID}
+            ORDER BY ord;
+
+            \\echo ''
+            \\echo '== every inbound ledger row linked to this case =='
+            SELECT id, '...'||RIGHT(meta_message_id,18) AS meta_msg_tail, message_type,
+                   status, last_received_at
+            FROM wa_inbound_messages
+            WHERE case_id = ${CID}
+            ORDER BY id;
+
+            \\echo ''
+            \\echo '== all cases for this sender in the last 48h (thread window) =='
+            SELECT id, status, category, LENGTH(raw_message) AS msg_len,
+                   case_metadata->>'contact_intake_action' AS intake_action,
+                   created_at
+            FROM cases
+            WHERE tenant_id = ${TID}
+              AND user_phone = (SELECT user_phone FROM cases WHERE id = ${CID})
+              AND created_at > NOW() - INTERVAL '48 hours'
+            ORDER BY id;
+            EOF
+
+            docker compose -f "$COMPOSE" exec -T postgres sh -c \
+              'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' < "$SQLFILE"
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
