@@ -6054,6 +6054,22 @@ def _flush_text_buffer(sender: str, tenant_id: int, receiver_number: str) -> Non
                 segments = segment_citizen_messages(bodies)
                 if not segments:
                     segments = ["\n".join(bodies)]
+            # Shadow-only provenance observation. Never changes case creation,
+            # source ledger assignment, or citizen-facing WhatsApp traffic.
+            if os.getenv("CITIZEN_SEGMENT_PROVENANCE_SHADOW_ENABLED", "").lower() == "true":
+                try:
+                    from modules.whatsapp_segment_provenance import attribute_segments
+                    nonempty_items = [
+                        item for item in items if str(item.get("body") or "").strip()
+                    ]
+                    provenance = attribute_segments(nonempty_items, segments)
+                    logger.info(
+                        "Buffer provenance shadow: buffer_id=%s segments=%d verified=%d",
+                        buffer_id, len(provenance),
+                        sum(1 for segment in provenance if segment.verified),
+                    )
+                except Exception:
+                    logger.exception("Buffer provenance shadow failed: buffer_id=%s", buffer_id)
             logger.info(
                 "Text buffer %s flushed: %d message(s) → %d grievance segment(s) from %s (tenant=%s)",
                 buffer_id, len(bodies), len(segments), sender, tenant_id,
