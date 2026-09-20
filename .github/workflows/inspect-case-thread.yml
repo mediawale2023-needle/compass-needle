@@ -91,7 +91,7 @@ jobs:
                    case_metadata->>'distinct_issue_count'         AS distinct_issues,
                    case_metadata->>'contact_thread_last_activity_at' AS last_activity,
                    case_metadata->>'citizen_ack_last_action'      AS ack_action,
-                   jsonb_array_length(COALESCE(case_metadata->'contact_message_events','[]'::jsonb)) AS event_count
+                   jsonb_array_length(COALESCE(case_metadata::jsonb->'contact_message_events','[]'::jsonb)) AS event_count
             FROM cases WHERE id = ${CID} AND tenant_id = ${TID};
 
             \\echo ''
@@ -102,7 +102,7 @@ jobs:
                    ev->>'detected_language' AS lang,
                    ev->>'received_at'   AS received_at
             FROM cases c,
-                 LATERAL jsonb_array_elements(COALESCE(c.case_metadata->'contact_message_events','[]'::jsonb))
+                 LATERAL jsonb_array_elements(COALESCE(c.case_metadata::jsonb->'contact_message_events','[]'::jsonb))
                    WITH ORDINALITY AS t(ev, ord)
             WHERE c.id = ${CID} AND c.tenant_id = ${TID}
             ORDER BY ord;
