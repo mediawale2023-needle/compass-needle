@@ -6056,9 +6056,19 @@ def _flush_text_buffer(sender: str, tenant_id: int, receiver_number: str) -> Non
             return
 
         try:
-            structured_grouping_enabled = (
+            # Do not activate structured intake until segment-level durable
+            # checkpoints and acknowledgement idempotency are implemented.
+            # A crash after one segment could otherwise duplicate cases/replies.
+            structured_grouping_requested = (
                 os.getenv("CITIZEN_INDEX_GROUPING_INTAKE_ENABLED", "").lower() == "true"
             )
+            structured_grouping_enabled = False
+            if structured_grouping_requested:
+                logger.error(
+                    "Structured intake blocked for buffer %s: durable segment "
+                    "checkpoints and outbound idempotency are not implemented",
+                    buffer_id,
+                )
             # Do not invoke the legacy text segmenter when structured grouping
             # is selected: it can rewrite text and has no source provenance.
             if structured_grouping_enabled:
