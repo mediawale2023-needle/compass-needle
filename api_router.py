@@ -2040,12 +2040,14 @@ def get_cases(
         for i, cid in enumerate(filing_ids):
             gs_params[f"gs_id_{i}"] = cid
         gs_rows = _q(  # nosec B608 — placeholders generated; ids are bound params
-            f"SELECT DISTINCT ON (case_id) case_id, action, payload, created_at "
+            f"SELECT case_id, action, payload, created_at FROM ("
+            f"SELECT case_id, action, payload, created_at, "
+            f"ROW_NUMBER() OVER (PARTITION BY case_id ORDER BY created_at DESC, id DESC) AS rn "
             f"FROM govt_submission_log "
             f"WHERE tenant_id = :tid AND case_id IN ({gs_placeholders}) "
             f"AND action IN ('status_polled', 'status_check_failed', "
-            f"'status_check_needs_verification', 'status_check_inconclusive') "
-            f"ORDER BY case_id, created_at DESC",
+            f"'status_check_needs_verification', 'status_check_inconclusive')"
+            f") latest WHERE rn = 1",
             gs_params,
         )
         for r in gs_rows:
