@@ -1,0 +1,126 @@
+name: Verify Attention Queue Order
+
+# Manually triggered, STRICTLY READ-ONLY. Calls the real dashboard_overview
+# endpoint function inside the running backend container for one tenant,
+# bypassing only the JWT dependency, and prints the Attention Queue order it
+# actually produces against live production data.
+#
+# This verifies the deployed code path rather than re-deriving the ordering
+# from SQL, which would only prove the query works, not the endpoint.
+#
+# Writes nothing. Logs are public: raw message text is never printed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tenant_id:
+        description: "Tenant ID whose Attention Queue to print"
+        required: true
+      expect_top_case_id:
+        description: "Case ID expected at position 1 (blank to just report)"
+        required: false
+        default: ""
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Print the live Attention Queue order
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Validate Inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${{ inputs.tenant_id }}" | grep -qE '^[0-9]{1,9}$' \
+            || { echo "tenant_id must be digits only"; exit 1; }
+          if [ -n "${{ inputs.expect_top_case_id }}" ]; then
+            echo "${{ inputs.expect_top_case_id }}" | grep -qE '^[0-9]{1,12}$' \
+              || { echo "expect_top_case_id must be digits only"; exit 1; }
+          fi
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions verify-queue-order'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Verify Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          TID: ${{ inputs.tenant_id }}
+          EXPECT: ${{ inputs.expect_top_case_id }}
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 8m
+          envs: TID,EXPECT
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+
+            echo "== deployed commit =="
+            docker compose -f "$COMPOSE" exec -T backend sh -c \
+              'git -C /app rev-parse --short HEAD 2>/dev/null || echo "(git metadata not in image)"'
+
+            echo ""
+            echo "== live Attention Queue for tenant ${TID} =="
+            docker compose -f "$COMPOSE" exec -T backend python -c "
+            import sys
+            import api_router
+            rows = api_router.dashboard_overview(user={'tenant_id': ${TID}, 'sub': 'queue-order-verify'})['attention_queue']
+            if not rows:
+                print('  (queue empty)')
+                sys.exit(0)
+            print('  pos | case_id | latest_citizen_message_at    | inbound? | age  | bucket')
+            print('  ----+---------+------------------------------+----------+------+-------------')
+            for i, r in enumerate(rows, 1):
+                print('  %3d | %7s | %-28s | %-8s | %-4s | %s' % (
+                    i, r.get('id'), r.get('latest_citizen_message_at'),
+                    r.get('has_inbound_citizen_message'), r.get('recency'), r.get('bucket')))
+            stamps = [r.get('latest_citizen_message_at') or '' for r in rows]
+            descending = all(stamps[i] >= stamps[i+1] for i in range(len(stamps)-1))
+            print('')
+            print('  strictly non-increasing by latest_citizen_message_at:', descending)
+            expect = '${EXPECT}'.strip()
+            if expect:
+                top = str(rows[0].get('id'))
+                print('  expected top case:', expect, '| actual:', top, '|', 'PASS' if top == expect else 'FAIL')
+                if top != expect or not descending:
+                    sys.exit(1)
+            elif not descending:
+                sys.exit(1)
+            " || { echo "  VERIFICATION FAILED — see above"; exit 1; }
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
