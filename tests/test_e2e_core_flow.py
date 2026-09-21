@@ -233,7 +233,7 @@ def _wait_for(predicate, timeout_seconds: float = 2.0, interval_seconds: float =
     return predicate()
 
 
-def test_citizen_webhook_to_notify_and_resolve_flow(monkeypatch):
+def test_citizen_webhook_to_notify_without_implicit_resolution(monkeypatch):
     _seed_database()
     monkeypatch.setattr(main, "META_APP_SECRET", "test-meta-app-secret")
 
@@ -327,7 +327,7 @@ def test_citizen_webhook_to_notify_and_resolve_flow(monkeypatch):
     detail_resp = client.get(f"/api/cases/{created_case['id']}", headers=auth_headers)
     assert detail_resp.status_code == 200, detail_resp.text
     detail = detail_resp.json()
-    assert detail["status"] == "resolved"
+    assert detail["status"] == "new"
     assert detail["response_to_citizen"] == draft_message
 
     with test_engine.connect() as conn:
@@ -340,7 +340,7 @@ def test_citizen_webhook_to_notify_and_resolve_flow(monkeypatch):
         ).mappings().first()
     assert activity is not None
     assert activity["action"] == "citizen_notified"
-    assert activity["new_value"] == "resolved"
+    assert activity["new_value"] == "whatsapp_sent"
 
 
 def test_history_save_then_list_returns_saved_draft():

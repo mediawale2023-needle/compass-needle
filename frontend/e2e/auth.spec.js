@@ -24,6 +24,19 @@ async function mockMpApi(page) {
                 }),
             });
         }
+        if (url.pathname === '/api/dashboard/overview') {
+            return route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    seat: 'Bangalore North',
+                    date_label: 'Today',
+                    attention_counts: [{ key: 'needs_review', label: 'Needs review', value: 1, tone: 'rust' }],
+                    attention_queue: [],
+                    government_tracking: {},
+                }),
+            });
+        }
         if (url.pathname === '/api/dashboard/summary') {
             return route.fulfill({
                 status: 200,
@@ -83,8 +96,8 @@ test('MP can sign in and reach the dashboard', async ({ page }) => {
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByText('Total Cases')).toBeVisible();
-    await expect(page.getByText('Review Now')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Attention Queue' })).toBeVisible();
 
     const token = await page.evaluate(() => sessionStorage.getItem('needle_token'));
     await expect(token).toBe('mp-token-123');
