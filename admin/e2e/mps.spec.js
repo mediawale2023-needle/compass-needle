@@ -47,7 +47,7 @@ test('Admin can create an MP from the new MP form', async ({ page }) => {
     await page.getByPlaceholder('username').fill('j_shettar');
     await page.locator('input[type="password"]').first().fill('ValidPass1!');
     await page.getByPlaceholder('e.g. Karnataka').fill('Karnataka');
-    await page.getByRole('button', { name: 'Create MP' }).click();
+    await page.getByRole('button', { name: 'Create Account' }).click();
 
     await expect(page.getByText(/Created Shri Jagdish Shettar/i)).toBeVisible();
     await expect(page).toHaveURL(/\/dashboard\/mps\/7\/setup$/);
