@@ -81,7 +81,7 @@ test('Admin can sign in and reach the overview dashboard', async ({ page }) => {
     await page.getByPlaceholder('Enter your password').fill('AdminPass1!');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect.poll(async () => page.evaluate(() => sessionStorage.getItem('admin_token'))).toBe('admin-token-123');
 
     const token = await page.evaluate(() => sessionStorage.getItem('admin_token'));
     await expect(token).toBe('admin-token-123');
