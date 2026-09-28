@@ -663,12 +663,15 @@ def test_contact_buffering_merges_duplicate_followups(monkeypatch):
     assert "urgent" in road_meta["contact_message_events"][0]["message"].lower()
     assert water_meta.get("matched_value") == "Whitefield"
 
-    # Ack policy: full ack for the first issue, a short "separate issue" ack
-    # for the second distinct issue, and ONE reassurance for the duplicate
-    # follow-up. No case reference numbers anywhere.
+    # Ack policy: full ack for the first issue, a natural acknowledgement for
+    # the second distinct concern, and ONE reassurance for the duplicate.
+    # Internal issue classification/count stays hidden from the citizen.
     assert len(outbound_messages) == 3
-    assert "separate issue" in outbound_messages[1][1].lower()
-    assert "2" in outbound_messages[1][1]
+    second_ack = outbound_messages[1][1].lower()
+    assert "noted this concern" in second_ack
+    assert "separate issue" not in second_ack
+    assert "2 complaints" not in second_ack
+    assert "under review" not in second_ack
     assert "under review" in outbound_messages[2][1].lower()
     assert not any("#" in message for _, message, _ in outbound_messages)
 
@@ -737,10 +740,11 @@ def test_contact_thread_high_frequency_and_spam_suspected_thresholds(monkeypatch
     meta_after_six = next(meta for meta in metas_after_six if meta.get("contact_thread_state") == "high_frequency")
     assert meta_after_six["distinct_issue_count"] == 6
     assert meta_after_six["contact_thread_state"] == "high_frequency"
-    # Ack policy: full ack (1st) + separate-issue acks (2nd-5th) + one
+    # Ack policy: full ack (1st) + natural acknowledgements (2nd-5th) + one
     # boundary notice when the 6th distinct issue crosses high-frequency.
     assert len(outbound_messages) == 6
-    assert all("separate issue" in message.lower() for _, message, _ in outbound_messages[1:5])
+    assert all("noted this concern" in message.lower() for _, message, _ in outbound_messages[1:5])
+    assert all("separate issue" not in message.lower() for _, message, _ in outbound_messages[1:5])
     assert "one message per issue" in outbound_messages[5][1].lower()
     assert not any("#" in message for _, message, _ in outbound_messages)
 
@@ -852,9 +856,10 @@ def test_thread_distinct_issue_links_each_inbound_ledger_row_to_its_case(monkeyp
     assert all(row["case_id"] is not None for row in inbound_after)
     assert len({row["case_id"] for row in inbound_after}) == 3
     # Ack policy: every distinct issue earns exactly one ack — a full ack for
-    # the first and a short "separate issue" ack for each additional one.
+    # the first and a natural acknowledgement for each additional one.
     assert len(outbound_messages) == 3
-    assert all("separate issue" in message.lower() for _, message, _ in outbound_messages[1:])
+    assert all("noted this concern" in message.lower() for _, message, _ in outbound_messages[1:])
+    assert all("separate issue" not in message.lower() for _, message, _ in outbound_messages[1:])
 
 
 def test_low_information_nudge_gets_one_reassurance_then_silence(monkeypatch):
