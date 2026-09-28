@@ -5036,6 +5036,7 @@ def _process_incoming_message(
     wa_reply_to_msg_id: str = "",
     inbound_ledger_id: int | None = None,
     existing_case_id: int | None = None,
+    source_inbound_ledger_ids: tuple[int, ...] | None = None,
 ):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:
@@ -5057,8 +5058,15 @@ def _process_incoming_message(
     sender_bare = sender_digits[2:] if sender_digits.startswith("91") and len(sender_digits) == 12 else sender_digits
 
     def _link_inbound_to_case(case_id: int | None) -> None:
-        if inbound_ledger_id and case_id:
-            _set_inbound_ledger_case_id(inbound_ledger_id, case_id)
+        if not case_id:
+            return
+        ledger_ids = (
+            source_inbound_ledger_ids
+            if source_inbound_ledger_ids is not None
+            else (inbound_ledger_id,) if inbound_ledger_id else ()
+        )
+        for source_ledger_id in ledger_ids:
+            _set_inbound_ledger_case_id(source_ledger_id, case_id)
 
     # ── Staff query routing (check BEFORE spam / citizen flow) ───────────────
     # If the sender's phone is a registered staff user for this tenant,
@@ -6048,24 +6056,88 @@ def _flush_text_buffer(sender: str, tenant_id: int, receiver_number: str) -> Non
             return
 
         try:
-            if len(bodies) == 1:
+            # Do not activate structured intake until segment-level durable
+            # checkpoints and acknowledgement idempotency are implemented.
+            # A crash after one segment could otherwise duplicate cases/replies.
+            structured_grouping_requested = (
+                os.getenv("CITIZEN_INDEX_GROUPING_INTAKE_ENABLED", "").lower() == "true"
+            )
+            structured_grouping_enabled = False
+            if structured_grouping_requested:
+                logger.error(
+                    "Structured intake blocked for buffer %s: durable segment "
+                    "checkpoints and outbound idempotency are not implemented",
+                    buffer_id,
+                )
+            # Do not invoke the legacy text segmenter when structured grouping
+            # is selected: it can rewrite text and has no source provenance.
+            if structured_grouping_enabled:
+                segments = []
+            elif len(bodies) == 1:
                 segments = [bodies[0]]
             else:
                 segments = segment_citizen_messages(bodies)
                 if not segments:
                     segments = ["\n".join(bodies)]
+            # Shadow-only provenance observation. Never changes case creation,
+            # source ledger assignment, or citizen-facing WhatsApp traffic.
+            if os.getenv("CITIZEN_SEGMENT_PROVENANCE_SHADOW_ENABLED", "").lower() == "true":
+                try:
+                    from modules.whatsapp_segment_provenance import attribute_segments
+                    nonempty_items = [
+                        item for item in items if str(item.get("body") or "").strip()
+                    ]
+                    provenance = attribute_segments(nonempty_items, segments)
+                    logger.info(
+                        "Buffer provenance shadow: buffer_id=%s segments=%d verified=%d",
+                        buffer_id, len(provenance),
+                        sum(1 for segment in provenance if segment.verified),
+                    )
+                except Exception:
+                    logger.exception("Buffer provenance shadow failed: buffer_id=%s", buffer_id)
+            # Opt-in structured grouping: reconstruct text from original messages
+            # and retain every contributing ledger ID. Disabled by default.
+            verified_grouped_segments = None
+            if structured_grouping_enabled:
+                try:
+                    from sansadx_backend.ai_engine import get_client
+                    from modules.citizen_index_grouping_shadow import propose_grouping_with_client
+                    from modules.whatsapp_segment_provenance import attribute_indexed_segments
+                    nonempty_items = [
+                        item for item in items if str(item.get("body") or "").strip()
+                    ]
+                    grouping = propose_grouping_with_client(nonempty_items, get_client())
+                    if grouping.verified:
+                        provenance = attribute_indexed_segments(nonempty_items, grouping.groups)
+                        if provenance and all(part.verified for part in provenance):
+                            verified_grouped_segments = provenance
+                except Exception:
+                    logger.exception("Structured grouping unavailable for buffer %s", buffer_id)
+            if structured_grouping_enabled and verified_grouped_segments is None:
+                # No guessed ledger links and no silent switch to legacy intake.
+                # Leave the claimed collection for operator/recovery handling.
+                logger.error("Structured grouping rejected buffer %s; no cases created", buffer_id)
+                _mark_text_buffer_status(buffer_id, "failed")
+                return
+            if verified_grouped_segments is not None:
+                segments = [part.segment_text for part in verified_grouped_segments]
             logger.info(
                 "Text buffer %s flushed: %d message(s) → %d grievance segment(s) from %s (tenant=%s)",
                 buffer_id, len(bodies), len(segments), sender, tenant_id,
             )
             for idx, segment_text in enumerate(segments):
                 source = items[idx] if idx < len(items) else items[-1]
+                verified_part = (
+                    verified_grouped_segments[idx]
+                    if verified_grouped_segments is not None else None
+                )
                 _process_incoming_message(
                     sender,
                     segment_text,
                     receiver_number,
-                    str(source.get("msg_id") or ""),
-                    inbound_ledger_id=source.get("inbound_ledger_id"),
+                    verified_part.source_message_ids[0] if verified_part else str(source.get("msg_id") or ""),
+                    inbound_ledger_id=verified_part.inbound_ledger_ids[0] if verified_part else source.get("inbound_ledger_id"),
+                    **({"source_inbound_ledger_ids": verified_part.inbound_ledger_ids} if verified_part else {}),
                 )
             _mark_text_buffer_status(buffer_id, "done")
         except Exception:
