@@ -671,45 +671,37 @@ def get_location_update_reply(location: str, detected_language: str = "", origin
 # reference numbers anywhere — acknowledgments stay plain by policy.
 
 _ADDITIONAL_ISSUE_ACK: dict[str, str] = {
-    "Hindi": (
-        "Aapki yeh baat alag issue ke roop mein register ho gayi hai 🙏\n\n"
-        "Aaj aapki kul {count} complaints hamare paas darj hain, sabhi review mein hain."
-    ),
-    "Hinglish": (
-        "Aapka yeh message alag issue ke roop mein register ho gaya hai 🙏\n\n"
-        "Aaj aapki total {count} complaints hamare paas registered hain, sabhi review mein hain."
-    ),
-    "Marathi": (
-        "तुमची ही तक्रार वेगळा विषय म्हणून नोंदवली गेली आहे 🙏\n\n"
-        "आज तुमच्या एकूण {count} तक्रारी आमच्याकडे नोंदल्या आहेत, सर्व पुनरावलोकनात आहेत."
-    ),
-    "Kannada": (
-        "ನಿಮ್ಮ ಈ ದೂರು ಪ್ರತ್ಯೇಕ ವಿಷಯವಾಗಿ ದಾಖಲಾಗಿದೆ 🙏\n\n"
-        "ಇಂದು ನಿಮ್ಮ ಒಟ್ಟು {count} ದೂರುಗಳು ನಮ್ಮ ಬಳಿ ದಾಖಲಾಗಿವೆ, ಎಲ್ಲವೂ ಪರಿಶೀಲನೆಯಲ್ಲಿವೆ."
-    ),
-    "English": (
-        "This has been registered as a separate issue 🙏\n\n"
-        "You now have {count} complaints registered with us today; all are under review."
-    ),
+    "Hindi": "Aapki baat note kar li gayi hai 🙏\\n\\nHum is par zaroor dhyan denge aur zarurat padne par aapse sampark karenge.",
+    "Hinglish": "Aapka message note kar liya hai 🙏\\n\\nHum is issue ko dekhenge aur zarurat padne par aapse contact karenge.",
+    "Marathi": "Tumchi takrar nondavli aahe 🙏\\n\\nAamhi ya vishayakade laksh deu ani garaj aslyas tumchyashi sampark karu.",
+    "Kannada": "ನಿಮ್ಮ ಸಮಸ್ಯೆಯನ್ನು ದಾಖಲಿಸಲಾಗಿದೆ 🙏\\n\\nನಾವು ಇದನ್ನು ಪರಿಶೀಲಿಸುತ್ತೇವೆ ಮತ್ತು ಅಗತ್ಯವಿದ್ದರೆ ನಿಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸುತ್ತೇವೆ.",
+    "English": "Thank you for letting us know 🙏\\n\\nWe have noted this concern and will follow up if we need any further information.",
 }
 
 _ADDITIONAL_ISSUE_ACK_LATIN: dict[str, str] = {
     "Hindi": _ADDITIONAL_ISSUE_ACK["Hindi"],
     "Hinglish": _ADDITIONAL_ISSUE_ACK["Hinglish"],
-    "Marathi": (
-        "Tumchi hi takrar vegla vishay mhanun nondavli geli aahe 🙏\n\n"
-        "Aaj tumchya ekun {count} takrari amchyakade nondlya aahet, sarv review madhye aahet."
-    ),
+    "Marathi": _ADDITIONAL_ISSUE_ACK["Marathi"],
+    "Kannada": "Nimma samasyeyannu dakhale madalagide 🙏\\n\\nNaavu idannu parishilisutteve mattu agatyaviddare nimmanu samparkisutteve.",
     "English": _ADDITIONAL_ISSUE_ACK["English"],
 }
 
 
 def get_additional_issue_ack_reply(count: int, detected_language: str = "", original_text: str = "") -> str:
-    """Short ack for the 2nd..Nth distinct issue in one 24h contact thread."""
-    template = _pick_template(_ADDITIONAL_ISSUE_ACK, _ADDITIONAL_ISSUE_ACK_LATIN, detected_language, original_text) or _ADDITIONAL_ISSUE_ACK["Hindi"]
-    # str.replace, never .format(): count is trusted but keep the pattern
-    # consistent with the location templates (no format-string parsing).
-    return ensure_ji_prefix(template.replace("{count}", str(int(count))))
+    """Natural acknowledgement for another distinct concern in an active thread.
+
+    The count remains an internal routing signal. Citizen-facing text must not
+    expose classification language such as 'separate issue', running complaint
+    totals, or internal review state.
+    """
+    del count
+    template = _pick_template(
+        _ADDITIONAL_ISSUE_ACK,
+        _ADDITIONAL_ISSUE_ACK_LATIN,
+        detected_language,
+        original_text,
+    ) or _ADDITIONAL_ISSUE_ACK["English"]
+    return ensure_ji_prefix(template)
 
 
 _THREAD_REASSURANCE: dict[str, str] = {
