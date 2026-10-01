@@ -7,12 +7,12 @@ import NotificationTray from '@/components/NotificationTray';
 
 const PAGE_TITLES = {
     '/dashboard': { title: 'Command Centre', desc: 'Monitor platform readiness, account setup, and operational health from one control surface' },
-    '/dashboard/accounts': { title: 'Accounts', desc: 'Manage account lifecycle, setup progress, linked staff, and launch readiness' },
-    '/dashboard/seats': { title: 'Seats', desc: 'Review shared seat identity, tenant usage, and constituency readiness across geography and maps' },
+    '/dashboard/accounts': { title: 'Accounts', desc: 'Manage political accounts, setup progress, access, and launch readiness' },
+    '/dashboard/seats': { title: 'Seats & Geography', desc: 'Manage constituency identity, geography, readiness, and account usage' },
     '/dashboard/shared-geography': { title: 'Shared Geography', desc: 'Manage seat-scoped geography datasets, inferred hierarchy, diagnostics, and routing rules' },
-    '/dashboard/cases-intelligence': { title: 'Cases & Intelligence', desc: 'Operate case intelligence, knowledge coverage, AI tooling, and usage insight as one domain' },
-    '/dashboard/staff-access': { title: 'Staff & Access', desc: 'Manage platform staff, administrative permissions, and access audit trails' },
-    '/dashboard/system': { title: 'System', desc: 'Control platform-wide health, syncs, announcements, and administrative settings' },
+    '/dashboard/cases-intelligence': { title: 'Case Operations', desc: 'Investigate cases, knowledge readiness, AI diagnostics, and usage insight' },
+    '/dashboard/staff-access': { title: 'Administration', desc: 'Manage platform staff, permissions, and administrative history' },
+    '/dashboard/system': { title: 'Platform Operations', desc: 'Monitor messaging, sync, platform health, jobs, and configuration' },
     '/dashboard/seat-maps': { title: 'Seat Maps', desc: 'Manage shared constituency boundaries, generation workflows, and seat map readiness' },
     '/dashboard/constituency': { title: 'Constituency Intelligence', desc: 'Review constituency intelligence and legacy deep-dive reference material' },
 };
