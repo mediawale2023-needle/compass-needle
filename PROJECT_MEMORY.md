@@ -18,6 +18,8 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 
 ## Architecture Memory
 
+- The Admin redesign visual contract is documented in `PRODUCT.md` and `DESIGN.md`: Admin is the tenant-safe operational control plane for Compass Needle, using an independent semantic-token implementation of the Briefcase paper/ink/green language. Operational surfaces must distinguish unavailable data from empty/healthy states, use direct domain navigation with persistent local tabs, and preserve account/seat/message/job context without inventing backend capabilities.
+
 - Case Detail refinement (2026-09-18): `/cases/{id}/notify/send` sends an authorised, policy-validated citizen reply only; it must never resolve a complaint or change lifecycle timestamps. Resolution remains an explicit `/status` action. The Case Detail caller passes `keepWorkspaceOpen` to the queue hook so a resolved row can leave the active queue while its detail workspace remains open. Government and Needle lifecycles remain independent.
 - Case Detail uses the approved parchment `#F4F0E7`, warm surface `#FFFDF8`, charcoal `#24251F`, forest green `#234F3A`, and amber `#8A5C17` palette. The 328px rail and citizen-first hierarchy remain. Reply drafts live in a separate accessible dialog; internal-note saves must not overwrite citizen responses. Persist drafts in input handlers keyed to the selected complaint, never in a switch-triggered effect that can save the previous complaint's text.
 

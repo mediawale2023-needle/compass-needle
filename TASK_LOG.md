@@ -2068,3 +2068,18 @@ Chronological log of completed repository work. Read before making changes to un
 - Browser CDN downloads timed out; local browser validation used an isolated Chromium binary from an npm package outside the repo. No application dependency or lockfile change.
 - Five Playwright scenarios pass, including 1440px desktop, 390px mobile, separate per-complaint drafts, and failed-send draft retention. Production push and deployment to `main` were explicitly authorized; deployment result is recorded below.
 - Deployment requirement: ship the reply endpoint change before or alongside the frontend; the old backend auto-resolves. Staff UAT against real operational data remains a release step. No schema migration.
+# 2026-10-01 — Admin redesign product and visual contract
+
+- Confirmed the accepted PR #139 redesign brief as durable product context in `PRODUCT.md` and recorded the Admin-specific Briefcase-derived visual system in `DESIGN.md`.
+- The contract defines Admin as the operational control plane, preserves tenant and sync safety boundaries, requires explicit unavailable states, and establishes direct domain navigation plus reusable operational primitives.
+- Files touched: `PRODUCT.md`, `DESIGN.md`, `PROJECT_MEMORY.md`, `TASK_LOG.md`.
+- No runtime behavior, backend API, authentication, production data, push, merge, or deployment changed.
+
+# 2026-10-01 — Admin redesign Phase 2: Command Centre
+
+- Rebuilt `/dashboard` around the accepted priority order: needs attention, readiness, platform health/activity, and account readiness.
+- Added reusable Admin page, panel, notice, data-state, metric, table, and secondary-navigation primitives plus the independent paper/ink/green semantic token layer.
+- Removed silent failure behavior from Command Centre resources. Alerts, health, stats, and accounts now render explicit `Data unavailable` states and safe retry controls; unavailable sources no longer appear as zero or healthy.
+- Preserved all existing Admin APIs and contextual routing. No backend, auth, tenant, WhatsApp, sync, schema, or production behavior changed.
+- Verification: Admin Vitest 7 files / 16 tests passed; Admin production build passed with existing SWC fallback, multiple-lockfile, and stale Browserslist warnings.
+- Files touched: `admin/app/dashboard/page.js`, `admin/app/globals.css`, `admin/components/admin-ui/AdminPrimitives.jsx`, `admin/tests/dashboard.test.jsx`, `TASK_LOG.md`.

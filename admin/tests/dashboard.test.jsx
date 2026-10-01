@@ -62,12 +62,23 @@ describe('Admin dashboard overview', () => {
         });
     });
 
-    it('renders admin stats and account cards from the API', async () => {
+    it('renders command-centre readiness and account data from the API', async () => {
         render(<DashboardOverview />);
 
         expect(await screen.findByText('Arun Kumar')).toBeInTheDocument();
-        expect(screen.getByText('Total Accounts')).toBeInTheDocument();
-        expect(screen.getByText('System Health')).toBeInTheDocument();
-        expect(screen.getByText('+ Add Account')).toBeInTheDocument();
+        expect(screen.getByText('Command Centre')).toBeInTheDocument();
+        expect(screen.getByText('Needs attention now')).toBeInTheDocument();
+        expect(screen.getByText('Platform readiness')).toBeInTheDocument();
+        expect(screen.getByText('Customer accounts')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Create account' })).toBeInTheDocument();
+    });
+
+    it('distinguishes unavailable operational data from an empty or healthy state', async () => {
+        apiGetMock.mockRejectedValue(new Error('Admin API unavailable'));
+        render(<DashboardOverview />);
+
+        expect((await screen.findAllByText('Data unavailable')).length).toBeGreaterThan(1);
+        expect(screen.getAllByText('Unavailable')).toHaveLength(6);
+        expect(screen.queryByText('No active operational alerts')).not.toBeInTheDocument();
     });
 });
