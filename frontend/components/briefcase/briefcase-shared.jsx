@@ -1,5 +1,11 @@
 'use client';
 
+// DEPRECATED — Gen 1 palette. Canonical tokens live in
+// `@/lib/briefcase-tokens` (`gen2`). Still consumed by the clusters,
+// deleted-cases and new-cases surfaces, whose rendering would visibly change
+// if these values were swapped (green #006A4D → #2B6E4C is not subtle), so
+// they are intentionally left alone. Migrate those views behind a visual
+// review; do not add new consumers of this object.
 export const briefcasePalette = {
     paper: '#F2EBD9',
     paperDeep: '#E8E0CB',
@@ -40,6 +46,21 @@ export const TABS = [
     { key: 'deleted', label: 'Deleted' },
 ];
 
+// NOT MERGED WITH THE OTHER STATUS RENDERERS — deliberately.
+// Three status renderers exist: this one (`getStatusBadge`/STATUS_TONE),
+// `BriefcaseStatusPill` below, and `NEEDLE_MAP` in BriefcaseCasesTable.
+// They are not interchangeable:
+//   · state coverage differs — 7 states here, 5 in BriefcaseStatusPill,
+//     11 in NEEDLE_MAP (which adds completed/closed/irrelevant/offensive)
+//   · labels differ for the SAME state — pending_review reads "Needs Review"
+//     here and "Pending" in BriefcaseStatusPill
+//   · form differs — bordered mono chip here, borderless pill WITH an icon
+//     in BriefcaseStatusPill
+//   · colour differs — `new` is neutral #ECE6D8 here, blue #23496B there
+// Consolidating them would change both semantics and appearance, so it is
+// out of scope for a visually inert canonicalisation. Unify only after
+// deciding which labels and state coverage are correct.
+//
 // Values + labels drive the status <select>s; colour is applied by
 // getStatusBadge via the shared Overview token palette (no Tailwind colour
 // utilities, no blue/purple/slate).

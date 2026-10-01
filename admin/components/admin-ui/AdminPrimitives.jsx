@@ -91,16 +91,25 @@ export function AdminDataState({ loading, error, empty, emptyTitle = 'No records
     return children;
 }
 
+// `unavailable` may be set for the whole strip (existing behaviour) or per
+// item, so one counter whose source failed does not force every other
+// counter to claim it is unavailable too. A counter never shows a zero it
+// cannot substantiate.
 export function AdminMetricStrip({ items, unavailable = false }) {
     return (
         <dl className="admin-metric-strip">
-            {items.map((item) => (
-                <div key={item.label} data-tone={item.tone || 'neutral'}>
-                    <dt>{item.label}</dt>
-                    <dd>{unavailable ? 'Unavailable' : item.value}</dd>
-                    {item.detail && <span>{item.detail}</span>}
-                </div>
-            ))}
+            {items.map((item) => {
+                const isUnavailable = unavailable || item.unavailable;
+                return (
+                    <div key={item.label} data-tone={isUnavailable ? 'neutral' : (item.tone || 'neutral')}>
+                        <dt>{item.label}</dt>
+                        <dd data-unavailable={isUnavailable ? 'true' : undefined}>
+                            {isUnavailable ? 'Unavailable' : item.value}
+                        </dd>
+                        {item.detail && !isUnavailable && <span>{item.detail}</span>}
+                    </div>
+                );
+            })}
         </dl>
     );
 }

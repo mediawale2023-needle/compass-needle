@@ -78,7 +78,10 @@ describe('Admin dashboard overview', () => {
         render(<DashboardOverview />);
 
         expect((await screen.findAllByText('Data unavailable')).length).toBeGreaterThan(1);
-        expect(screen.getAllByText('Unavailable')).toHaveLength(6);
+        // Five attention counters: Critical, Warning, Review, Accounts, Seats.
+        // With every source failing, each must say so rather than render a
+        // zero it cannot substantiate.
+        expect(screen.getAllByText('Unavailable')).toHaveLength(5);
         expect(screen.queryByText('No active operational alerts')).not.toBeInTheDocument();
     });
 });

@@ -1,38 +1,34 @@
 'use client';
 
 import Link from 'next/link';
+import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
 
 // Locked Overview design — approved visual baseline. Do not redesign.
 // Data comes from GET /api/dashboard/overview (+ /api/dashboard/engagements,
 // /api/news?news_type=local) via lib/dashboard-mappers → mapOverviewResponse.
 
+// Canonical Gen 2 tokens, with this view's own shades kept verbatim. The
+// Overview is an approved locked baseline, so the five values that differ
+// from canonical are preserved exactly rather than snapped to it — folding
+// them in would be a (small) redesign of a locked surface. Resolve under a
+// deliberate visual review, not here.
 const C = {
-    bg: '#F3EEE2',
-    surface: '#FFFEFB',
-    surfaceWarm: '#F8F1E0',
-    paper: '#EEE5D2',
-    border: '#E4DECB',
-    borderStrong: '#C9BFA9',
-    ink: '#211F19',
-    muted: '#5F584B',
-    faint: '#837A69',
-    green: '#2B6E4C',
-    greenDeep: '#245F45',
-    greenSoft: '#E4EBDD',
-    rust: '#BC6A36',
-    rustSoft: '#F0DED0',
-    red: '#A33A32',
-    redSoft: '#F1D8D2',
-    amber: '#C9821C',
-    amberSoft: '#F1E5CF',
-    blue: '#45667C',
+    ...gen2,
+    border: gen2.hair,
+    borderStrong: gen2.hairStrong,
+    red: gen2.err,
+    muted: '#5F584B',      // canonical #6C6858
+    faint: '#837A69',      // canonical #8A8270
+    rustSoft: '#F0DED0',   // canonical #F1DED0
+    amberSoft: '#F1E5CF',  // canonical #F2E6CF
+    redSoft: '#F1D8D2',    // no canonical equivalent
+    blue: '#45667C',       // Overview-only; not a status colour
     blueSoft: '#E2E8EA',
-    neutralSoft: '#ECE6D8',
 };
 
-const SANS = '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif';
-const SERIF = '"Source Serif 4", Georgia, serif';
-const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
+const SANS = gen2Fonts.sans;
+const SERIF = gen2Fonts.serif;
+const MONO = gen2Fonts.mono;
 
 function ToneDot({ tone = 'green' }) {
     const color = tone === 'red' ? C.red : tone === 'rust' ? C.rust : tone === 'amber' ? C.amber : C.green;

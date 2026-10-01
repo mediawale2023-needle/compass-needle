@@ -3,22 +3,19 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { canAccessSansadAI, getAccountLabel } from '@/lib/account';
+import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
 
 // Shared Overview / Case Detail visual system.
+// Canonical Gen 2 tokens. This component names hairlines `border`/
+// `borderStrong`; the values are canonical `hair`/`hairStrong`.
 const C = {
-    bg: '#F3EEE2',
-    surface: '#FFFEFB',
-    border: '#E4DECB',
-    borderStrong: '#C9BFA9',
-    ink: '#211F19',
-    muted: '#6C6858',
-    faint: '#8A8270',
-    green: '#2B6E4C',
-    greenDeep: '#245F45',
+    ...gen2,
+    border: gen2.hair,
+    borderStrong: gen2.hairStrong,
 };
-const SANS = '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif';
-const SERIF = '"Source Serif 4", Georgia, serif';
-const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
+const SANS = gen2Fonts.sans;
+const SERIF = gen2Fonts.serif;
+const MONO = gen2Fonts.mono;
 
 // Local desktop/mobile switch. The previous mobile header set an inline
 // `display: flex` alongside `className="md:hidden"`; the inline style outranks

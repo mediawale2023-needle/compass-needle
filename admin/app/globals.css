@@ -2,36 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
-/* ─── Design Tokens ─── */
+/* ─── Design Tokens ───────────────────────────────────────────────────────
+ * Briefcase Gen 2. These values are the MP Briefcase's canonical tokens
+ * (frontend/lib/briefcase-tokens.js) — Admin and Briefcase must stay in
+ * step, so change them in both or neither.
+ *
+ * Previously this block targeted the Briefcase Gen 1 palette (#f2ebd9 /
+ * #fbf6e7 / #006a4d), which is declared in the Briefcase source but is not
+ * what the Briefcase actually renders. That mismatch is why Admin read as
+ * Briefcase-adjacent rather than Briefcase.
+ *
+ * Geometry is square and separation is a hairline: structural radii are 0
+ * and the only real shadow is the overlay plane.
+ * ------------------------------------------------------------------------ */
 :root {
-    --font-display: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
-    --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
-    --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --font-display: 'Source Serif 4', Georgia, serif;
+    --font-sans: 'Public Sans', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-    --ink: #1a1812;
-    --ink-2: #4b463a;
-    --ink-3: #665f50;
-    --ink-4: #827967;
+    --ink: #211f19;
+    --ink-2: #6c6858;
+    --ink-3: #6c6858;
+    --ink-4: #8a8270;
 
-    --paper: #f2ebd9;
-    --paper-2: #e8e0cb;
-    --surface: #fbf6e7;
-    --surface-2: #f7f0dc;
+    --paper: #f3eee2;
+    --paper-2: #eee5d2;
+    --surface: #fffefb;
+    --surface-2: #f8f1e0;
 
-    --line: #d4c9af;
-    --line-2: #b9ab8f;
+    --line: #e4decb;
+    --line-2: #c9bfa9;
 
-    --sansad-green: #006a4d;
-    --sansad-green-light: #0b7a5b;
-    --sansad-maroon: #8b2e1f;
-    --saffron: #c76a1a;
-    --steel: #23496b;
-    --success-tint: #dfe9e2;
-    --warning-tint: #f3e3c8;
-    --danger-tint: #f1dcd6;
-    --info-tint: #dfe6eb;
+    --sansad-green: #2b6e4c;
+    --sansad-green-light: #2b6e4c;
+    --sansad-green-deep: #245f45;
+    --sansad-green-soft: #e4ebdd;
+    --sansad-maroon: #a33a32;
+    --saffron: #bc6a36;
+    --saffron-soft: #f1ded0;
+    --amber: #c9821c;
+    --amber-soft: #f2e6cf;
+    --steel: #45667c;
+    --success-tint: #e4ebdd;
+    --warning-tint: #f2e6cf;
+    --danger-tint: #f1ded0;
+    --info-tint: #ece6d8;
+    --neutral-soft: #ece6d8;
+    --row-hover: #fcfaf3;
+    --active-tint: #f7f2e7;
 
     --bg: var(--paper);
     --border: var(--line);
@@ -40,23 +60,33 @@
     --text-secondary: var(--ink-3);
     --text-muted: var(--ink-2);
 
-    --chrome: #17372c;
-    --chrome-2: #1f4437;
-    --chrome-line: #426455;
-    --chrome-text: #e7e0cf;
-    --chrome-muted: #b8b29f;
-    --chrome-hi: #fbf6e7;
+    /* Sidebar chrome — the one dark surface, mirroring Briefcase's rail.
+     * These are the values the rail already renders. They came from a
+     * duplicate :root further down this file (removed below) and are kept
+     * verbatim so the sidebar is unchanged by that removal. */
+    --chrome: #063D2D;
+    --chrome-2: #0A4A37;
+    --chrome-line: rgba(242, 235, 217, 0.15);
+    --chrome-text: #E8E0CB;
+    --chrome-muted: #B8B09F;
+    --chrome-hi: #FBF6E7;
+    --chrome-active: rgba(255, 253, 247, 0.055);
+    --chrome-accent: #4e9c72;
 
-    --radius-sm: 5px;
-    --radius-md: 7px;
-    --radius-lg: 10px;
-    --radius-xl: 16px;
+    /* Structural geometry is square. */
+    --radius-sm: 0;
+    --radius-md: 0;
+    --radius-lg: 0;
+    --radius-xl: 0;
+    --radius-skeleton: 2px;
 
-    --shadow-xs: 0 1px 0 rgba(22, 32, 27, 0.04);
-    --shadow-sm: 0 1px 2px rgba(22, 32, 27, 0.06), 0 0 0 1px rgba(22, 32, 27, 0.03);
-    --shadow-md: 0 4px 14px -4px rgba(22, 32, 27, 0.14);
-    --shadow-lg: 0 16px 40px -12px rgba(22, 32, 27, 0.28);
-    --shadow-modal: 0 16px 40px -12px rgba(22, 32, 27, 0.28);
+    /* Surfaces separate with a hairline, not elevation. The only real
+     * shadow belongs to the overlay plane. */
+    --shadow-xs: 0 1px 0 rgba(19, 52, 43, 0.03);
+    --shadow-sm: 0 1px 0 rgba(19, 52, 43, 0.03);
+    --shadow-md: 0 1px 0 rgba(19, 52, 43, 0.03);
+    --shadow-lg: 0 16px 40px -12px rgba(33, 31, 25, 0.28);
+    --shadow-modal: 0 16px 40px -12px rgba(33, 31, 25, 0.28);
 
     --transition: 0.12s cubic-bezier(0.2, 0, 0.13, 1);
     --transition-slow: 0.18s cubic-bezier(0.2, 0, 0.13, 1);
@@ -729,16 +759,20 @@ select.form-input {
 }
 
 /* ─── Badges ─── */
+/* Status chip — Briefcase form: square, 1px hairline, mono uppercase.
+ * Matches getStatusBadge in frontend/components/briefcase/briefcase-shared.jsx. */
 .badge {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 3px 9px;
-    border-radius: 999px;
+    padding: 2px 7px;
+    border: 1px solid var(--line-2);
+    border-radius: 0;
     font-family: var(--font-mono);
-    font-size: 0.68rem;
+    font-size: 9.5px;
     font-weight: 600;
-    letter-spacing: 0.06em;
+    line-height: 1.15;
+    letter-spacing: 0.03em;
     text-transform: uppercase;
     white-space: nowrap;
 }
@@ -1209,72 +1243,108 @@ select.form-input {
     color: var(--text-secondary);
 }
 .data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: #f8faf9; }
+.data-table tr:hover td { background: var(--row-hover); }
 
 
 /* ─── Briefcase-aligned Admin Shell (Phase 1) ─── */
-:root {
-  --ink: #1A1812;
-  --ink-2: #3D392F;
-  --ink-3: #665F50;
-  --paper: #F2EBD9;
-  --paper-2: #E8E0CB;
-  --surface: #FBF6E7;
-  --surface-2: #F7F0DC;
-  --line: rgba(26,24,18,0.14);
-  --line-2: rgba(26,24,18,0.28);
-  --sansad-green: #006A4D;
-  --sansad-green-light: #087C5B;
-  --saffron: #C76A1A;
-  --steel: #23496B;
-  --chrome: #063D2D;
-  --chrome-2: #0A4A37;
-  --chrome-line: rgba(242,235,217,0.15);
-  --chrome-text: #E8E0CB;
-  --chrome-muted: #B8B09F;
-  --chrome-hi: #FBF6E7;
-  --shadow-sm: 0 1px 2px rgba(26,24,18,.05), 0 0 0 1px rgba(26,24,18,.025);
-  --shadow-md: 0 8px 24px -16px rgba(26,24,18,.32);
-}
+/* A duplicate :root stood here redeclaring paper/surface/ink/line/green with
+ * Gen 1 values, after the canonical block at the top of this file. Because it
+ * came later it won, so the Gen 2 palette never took effect: the canvas
+ * rendered #F2EBD9 and every work surface #FBF6E7 — the whole page one shade
+ * of paper. Removed, leaving a single token source. Its sidebar chrome values
+ * were folded into the canonical block, so the rail is unchanged. */
 body { background: var(--paper); color: var(--ink); }
 .admin-shell { background: var(--paper); }
-.admin-main { margin-left: 264px; }
+.admin-main { margin-left: 220px; }
+
+/* Thin persistent top bar. Briefcase has no top bar at all — each page owns
+ * its header — so Admin keeps only what a control plane genuinely needs
+ * that the page header cannot carry: environment, notifications and the
+ * mobile nav trigger. The page title lives in the page, not here. */
 .admin-header {
-  background: rgba(242,235,217,.94);
-  backdrop-filter: blur(14px);
-  padding: 22px 30px 18px;
-  border-bottom-color: var(--line);
+  display: flex; align-items: center; gap: 12px;
+  background: var(--paper);
+  padding: 0 24px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--line);
 }
-.admin-content { padding: 24px 30px 40px; max-width: 1600px; margin: 0 auto; }
+.admin-header-spacer { flex: 1; }
+.admin-env {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-4);
+  border: 1px solid var(--line); border-radius: 0; padding: 3px 8px;
+  background: var(--surface);
+}
+/* Fallback title for pages not yet migrated to AdminPageHeader. Hidden
+ * automatically when the page supplies its own header, which is what
+ * fixed the duplicate "Command Centre" heading. Removed entirely once
+ * every page owns its header. */
+.admin-shell-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.admin-main:has(.admin-page-header) .admin-shell-title { display: none; }
+
+.admin-content { padding: 12px 22px 28px; max-width: 1600px; margin: 0 auto; }
+/* ─── Sidebar ─────────────────────────────────────────────────────────────
+ * Briefcase navigation language: compact single-line rows, mono uppercase
+ * domain headings, a 2px green left rail for the active item over a very
+ * subtle tint. No rounded pills, no gradients, no sublabels, no badges.
+ * The rail should read as quiet. 220px matches the Briefcase rail.
+ * ------------------------------------------------------------------------ */
 .admin-sidebar {
-  position: fixed; inset: 0 auto 0 0; z-index: 50; width: 264px;
+  position: fixed; inset: 0 auto 0 0; z-index: 50; width: 220px;
   display: flex; flex-direction: column; color: var(--chrome-text);
   background: var(--chrome);
   border-right: 1px solid var(--chrome-line);
 }
-.admin-sidebar-brand { display:flex; align-items:center; gap:12px; padding:18px 18px 16px; border-bottom:1px solid var(--chrome-line); }
-.admin-sidebar-brand img { width:46px; height:auto; }
-.admin-brand-name { font-family:var(--font-display); font-size:21px; font-weight:600; color:var(--chrome-hi); line-height:1; }
-.admin-brand-label,.admin-nav-heading { font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.15em; }
-.admin-brand-label { margin-top:5px; font-size:8px; color:var(--chrome-muted); }
-.admin-sidebar-nav { flex:1; overflow-y:auto; padding:12px 10px 18px; }
-.admin-nav-group { margin-bottom:14px; }
-.admin-nav-heading { padding:7px 10px 6px; font-size:8.5px; color:var(--chrome-muted); }
-.admin-nav-item { display:flex; gap:10px; align-items:flex-start; padding:7px 9px; margin:2px 0; border-radius:6px; color:var(--chrome-text); text-decoration:none; border-left:2px solid transparent; transition:background .12s ease,color .12s ease; }
-.admin-nav-item:hover { background:rgba(251,246,231,.07); color:var(--chrome-hi); }
-.admin-nav-item.active { background:rgba(223,233,226,.13); border-left-color:#D6A253; color:var(--chrome-hi); }
-.admin-nav-icon { width:18px; height:18px; display:grid; place-items:center; flex:none; color:#D9D1BF; font-size:14px; }
-.admin-nav-copy { min-width:0; display:flex; flex-direction:column; }
-.admin-nav-label { font-size:12.5px; font-weight:600; line-height:1.2; }
-.admin-nav-sublabel { margin-top:2px; font-size:9.5px; line-height:1.2; color:var(--chrome-muted); }
-.admin-sidebar-footer { border-top:1px solid var(--chrome-line); padding:12px; }
-.admin-user { display:flex; align-items:center; gap:9px; padding:8px; background:rgba(251,246,231,.06); border-radius:7px; }
-.admin-user-avatar { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; background:#0B5A43; color:var(--chrome-hi); font:600 11px var(--font-mono); }
-.admin-user-copy { min-width:0; display:flex; flex-direction:column; }
-.admin-user-copy strong { color:var(--chrome-hi); font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.admin-user-copy small { color:var(--chrome-muted); font:9px var(--font-mono); margin-top:2px; }
-.admin-signout { width:100%; margin-top:7px; border:1px solid var(--chrome-line); border-radius:6px; padding:7px 10px; background:transparent; color:var(--chrome-muted); font:500 11px var(--font-sans); cursor:pointer; }
-.admin-signout:hover { color:var(--chrome-hi); background:rgba(251,246,231,.06); }
+.admin-sidebar-brand { padding:14px 18px 15px; border-bottom:1px solid var(--chrome-line); }
+.admin-sidebar-brand img { width:60px; height:auto; display:block; }
+.admin-brand-name {
+  margin-top:8px; font-family:var(--font-display); font-size:23px; font-weight:600;
+  color:var(--chrome-hi); line-height:.92; letter-spacing:-.03em;
+}
+.admin-brand-label,.admin-nav-heading { font-family:var(--font-mono); text-transform:uppercase; }
+.admin-brand-label { margin-top:8px; font-size:9px; letter-spacing:.18em; color:var(--chrome-muted); }
+.admin-sidebar-nav { flex:1; overflow-y:auto; padding:8px 0 18px; }
+.admin-nav-group { margin-bottom:2px; }
+.admin-nav-heading { padding:12px 18px 4px; font-size:9px; letter-spacing:.14em; color:var(--chrome-muted); }
+
+/* Single-line row. Selection is a 2px rail, never a pill. */
+.admin-nav-item {
+  display:flex; gap:12px; align-items:center; padding:7px 18px;
+  color:var(--chrome-text); text-decoration:none; font-size:12.5px; font-weight:500;
+  line-height:1.2; opacity:.8; border-left:2px solid transparent; margin-left:-1px;
+  border-radius:0; transition:background .15s ease, color .15s ease, opacity .15s ease;
+}
+.admin-nav-item:hover { background:var(--chrome-active); color:var(--chrome-hi); opacity:1; }
+.admin-nav-item.active {
+  background:var(--chrome-active);
+  border-left-color:var(--chrome-accent);
+  color:var(--chrome-hi);
+  font-weight:600;
+  opacity:1;
+}
+.admin-nav-item:focus-visible { outline:2px solid var(--chrome-accent); outline-offset:-2px; }
+.admin-nav-icon { width:14px; height:14px; display:grid; place-items:center; flex:none; color:var(--chrome-muted); }
+.admin-nav-item.active .admin-nav-icon { color:var(--chrome-hi); }
+.admin-nav-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Footer is just the signed-in operator and a way out. */
+.admin-sidebar-footer { border-top:1px solid var(--chrome-line); }
+.admin-user { display:flex; align-items:center; gap:12px; padding:11px 18px; }
+.admin-user-avatar {
+  width:30px; height:30px; border-radius:50%; display:grid; place-items:center; flex:none;
+  background:rgba(255,253,247,.10); color:var(--chrome-hi);
+  font:600 12px var(--font-display);
+}
+.admin-user-copy { min-width:0; display:flex; flex-direction:column; flex:1; }
+.admin-user-copy strong { color:var(--chrome-hi); font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.admin-user-copy small { color:var(--chrome-muted); font:9.5px var(--font-mono); letter-spacing:.08em; margin-top:2px; }
+.admin-signout {
+  flex:none; display:grid; place-items:center; width:28px; height:28px;
+  border:0; border-radius:0; padding:0; background:transparent;
+  color:var(--chrome-text); opacity:.4; cursor:pointer; transition:opacity .15s ease;
+}
+.admin-signout:hover { opacity:.85; }
+.admin-signout:focus-visible { outline:2px solid var(--chrome-accent); outline-offset:2px; opacity:.85; }
 .glass-panel,.stat-card,.mp-card,.admin-domain-card { background:var(--surface); border-color:var(--line); box-shadow:var(--shadow-sm); }
 .btn-primary { background:var(--sansad-green); }
 .form-input { background:var(--surface); border-color:var(--line-2); }
@@ -1282,16 +1352,319 @@ body { background: var(--paper); color: var(--ink); }
 .data-table th { background:var(--surface-2); color:var(--ink-3); }
 .data-table td { border-bottom-color:rgba(26,24,18,.08); }
 .data-table tbody tr:hover td { background:rgba(247,240,220,.65); }
-.badge-green { background:#DFE9E2; color:#024A36; }
-.badge-amber { background:#F4E3CE; color:#8A4B14; }
-.badge-red { background:#F2DAD3; color:#8B2E1F; }
-.badge-blue { background:#DDE5EE; color:#23496B; }
-.admin-mobile-nav-button { display: none; width: 38px; height: 38px; border: 1px solid var(--line-2); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-size: 1rem; cursor: pointer; }
+/* Gen 2 status tones. Colour is reserved for state — blue/slate/purple are
+ * retained only so unmigrated pages keep rendering, and are mapped onto the
+ * neutral tone rather than reintroducing a prohibited hue. */
+.badge-green { background:var(--sansad-green-soft); color:var(--sansad-green-deep); }
+.badge-amber { background:var(--amber-soft); color:#7c5514; }
+.badge-red { background:var(--saffron-soft); color:#8a4a22; }
+.badge-blue,
+.badge-slate,
+.badge-purple { background:var(--neutral-soft); color:var(--ink-2); }
+.admin-mobile-nav-button {
+  display: none; width: 34px; height: 34px;
+  border: 1px solid var(--line-2); border-radius: 0;
+  background: var(--surface); color: var(--ink); cursor: pointer;
+  place-items: center;
+}
 .admin-sidebar-backdrop { display: none; }
 @media (max-width:1024px) {
   .admin-main{margin-left:0;}
+  .admin-header { padding: 0 16px; }
+  .admin-content { padding: 14px 16px 32px; }
   .admin-mobile-nav-button { display: inline-grid; place-items: center; flex: 0 0 auto; }
   .admin-sidebar { display:flex; transform:translateX(-102%); transition:transform .18s ease; box-shadow:var(--shadow-lg); }
   .admin-sidebar[data-open="true"] { transform:translateX(0); }
   .admin-sidebar-backdrop { display:block; position:fixed; inset:0; z-index:49; border:0; background:rgba(26,24,18,.42); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * BRIEFCASE GEN 2 — component layer
+ * ---------------------------------------------------------------------------
+ * Appended as a final override block, matching this file's existing
+ * convention of layering palette alignment at the end. Square geometry,
+ * hairline separation, serif titles, mono for machine facts.
+ *
+ * Several Command Centre classes (.admin-action-queue, .admin-health-grid,
+ * .admin-command-table, .admin-filter-bar …) are referenced by
+ * app/dashboard/page.js but had no styles at all on main — reverting PR #140
+ * removed them. They are defined here for the first time.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Boot state ───────────────────────────────────────────────────────── */
+.admin-boot { min-height:100vh; display:grid; place-content:center; justify-items:center; gap:12px; background:var(--paper); }
+.admin-boot-mark { width:26px; height:26px; border:1px solid var(--line-2); border-top-color:var(--sansad-green); border-radius:50%; animation:adminSpin .8s linear infinite; }
+.admin-boot p { margin:0; font:12.5px var(--font-sans); color:var(--ink-3); }
+@keyframes adminSpin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .admin-boot-mark { animation:none; } }
+
+/* ── Page header — exactly one title per page ─────────────────────────── */
+.admin-page-header {
+    display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+    margin:0 0 10px; padding:0 0 9px; border-bottom:1px solid var(--line); background:none;
+}
+.admin-page-heading { min-width:0; }
+.admin-context-line { font:500 9.5px/1 var(--font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ink-4); margin-bottom:4px; }
+.admin-page-header h2 { margin:0; font-family:var(--font-display); font-size:18px; font-weight:600; letter-spacing:-.01em; line-height:1.2; color:var(--ink); }
+.admin-page-header p { margin:2px 0 0; max-width:74ch; font:12.5px/1.4 var(--font-sans); color:var(--ink-3); }
+.admin-page-actions { display:flex; align-items:center; gap:8px; flex:none; }
+
+/* Command Centre masthead: the title block and the counter row are one
+ * continuous work surface divided by a hairline, not two floating cards. */
+.admin-command-header {
+    border:1px solid var(--line); background:var(--surface);
+    box-shadow:var(--shadow-xs); margin-bottom:10px;
+}
+.admin-command-header .admin-page-header { margin:0; padding:10px 12px; }
+.admin-command-header .admin-metric-strip { border:0; box-shadow:none; margin:0; }
+
+/* ── Panels — square work surfaces, not cards ─────────────────────────── */
+.admin-panel {
+    border:1px solid var(--line); border-radius:0; background:var(--surface);
+    box-shadow:var(--shadow-xs); padding:0; margin-bottom:10px;
+}
+.admin-panel-header {
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    margin:0; padding:9px 12px; border-bottom:1px solid var(--line);
+}
+.admin-panel-header h3 { margin:0; font-family:var(--font-display); font-size:14px; font-weight:600; color:var(--ink); }
+.admin-panel-header p { margin:2px 0 0; max-width:74ch; font:11.5px/1.35 var(--font-sans); color:var(--ink-3); }
+.admin-panel-actions { display:flex; gap:8px; flex:none; }
+.admin-panel > .admin-state-stack,
+.admin-panel > .admin-empty-state,
+.admin-panel > .admin-notice { margin:10px 12px; }
+
+/* ── Secondary (domain) nav ───────────────────────────────────────────── */
+.admin-section-nav {
+    display:flex; flex-wrap:wrap; gap:0; margin:0 0 14px;
+    border-bottom:1px solid var(--line); background:none;
+}
+.admin-section-nav a {
+    padding:7px 12px; border:0; border-bottom:2px solid transparent; border-radius:0;
+    font:500 12.5px var(--font-sans); color:var(--ink-3); text-decoration:none; background:none;
+}
+.admin-section-nav a:hover { color:var(--ink); background:var(--active-tint); }
+.admin-section-nav a[aria-current="page"] { color:var(--ink); font-weight:600; border-bottom-color:var(--sansad-green); background:none; }
+
+/* ── Attention strip — one hairline row of counters, never KPI cards ──── */
+.admin-metric-strip {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(0,1fr));
+    border:1px solid var(--line); border-radius:0; background:var(--surface);
+    box-shadow:var(--shadow-xs); margin-bottom:12px;
+}
+.admin-metric-strip > div { padding:8px 12px; border-right:1px solid var(--line); }
+.admin-metric-strip > div:last-child { border-right:0; }
+.admin-metric-strip dt { font:500 9.5px/1 var(--font-mono); letter-spacing:.12em; text-transform:uppercase; color:var(--ink-4); }
+.admin-metric-strip dd { margin:4px 0 0; font:600 18px/1 var(--font-mono); font-variant-numeric:tabular-nums; color:var(--ink); }
+.admin-metric-strip span { display:block; margin-top:4px; font:11px var(--font-sans); color:var(--ink-3); }
+.admin-metric-strip [data-tone="danger"] dd { color:var(--sansad-maroon); }
+.admin-metric-strip [data-tone="warning"] dd { color:var(--amber); }
+.admin-metric-strip [data-tone="success"] dd { color:var(--sansad-green); }
+
+/* ── Needs attention now — operational rows with a severity rail ──────── */
+.admin-action-queue { display:flex; flex-direction:column; gap:0; border:0; background:transparent; }
+.admin-action-row {
+    display:flex; align-items:center; gap:12px; padding:8px 12px;
+    border-top:1px solid var(--line); border-left:2px solid transparent;
+    text-decoration:none; color:inherit; transition:background .12s ease;
+}
+.admin-action-queue > .admin-action-row:first-child { border-top:0; }
+.admin-action-row:hover { background:var(--row-hover); }
+.admin-action-row:focus-visible { outline:2px solid var(--sansad-green); outline-offset:-2px; }
+.admin-action-row[data-severity="critical"],
+.admin-action-row[data-severity="error"] { border-left-color:var(--sansad-maroon); }
+.admin-action-row[data-severity="warning"] { border-left-color:var(--amber); }
+.admin-action-row[data-severity="info"] { border-left-color:var(--line-2); }
+.admin-action-severity {
+    flex:none; width:68px; font:600 9.5px/1.15 var(--font-mono); letter-spacing:.06em;
+    text-transform:uppercase; color:var(--ink-3);
+}
+.admin-action-row[data-severity="critical"] .admin-action-severity,
+.admin-action-row[data-severity="error"] .admin-action-severity { color:var(--sansad-maroon); }
+.admin-action-row[data-severity="warning"] .admin-action-severity { color:#7c5514; }
+.admin-action-copy { flex:1; min-width:0; display:flex; flex-direction:column; }
+.admin-action-copy strong { font:600 12.5px/1.25 var(--font-sans); color:var(--ink); }
+/* Overrides the single-line ellipsis declared earlier in this file: an
+ * alert description that cannot be read is not an alert. */
+.admin-action-copy small {
+    margin-top:1px; font:11.5px/1.35 var(--font-sans); color:var(--ink-3);
+    white-space:normal; overflow:hidden; text-overflow:clip;
+    display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical;
+}
+.admin-action-scope { flex:none; font:10px var(--font-mono); letter-spacing:.04em; color:var(--ink-4); }
+.admin-action-arrow { flex:none; color:var(--ink-4); font-size:13px; }
+
+/* ── Platform readiness ───────────────────────────────────────────────── */
+.admin-command-grid {
+    display:grid; grid-template-columns:1fr 1fr;
+    border:1px solid var(--line); background:var(--surface);
+    box-shadow:var(--shadow-xs); margin-bottom:10px;
+}
+.admin-command-grid > .admin-panel { margin:0; border:0; box-shadow:none; background:transparent; }
+.admin-command-grid > .admin-panel + .admin-panel { border-left:1px solid var(--line); }
+.admin-health-grid { display:flex; flex-direction:column; }
+.admin-health-service {
+    display:flex; align-items:center; gap:10px; padding:8px 12px;
+    border:0; border-top:1px solid var(--line); border-radius:0;
+    text-decoration:none; color:inherit;
+}
+.admin-health-service:hover { border-color:var(--line); }
+.admin-health-grid > .admin-health-service:first-child { border-top:0; }
+.admin-health-service:hover { background:var(--row-hover); }
+.admin-health-service:focus-visible { outline:2px solid var(--sansad-green); outline-offset:-2px; }
+.admin-health-service > span:nth-child(2) { flex:1; min-width:0; display:flex; flex-direction:column; }
+.admin-health-service strong { font:600 12.5px var(--font-sans); color:var(--ink); }
+.admin-health-service small { margin-top:2px; font:11px var(--font-sans); color:var(--ink-3); }
+.admin-health-service > span:last-child { color:var(--ink-4); }
+.admin-health-dot { width:8px; height:8px; border-radius:50%; flex:none; background:var(--line-2); }
+.admin-health-dot[data-status="green"] { background:var(--sansad-green); }
+.admin-health-dot[data-status="amber"] { background:var(--amber); }
+.admin-health-dot[data-status="red"] { background:var(--sansad-maroon); }
+
+/* ── Platform totals — reference figures, not a KPI wall ──────────────── */
+.admin-activity-list { margin:0; display:flex; flex-direction:column; }
+.admin-activity-list > div {
+    display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    padding:6px 12px; border-bottom:0; border-top:1px solid var(--line);
+}
+.admin-activity-list > div:first-child { border-top:0; }
+.admin-activity-list dt { font:12.5px var(--font-sans); color:var(--ink-3); }
+.admin-activity-list dd { margin:0; font:600 13px var(--font-mono); font-variant-numeric:tabular-nums; color:var(--ink); }
+
+/* ── Filter bar ───────────────────────────────────────────────────────── */
+.admin-filter-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:8px; margin:0; padding:8px 12px; border-bottom:1px solid var(--line); }
+.admin-search-field { flex:1; min-width:180px; display:block; }
+.admin-filter-pills { display:flex; gap:0; border:1px solid var(--line-2); }
+.admin-filter-pills button {
+    padding:5px 10px; border:0; border-right:1px solid var(--line); border-radius:0;
+    background:var(--surface); color:var(--ink-3);
+    font:500 11.5px var(--font-sans); cursor:pointer;
+}
+.admin-filter-pills button:last-child { border-right:0; }
+.admin-filter-pills button[aria-pressed="true"] { background:var(--active-tint); color:var(--ink); font-weight:600; }
+.admin-filter-pills button:focus-visible { outline:2px solid var(--sansad-green); outline-offset:-2px; }
+
+/* ── Tables ───────────────────────────────────────────────────────────── */
+.admin-table-region { border-radius:0; }
+.data-table { width:100%; border-collapse:collapse; }
+.data-table th {
+    padding:6px 12px; text-align:left; border-bottom:1px solid var(--line);
+    font:600 9.5px var(--font-mono); letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ink-4); white-space:nowrap; background:var(--surface);
+}
+.data-table td { padding:7px 12px; border-bottom:1px solid var(--line); font:12.5px/1.35 var(--font-sans); color:var(--ink); vertical-align:top; }
+.data-table tbody tr:last-child td { border-bottom:0; }
+.data-table tbody tr:hover { background:var(--row-hover); }
+.data-table td small { display:block; margin-top:1px; font:10.5px/1.3 var(--font-mono); color:var(--ink-4); }
+.data-table td strong { font-weight:600; }
+.data-table a { color:var(--sansad-green-deep); text-decoration:none; font-weight:600; }
+.data-table a:hover { text-decoration:underline; }
+.cn-data { font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+.btn-primary, .btn-secondary {
+    display:inline-flex; align-items:center; gap:6px; padding:6px 12px;
+    border-radius:0; font:600 12px var(--font-sans); cursor:pointer;
+    text-decoration:none; transition:background .12s ease, border-color .12s ease;
+}
+.btn-primary { border:1px solid var(--sansad-green-deep); background:var(--sansad-green); color:#fffefb; }
+.btn-primary:hover:not(:disabled) { background:var(--sansad-green-deep); }
+.btn-secondary { border:1px solid var(--line-2); background:var(--surface); color:var(--ink); }
+.btn-secondary:hover:not(:disabled) { background:var(--active-tint); }
+.btn-primary:focus-visible, .btn-secondary:focus-visible { outline:2px solid var(--sansad-green); outline-offset:2px; }
+.form-input {
+    width:100%; padding:6px 10px; border:1px solid var(--line-2); border-radius:0;
+    background:var(--surface); color:var(--ink); font:12.5px var(--font-sans);
+}
+.form-input:focus { outline:none; border-color:var(--sansad-green); }
+
+/* ── States ───────────────────────────────────────────────────────────── */
+.admin-skeleton-row { height:34px; border-radius:var(--radius-skeleton); background:var(--line); opacity:.45; }
+.admin-empty-state { padding:28px 16px; text-align:center; }
+.admin-empty-state h3 { margin:0; font-family:var(--font-display); font-size:14px; font-weight:600; color:var(--ink); }
+.admin-empty-state p { margin:5px 0 0; font:12.5px var(--font-sans); color:var(--ink-3); }
+.admin-notice { border-radius:0; }
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width:1100px) {
+    .admin-command-grid { grid-template-columns:1fr; }
+    /* Stacked, so the seam between the two panels runs horizontally. */
+    .admin-command-grid > .admin-panel + .admin-panel { border-left:0; border-top:1px solid var(--line); }
+}
+@media (max-width:640px) {
+    .admin-metric-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .admin-metric-strip > div { border-bottom:1px solid var(--line); }
+    .admin-metric-strip > div:nth-child(2n) { border-right:0; }
+    /* An odd final counter spans the row rather than sitting orphaned. */
+    .admin-metric-strip > div:nth-child(odd):last-child { grid-column:1 / -1; }
+    /* A part-filled final row must not leave a hairline hanging in space. */
+    .admin-metric-strip > div:last-child { border-right:0; border-bottom:0; }
+}
+@media (max-width:760px) {
+    /* Account readiness becomes a compact record per account rather than six
+     * vertically labelled fields. The table markup is unchanged — the cells
+     * are placed onto a small grid, so each account reads as
+     *     Name                       [STAGE]
+     *     Seat · type
+     *     Profile 82%          [WHATSAPP]
+     *     Next action →
+     * Labels are dropped except for Profile, where a bare percentage would
+     * be ambiguous. Dense operational tables elsewhere keep their scroll
+     * region rather than becoming cards. */
+    .admin-command-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+    .admin-command-table, .admin-command-table tbody { display:block; width:100%; }
+    .admin-command-table tr {
+        display:grid; grid-template-columns:1fr auto; column-gap:10px; row-gap:2px;
+        padding:9px 12px; border-bottom:1px solid var(--line);
+    }
+    .admin-command-table tr:last-child { border-bottom:0; }
+    .admin-command-table td { display:block; border:0; padding:0; min-width:0; }
+    .admin-command-table td::before { display:none; }
+    .admin-command-table td:nth-child(1) { grid-column:1; grid-row:1; }          /* account  */
+    .admin-command-table td:nth-child(3) { grid-column:2; grid-row:1; justify-self:end; }  /* stage */
+    .admin-command-table td:nth-child(2) { grid-column:1 / -1; grid-row:2; }     /* seat     */
+    .admin-command-table td:nth-child(4) { grid-column:1; grid-row:3; align-self:center; }  /* profile */
+    .admin-command-table td:nth-child(5) { grid-column:2; grid-row:3; justify-self:end; }   /* whatsapp */
+    .admin-command-table td:nth-child(6) { grid-column:1 / -1; grid-row:4; margin-top:3px; }/* action  */
+    .admin-command-table td:nth-child(4)::before {
+        display:inline; content:'Profile'; margin-right:6px;
+        font:600 9.5px var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4);
+    }
+    .admin-command-table td:nth-child(2) small { display:inline; margin-left:6px; }
+
+    /* An alert the operator cannot read is not an alert: allow two lines.
+     * The row becomes a small grid so the account/platform scope keeps its
+     * place on a second line instead of being dropped or squeezed out. */
+    .admin-action-copy small { -webkit-line-clamp:2; }
+    .admin-action-row {
+        display:grid; grid-template-columns:auto 1fr auto;
+        column-gap:10px; row-gap:2px; align-items:start;
+    }
+    .admin-action-severity { grid-column:1; grid-row:1; width:auto; padding-top:1px; }
+    .admin-action-copy { grid-column:2; grid-row:1; }
+    .admin-action-arrow { grid-column:3; grid-row:1; align-self:center; }
+    .admin-action-scope { display:block; grid-column:2; grid-row:2; text-align:left; }
+
+    /* Search takes the full width before the filter pills, rather than
+     * being squeezed to its min-width and floating mid-row. */
+    .admin-filter-bar { flex-direction:column; align-items:stretch; }
+    .admin-filter-pills { align-self:flex-start; }
+
+    /* An earlier breakpoint turns these headers into columns; the compact
+     * row styling above centres on the cross axis, which then reads as
+     * centred text. Pin them back to the leading edge. */
+    .admin-page-header, .admin-panel-header { align-items:flex-start; }
+    .admin-page-actions > *, .admin-panel-actions > * { flex:0 0 auto; }
+}
+
+/* A counter with no substantiating data states so plainly, at text scale
+ * rather than figure scale so it never reads as a value. */
+.admin-metric-strip dd[data-unavailable="true"] {
+    font:500 11.5px/1.45 var(--font-sans); color:var(--ink-4); letter-spacing:0;
+}
+/* Screen-reader-only utility (Tailwind provides sr-only, kept explicit for
+ * the non-Tailwind markup in this app). */
+.sr-only {
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
 }

@@ -2,39 +2,23 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { formatBriefcaseAge } from '@/components/briefcase/briefcase-shared';
+import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
 
 // ─── Shared Overview / Case Detail visual system ─────────────────────
+// Canonical Gen 2 tokens, plus the few table-local shades that have no
+// other consumer. Every value previously declared here matched canonical
+// exactly, so this is a visually inert change.
 const C = {
-    surface:    '#FFFEFB',
-    bg:         '#F3EEE2',
-    hair:       '#E4DECB',
-    hairStrong: '#C9BFA9',
-    hairSoft:   '#DDD6C5',
-    ink:        '#211F19',
-    muted:      '#6C6858',
-    faint:      '#8A8270',
-    green:      '#2B6E4C',
-    greenDeep:  '#245F45',
-    greenSoft:  '#E4EBDD',
-    amber:      '#C9821C',
-    amberInk:   '#7C5514',
-    amberSoft:  '#F2E6CF',
-    rust:       '#BC6A36',
-    rustInk:    '#8A4A22',
-    rustSoft:   '#F1DED0',
-    err:        '#A33A32',
-    errAccent:  '#A33A32',
-    neutralSoft:'#ECE6D8',
-    rowHover:   '#FCFAF3',
-    activeTint: '#F7F2E7',
+    ...gen2,
+    errAccent:  gen2.err,
     catBg:      '#F8F4EA',
     tintGreen:  'rgba(43,110,76,.08)',
     tintAmber:  'rgba(188,106,54,.12)',
     tintDanger: 'rgba(163,58,50,.10)',
 };
 
-const SANS = '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif';
-const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
+const SANS = gen2Fonts.sans;
+const MONO = gen2Fonts.mono;
 
 // checkbox · CASE/THREAD · MESSAGE (widest scan column) · ISSUE/LOCATION ·
 // STATUS (government primary + short divider + Needle pill & since) ·

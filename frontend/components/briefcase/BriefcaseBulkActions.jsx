@@ -1,16 +1,13 @@
 'use client';
 
 import { STATUS_OPTIONS } from '@/components/briefcase/briefcase-shared';
+import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
 
 // Compact bulk-action bar. Only genuinely-wired actions are exposed:
 // Assign owner, Set status, Delete (with confirmation, in the hook).
-const C = {
-    greenDeep: '#245F45',
-    rust: '#BC6A36',
-    cream: '#F3EEE2',
-};
-const SANS = '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif';
-const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
+const C = { ...gen2, cream: gen2.bg };
+const SANS = gen2Fonts.sans;
+const MONO = gen2Fonts.mono;
 
 export default function BriefcaseBulkActions({ selectedCount, onStatusChange, onAssign, onDelete, onClear, staff }) {
     if (selectedCount === 0) return null;

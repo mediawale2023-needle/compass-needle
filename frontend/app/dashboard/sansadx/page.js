@@ -17,9 +17,12 @@ import BriefcaseNewCasesNotice from '@/components/briefcase/BriefcaseNewCasesNot
 import BriefcasePagination from '@/components/briefcase/BriefcasePagination';
 import BriefcaseTriageStrip from '@/components/briefcase/BriefcaseTriageStrip';
 import useBriefcaseCases from '@/hooks/useBriefcaseCases';
+import { gen2 } from '@/lib/briefcase-tokens';
 
 // Shared Overview / Case Detail visual system.
-const P = { hair: '#E4DECB', paper: '#FFFEFB' };
+// `paper` here is the work-surface fill (canonical `surface`), not the
+// canonical `paper` shade.
+const P = { hair: gen2.hair, paper: gen2.surface };
 
 function BriefcaseInner() {
     const { user } = useAuth();

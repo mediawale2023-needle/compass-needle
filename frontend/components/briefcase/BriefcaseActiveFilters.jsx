@@ -3,17 +3,10 @@
 // Renders ONLY when a real advanced filter (category / location / assembly) is
 // active. The status tab is already shown as an active tab and is not echoed
 // here. Count reflects the filtered total, not the current page size.
-const C = {
-    surface: '#FFFEFB',
-    surfaceWarm: '#F8F1E0',
-    border: '#E4DECB',
-    borderStrong: '#C9BFA9',
-    ink: '#211F19',
-    muted: '#6C6858',
-    faint: '#8A8270',
-    greenDeep: '#245F45',
-};
-const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
+import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
+
+const C = { ...gen2, border: gen2.hair, borderStrong: gen2.hairStrong };
+const MONO = gen2Fonts.mono;
 
 export default function BriefcaseActiveFilters({
     assemblyFilter,
