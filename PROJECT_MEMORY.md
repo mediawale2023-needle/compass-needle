@@ -18,8 +18,6 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 
 ## Architecture Memory
 
-- The Admin redesign visual contract is documented in `PRODUCT.md` and `DESIGN.md`: Admin is the tenant-safe operational control plane for Compass Needle, using an independent semantic-token implementation of the Briefcase paper/ink/green language. Operational surfaces must distinguish unavailable data from empty/healthy states, use direct domain navigation with persistent local tabs, and preserve account/seat/message/job context without inventing backend capabilities.
-
 - Case Detail refinement (2026-09-18): `/cases/{id}/notify/send` sends an authorised, policy-validated citizen reply only; it must never resolve a complaint or change lifecycle timestamps. Resolution remains an explicit `/status` action. The Case Detail caller passes `keepWorkspaceOpen` to the queue hook so a resolved row can leave the active queue while its detail workspace remains open. Government and Needle lifecycles remain independent.
 - Case Detail uses the approved parchment `#F4F0E7`, warm surface `#FFFDF8`, charcoal `#24251F`, forest green `#234F3A`, and amber `#8A5C17` palette. The 328px rail and citizen-first hierarchy remain. Reply drafts live in a separate accessible dialog; internal-note saves must not overwrite citizen responses. Persist drafts in input handlers keyed to the selected complaint, never in a switch-triggered effect that can save the previous complaint's text.
 
@@ -247,11 +245,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 
 ## Admin IA Memory
 
-- Canonical Admin navigation vocabulary follows the shipped sidebar: `Overview`, `Customers`, `Constituencies`, `Case Operations`, `Messaging & Sync`, `Platform Operations`, and `Administration`. Route ownership remains domain-first beneath those groups; older labels such as `System` are implementation paths, not user-facing information architecture.
-- Admin authority and audience must remain explicit: customer staff accounts are tenant-scoped, restricted editors have limited platform-level visibility, and active announcements are platform-wide across all customer tenants.
-- Admin operational retries must stay conservative: expose retry actions only for confirmed failed WhatsApp ledger rows. `received`, `processing`, `pending`, and `retrying` can still be in flight and should remain investigation states unless backend claim/idempotency guarantees are strengthened and reviewed.
-- Admin resource failures must be represented independently. A failed health, diagnostic, or queue request must render `Data unavailable` for that source and must never be converted into a zero count, `healthy`, or `all covered` state.
-- The admin frontend should now be treated as domain-first rather than tool-first. Canonical capability routes include Accounts, Seats/Shared Geography/Seat Maps, Cases & Intelligence, Staff & Access, and Platform Operations; group labels follow the shipped sidebar vocabulary above.
+- The admin frontend should now be treated as domain-first rather than tool-first. Canonical top-level domains are `Overview`, `Accounts`, `Seats`, `Shared Geography`, `Seat Maps`, `Cases & Intelligence`, `Staff & Access`, and `System`.
 - Shared admin implementations should live under `admin/components/admin-domains/...`, with route ownership flowing from those modules into the new domain routes. Old tool-shaped routes are compatibility entry points only and should redirect into the new domains rather than owning page logic themselves.
 - The `Legacy Tools` sidebar section should stay removed unless a future migration truly requires a temporary operator escape hatch. Once a route is covered by a domain route plus redirect, it should no longer be promoted in primary navigation.
 - Domain landing pages should read like the final product structure, not like transitional migration scaffolding. Prefer durable workflow copy (`account lifecycle`, `seat readiness`, `shared geography`, `operational intelligence`, `platform control`) over phrases such as `legacy`, `still live underneath`, or `during migration`.
