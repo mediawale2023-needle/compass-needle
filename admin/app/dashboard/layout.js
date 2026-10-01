@@ -57,14 +57,14 @@ export default function DashboardLayout({ children }) {
             <main className="admin-main">
                 <div className="admin-header">
                     <button type="button" className="admin-mobile-nav-button" aria-label="Open navigation" aria-expanded={navigationOpen} onClick={() => setNavigationOpen(true)}>☰</button>
-                    <div>
+                    {pathname === '/dashboard' ? <div className="admin-header-context"><span className="cn-eyebrow">Needle Admin</span><span className="cn-meta">Platform operations</span></div> : <div>
                         <h1 className="cn-h1">{meta.title}</h1>
                         {meta.desc && (
                             <p className="cn-meta" style={{ margin: '5px 0 0', maxWidth: 620 }}>
                                 {meta.desc}
                             </p>
                         )}
-                    </div>
+                    </div>}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                         <NotificationTray />
                         <div className="cn-data" style={{
