@@ -301,8 +301,6 @@ function DataDrawer({ tenant, onClose, onToast }) {
                             </button>
                         )}
                         <button
-                            ref={closeButtonRef}
-                            aria-label="Close Parliament records"
                             onClick={triggerBackfill}
                             disabled={backfilling}
                             style={{
@@ -314,6 +312,8 @@ function DataDrawer({ tenant, onClose, onToast }) {
                             {backfilling ? 'Starting…' : '↓ Backfill Data'}
                         </button>
                         <button
+                            ref={closeButtonRef}
+                            aria-label="Close Parliament records"
                             onClick={onClose}
                             style={{
                                 width: 32, height: 32, borderRadius: 8,
