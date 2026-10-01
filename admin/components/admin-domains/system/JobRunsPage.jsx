@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { apiGet } from '@/lib/api';
+import { AdminDataState, AdminMetricStrip, AdminPageHeader, AdminPanel, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
 
-function timeAgo(isoStr) {
-    if (!isoStr) return '—';
-    const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+function timeAgo(value) {
+    if (!value) return '—';
+    const diff = (Date.now() - new Date(value).getTime()) / 1000;
     if (diff < 60) return 'just now';
     if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`;
@@ -14,11 +14,13 @@ function timeAgo(isoStr) {
 }
 
 function statusBadgeClass(status) {
-    if (status === 'success') return 'badge badge-green';
-    if (status === 'failed') return 'badge badge-red';
-    if (status === 'running') return 'badge badge-amber';
-    if (status === 'queued') return 'badge badge-slate';
-    return 'badge badge-slate';
+    return status === 'success' ? 'badge badge-green' : status === 'failed' ? 'badge badge-red' : status === 'running' ? 'badge badge-amber' : 'badge badge-slate';
+}
+
+function safeSummary(value) {
+    if (!value) return '—';
+    if (typeof value === 'string') return value;
+    return Object.entries(value).map(([key, item]) => `${key}: ${String(item)}`).join(' · ');
 }
 
 export default function JobRunsPage() {
@@ -28,129 +30,31 @@ export default function JobRunsPage() {
     const [error, setError] = useState('');
 
     const load = async (nextStatus = status) => {
-        setLoading(true);
-        setError('');
+        setLoading(true); setError('');
         try {
             const suffix = nextStatus ? `?status=${encodeURIComponent(nextStatus)}` : '';
-            const result = await apiGet(`/api/admin/jobs${suffix}`);
-            setData(result);
-        } catch (err) {
-            setError(err.message || 'Failed to load jobs');
-        } finally {
-            setLoading(false);
-        }
+            setData(await apiGet(`/api/admin/jobs${suffix}`));
+        } catch (err) { setError(err.message || 'Job history could not be loaded.'); }
+        finally { setLoading(false); }
     };
 
-    useEffect(() => {
-        load('');
-    }, []);
-
+    useEffect(() => { load(''); }, []);
     const items = data?.items || [];
     const summary = data?.summary || {};
-    const cards = useMemo(() => ([
-        { label: 'Running', value: summary.running || 0, className: 'badge badge-amber' },
-        { label: 'Failed', value: summary.failed || 0, className: 'badge badge-red' },
-        { label: 'Queued', value: summary.queued || 0, className: 'badge badge-slate' },
-        { label: 'Succeeded', value: summary.success || 0, className: 'badge badge-green' },
+    const metrics = useMemo(() => ([
+        { label: 'Running', value: summary.running || 0, tone: 'warning' }, { label: 'Failed', value: summary.failed || 0, tone: 'danger' },
+        { label: 'Queued', value: summary.queued || 0 }, { label: 'Succeeded', value: summary.success || 0, tone: 'success' },
     ]), [summary]);
 
-    return (
-        <div className="space-y-6">
-            <div className="admin-domain-hero">
-                <div className="cn-eyebrow">Platform Control</div>
-                <h2 className="cn-h1 mt-3">Job runs</h2>
-                <p className="cn-body mt-3 max-w-3xl text-sm">
-                    One shared history for background and admin-triggered operations. Use this to review failures, long-running work, and what changed.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-3">
-                    <Link href="/dashboard/system" className="btn-secondary" style={{ textDecoration: 'none' }}>
-                        Back to system
-                    </Link>
-                    <button className="btn-primary" onClick={() => load()} disabled={loading}>
-                        {loading ? 'Refreshing…' : 'Refresh'}
-                    </button>
-                </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-4">
-                {cards.map((card) => (
-                    <div key={card.label} className="glass-panel">
-                        <div className="cn-meta text-xs">{card.label}</div>
-                        <div className="mt-3 flex items-center gap-3">
-                            <span className={card.className}>{card.label}</span>
-                            <div className="cn-h2">{card.value}</div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            <div className="glass-panel">
-                <div className="mb-4 flex items-center justify-between gap-4">
-                    <div>
-                        <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Recent operations</h3>
-                        <p className="cn-body mt-2 text-sm">
-                            This first slice covers seat-map generation, boundary import, parliament resolution, and parliament backfill.
-                        </p>
-                    </div>
-                    <select
-                        className="form-select"
-                        value={status}
-                        onChange={(e) => {
-                            setStatus(e.target.value);
-                            load(e.target.value);
-                        }}
-                        style={{ minWidth: 170 }}
-                    >
-                        <option value="">All statuses</option>
-                        <option value="running">Running</option>
-                        <option value="failed">Failed</option>
-                        <option value="queued">Queued</option>
-                        <option value="success">Succeeded</option>
-                    </select>
-                </div>
-
-                {error && <div className="toast toast-error" style={{ position: 'relative', marginBottom: 12 }}>{error}</div>}
-
-                {items.length === 0 && !loading ? (
-                    <p className="cn-body text-sm">No job runs found for the current filter.</p>
-                ) : (
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Job</th>
-                                <th>Scope</th>
-                                <th>Status</th>
-                                <th>Triggered by</th>
-                                <th>Started</th>
-                                <th>Finished</th>
-                                <th>Summary</th>
-                                <th>Error</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {items.map((item) => (
-                                <tr key={item.job_key}>
-                                    <td>
-                                        <div>{item.job_type}</div>
-                                        <div className="cn-meta text-xs">{item.job_key}</div>
-                                    </td>
-                                    <td>{item.scope_type ? `${item.scope_type}:${item.scope_id || '—'}` : 'global'}</td>
-                                    <td><span className={statusBadgeClass(item.status)}>{item.status}</span></td>
-                                    <td>{item.triggered_by || 'system'}</td>
-                                    <td>{timeAgo(item.started_at || item.created_at)}</td>
-                                    <td>{item.finished_at ? timeAgo(item.finished_at) : '—'}</td>
-                                    <td style={{ maxWidth: 260 }}>
-                                        <div className="cn-body text-sm">{item.summary_json ? JSON.stringify(item.summary_json) : '—'}</div>
-                                    </td>
-                                    <td style={{ maxWidth: 320 }}>
-                                        <div className="cn-body text-sm">{item.error_text || '—'}</div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-            </div>
-        </div>
-    );
+    return <div className="space-y-6">
+        <AdminPageHeader context="Platform Operations / Jobs" title="Job runs" description="Trace background and administrator-triggered operations without exposing credentials or raw payloads." actions={<button type="button" className="btn-secondary" onClick={() => load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>} />
+        <AdminMetricStrip unavailable={Boolean(error)} items={metrics} />
+        <AdminPanel title="Recent operations" description="Seat maps, boundary imports, Parliament resolution, and Parliament backfill share this history." actions={<label className="admin-inline-filter"><span>Status</span><select className="form-select" value={status} onChange={(event) => { setStatus(event.target.value); load(event.target.value); }}><option value="">All statuses</option><option value="running">Running</option><option value="failed">Failed</option><option value="queued">Queued</option><option value="success">Succeeded</option></select></label>}>
+            <AdminDataState loading={loading} error={error} empty={!loading && !error && items.length === 0} emptyTitle="No job runs found" emptyDescription="Change the status filter or wait for an operation to run." onRetry={() => load()}>
+                <AdminTableWrap label="Job run history"><table className="data-table"><thead><tr><th>Job</th><th>Scope</th><th>Status</th><th>Triggered by</th><th>Started</th><th>Finished</th><th>Summary</th><th>Error</th></tr></thead>
+                    <tbody>{items.map((item) => <tr key={item.job_key}><td><strong>{item.job_type}</strong><small>{item.job_key}</small></td><td>{item.scope_type ? `${item.scope_type}:${item.scope_id || '—'}` : 'global'}</td><td><span className={statusBadgeClass(item.status)}>{item.status}</span></td><td>{item.triggered_by || 'system'}</td><td>{timeAgo(item.started_at || item.created_at)}</td><td>{timeAgo(item.finished_at)}</td><td className="admin-cell-wrap">{safeSummary(item.summary_json)}</td><td className="admin-cell-wrap">{item.error_text || '—'}</td></tr>)}</tbody>
+                </table></AdminTableWrap>
+            </AdminDataState>
+        </AdminPanel>
+    </div>;
 }

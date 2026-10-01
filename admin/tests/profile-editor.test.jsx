@@ -83,7 +83,7 @@ describe('Admin profile editor ownership boundaries', () => {
 
         expect((await screen.findAllByText('Aspirant A')).length).toBeGreaterThan(0);
 
-        expect(screen.getByRole('link', { name: 'Open WhatsApp settings' }))
+        expect(await screen.findByRole('link', { name: 'Open WhatsApp settings' }))
             .toHaveAttribute('href', '/dashboard/mps/7#whatsapp');
         expect(screen.getByRole('link', { name: 'Open geography workspace' }))
             .toHaveAttribute('href', '/dashboard/shared-geography/workspace?tenant_id=7');

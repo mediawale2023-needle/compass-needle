@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiGet, apiPost } from '@/lib/api';
+import { AdminDataState, AdminNotice, AdminPageHeader, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
 
 function timeAgo(isoStr) {
     if (!isoStr) return '—';
@@ -42,18 +43,22 @@ export default function WhatsAppOperationsPage() {
     const [loading, setLoading] = useState(true);
     const [retryingId, setRetryingId] = useState(null);
     const [toast, setToast] = useState(null);
+    const [resourceErrors, setResourceErrors] = useState({});
 
     const load = async () => {
         setLoading(true);
+        setResourceErrors({});
         try {
-            const [diag, queue, sysHealth] = await Promise.all([
+            const [diagResult, queueResult, healthResult] = await Promise.allSettled([
                 apiGet('/api/admin/debug/whatsapp'),
                 apiGet('/api/admin/whatsapp/outbound?page=1&page_size=100'),
                 apiGet('/api/admin/system-health'),
             ]);
-            setDiagnostics(diag);
-            setOutbound(queue.items || []);
-            setHealth(sysHealth);
+            const errors = {};
+            if (diagResult.status === 'fulfilled') setDiagnostics(diagResult.value); else errors.diagnostics = 'Live Meta diagnostics are unavailable.';
+            if (queueResult.status === 'fulfilled') setOutbound(queueResult.value.items || []); else errors.outbound = 'The outbound message ledger is unavailable.';
+            if (healthResult.status === 'fulfilled') setHealth(healthResult.value); else errors.health = 'WhatsApp system health is unavailable.';
+            setResourceErrors(errors);
         } catch (err) {
             setToast({ type: 'error', text: err.message || 'Failed to load WhatsApp operations' });
         } finally {
@@ -97,23 +102,14 @@ export default function WhatsAppOperationsPage() {
                 </div>
             )}
 
-            <div className="admin-domain-hero">
-                <div className="cn-eyebrow">Platform Control</div>
-                <h2 className="cn-h1 mt-3">WhatsApp operations</h2>
-                <p className="cn-body mt-3 max-w-3xl text-sm">
-                    This is the operational view for Meta health and outbound citizen replies. Failed or pending sends stay here until an operator reviews or retries them.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-3">
-                    <Link href="/dashboard/system" className="btn-secondary" style={{ textDecoration: 'none' }}>
-                        Back to system
-                    </Link>
-                    <button className="btn-primary" onClick={load} disabled={loading}>
-                        {loading ? 'Refreshing…' : 'Refresh'}
-                    </button>
-                </div>
-            </div>
+            <AdminPageHeader context="Messaging & Sync / WhatsApp" title="WhatsApp operations" description="Monitor Meta health, tenant routing, outbound delivery, failures, and operator-controlled retries." actions={<button type="button" className="btn-secondary" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>} />
+            <nav className="admin-section-nav" aria-label="WhatsApp operations sections">
+                <a href="#overview">Overview</a><Link href="/dashboard/system/whatsapp-inbound">Inbound</Link><a href="#outbound">Outbound</a><a href="#failures">Failures</a><a href="#retry-queue">Retry queue</a>
+            </nav>
+            {Object.keys(resourceErrors).length > 0 && <AdminNotice tone="danger" title="Some operational data is unavailable">Unavailable sources are marked below; healthy-looking empty values should not be assumed.</AdminNotice>}
 
-            <div className="glass-panel">
+            <div className="glass-panel" id="overview">
+                <AdminDataState loading={loading && !health} error={resourceErrors.health} onRetry={load}>
                 <div className="mb-4 flex items-start justify-between gap-4">
                     <div>
                         <div className="cn-meta text-xs">Current status</div>
@@ -158,9 +154,10 @@ export default function WhatsAppOperationsPage() {
                         <p className="cn-body mt-3 text-sm">{waHealth?.outbound?.detail || 'No outbound detail available.'}</p>
                     </div>
                 </div>
+                </AdminDataState>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            {!resourceErrors.health && <div className="grid gap-4 md:grid-cols-3">
                 <HealthCard
                     title="Meta stack"
                     tone={waHealth?.meta_token?.status === 'red' ? 'red' : waHealth?.meta_token?.status === 'amber' ? 'amber' : 'green'}
@@ -183,7 +180,7 @@ export default function WhatsAppOperationsPage() {
                     value={waHealth?.webhook?.last_webhook ? timeAgo(waHealth.webhook.last_webhook) : 'No inbound activity'}
                     detail={waHealth?.webhook?.detail || 'Inbound heartbeat still uses the latest case created from the webhook path.'}
                 />
-            </div>
+            </div>}
 
             <div className="glass-panel">
                 <div className="mb-4 flex items-start justify-between gap-4">
@@ -197,6 +194,7 @@ export default function WhatsAppOperationsPage() {
                         {tenantIssues.length ? `${tenantIssues.length} issue${tenantIssues.length === 1 ? '' : 's'}` : 'All covered'}
                     </span>
                 </div>
+                <AdminDataState loading={loading && !health} error={resourceErrors.health} onRetry={load}>
                 {tenantIssues.length ? (
                     <table className="data-table">
                         <thead>
@@ -219,9 +217,10 @@ export default function WhatsAppOperationsPage() {
                 ) : (
                     <p className="cn-body text-sm">All active tenants currently have routing coverage.</p>
                 )}
+                </AdminDataState>
             </div>
 
-            <div className="glass-panel">
+            <div className="glass-panel" id="failures">
                 <div className="mb-4 flex items-start justify-between gap-4">
                     <div>
                         <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Current failures</h3>
@@ -234,6 +233,7 @@ export default function WhatsAppOperationsPage() {
                     </span>
                 </div>
 
+                <AdminDataState loading={loading && !diagnostics} error={resourceErrors.diagnostics} onRetry={load} empty={!loading && !resourceErrors.diagnostics && failedChecks.length === 0} emptyTitle="No failing diagnostics" emptyDescription="All returned live diagnostic checks are currently passing.">
                 {failedChecks.length ? (
                     <div className="space-y-3">
                         {failedChecks.map((check) => (
@@ -247,12 +247,11 @@ export default function WhatsAppOperationsPage() {
                             </div>
                         ))}
                     </div>
-                ) : (
-                    <p className="cn-body text-sm">No failing diagnostics right now.</p>
-                )}
+                ) : null}
+                </AdminDataState>
             </div>
 
-            <div className="glass-panel">
+            <div className="glass-panel" id="outbound">
                 <div className="mb-4 flex items-start justify-between gap-4">
                     <div>
                         <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Outbound reply queue</h3>
@@ -263,9 +262,10 @@ export default function WhatsAppOperationsPage() {
                     <span className="badge badge-slate">{queue.length} visible</span>
                 </div>
 
-                {queue.length === 0 ? (
-                    <p className="cn-body text-sm">No pending or failed outbound replies right now.</p>
-                ) : (
+                <div id="retry-queue"><AdminNotice tone="warning" title="Retry only confirmed failures">Pending and retrying messages may still be in flight. Only failed rows expose a retry action; all other states require investigation.</AdminNotice></div>
+                <AdminDataState loading={loading && outbound.length === 0} error={resourceErrors.outbound} onRetry={load} empty={!loading && !resourceErrors.outbound && queue.length === 0} emptyTitle="No pending or failed outbound replies" emptyDescription="The current outbound ledger has no messages requiring review.">
+                {queue.length > 0 ? (
+                    <AdminTableWrap label="Outbound WhatsApp review queue">
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -295,20 +295,22 @@ export default function WhatsAppOperationsPage() {
                                         <div className="cn-body text-sm">{item.last_error || '—'}</div>
                                     </td>
                                     <td>
-                                        <button
+                                        {item.status === 'failed' ? <button
                                             className="btn-secondary"
                                             style={{ whiteSpace: 'nowrap' }}
                                             disabled={retryingId === item.id}
                                             onClick={() => retryMessage(item.id)}
                                         >
                                             {retryingId === item.id ? 'Retrying…' : 'Retry'}
-                                        </button>
+                                        </button> : <span className="admin-muted-action">Investigate</span>}
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                )}
+                    </AdminTableWrap>
+                ) : null}
+                </AdminDataState>
             </div>
         </div>
     );

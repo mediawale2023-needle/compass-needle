@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-01T15:00:00+05:30",
+  "title": "Design System: Needle Admin",
+  "extensions": {
+    "colorMeta": {
+      "paper": { "role": "neutral", "displayName": "Order Paper", "tonalRamp": ["#2D291F", "#514A39", "#766D55", "#9E9274", "#C5B999", "#E8E0CB", "#F2EBD9", "#FBF6E7"] },
+      "needle-green": { "role": "primary", "displayName": "Needle Green", "tonalRamp": ["#002117", "#003426", "#004A35", "#006A4D", "#168064", "#4BA184", "#9CC8B7", "#DFE9E2"] },
+      "chrome-green": { "role": "primary", "displayName": "Command Green", "tonalRamp": ["#071C15", "#0D2A21", "#17372C", "#1F4437", "#426455", "#769184", "#B1C0B8", "#E7EDE9"] },
+      "saffron": { "role": "secondary", "displayName": "Attention Saffron", "tonalRamp": ["#3A1A04", "#632E08", "#8F460F", "#C76A1A", "#D98A43", "#E8AE79", "#F3D1B1", "#FCF1E6"] },
+      "red": { "role": "tertiary", "displayName": "Institutional Red", "tonalRamp": ["#2B0B07", "#4C1710", "#6C2118", "#8B2E1F", "#A94D3D", "#C77A6E", "#E2ADA4", "#F1DCD6"] },
+      "blue": { "role": "secondary", "displayName": "Operational Blue", "tonalRamp": ["#0B1824", "#122A3D", "#1A3A55", "#23496B", "#466985", "#7890A7", "#B0BFCC", "#DFE6EB"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Institutional Display", "purpose": "Major command context and exceptional headings." },
+      "headline": { "displayName": "Page Headline", "purpose": "Page and primary section identity." },
+      "body": { "displayName": "Operational Body", "purpose": "Controls, explanations, and dense working content." },
+      "label": { "displayName": "Machine Label", "purpose": "Identifiers, counts, timestamps, and compact metadata." }
+    },
+    "shadows": [
+      { "name": "panel-low", "value": "0 1px 2px rgba(22,32,27,0.06), 0 0 0 1px rgba(22,32,27,0.03)", "purpose": "Ambient definition for bounded panels." },
+      { "name": "overlay", "value": "0 16px 40px -12px rgba(22,32,27,0.28)", "purpose": "Dialogs, drawers, and mobile navigation overlays only." }
+    ],
+    "motion": [
+      { "name": "state-fast", "value": "120ms cubic-bezier(0.2, 0, 0.13, 1)", "purpose": "Hover, focus, and compact control feedback." },
+      { "name": "overlay-enter", "value": "180ms cubic-bezier(0.2, 0, 0.13, 1)", "purpose": "Mobile navigation and overlay state changes." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "640px" },
+      { "name": "compact", "value": "720px" },
+      { "name": "tablet", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single emphasized action in a local workflow.",
+      "html": "<button class=\"ds-btn-primary\">Save changes</button>",
+      "css": ".ds-btn-primary{background:var(--sansad-green,#006A4D);color:#FBF6E7;border:0;border-radius:7px;padding:9px 20px;font:600 13px 'IBM Plex Sans',sans-serif;cursor:pointer}.ds-btn-primary:hover{background:#0B7A5B}.ds-btn-primary:focus-visible{outline:3px solid rgba(0,106,77,.28);outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A bordered paper control for safe secondary actions.",
+      "html": "<button class=\"ds-btn-secondary\">Refresh</button>",
+      "css": ".ds-btn-secondary{background:#FBF6E7;color:#4B463A;border:1px solid #B9AB8F;border-radius:7px;padding:9px 20px;font:500 13px 'IBM Plex Sans',sans-serif;cursor:pointer}.ds-btn-secondary:hover{border-color:#006A4D;color:#006A4D}.ds-btn-secondary:focus-visible{outline:3px solid rgba(0,106,77,.28);outline-offset:2px}"
+    },
+    {
+      "name": "Operational Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "A persistent-label field on a warm surface.",
+      "html": "<label class=\"ds-field\"><span>Search accounts</span><input placeholder=\"Name, seat, or username\"></label>",
+      "css": ".ds-field{display:grid;gap:5px;color:#665F50;font:600 11px 'IBM Plex Sans',sans-serif}.ds-field input{background:#FBF6E7;color:#1A1812;border:1px solid #B9AB8F;border-radius:7px;padding:9px 12px;font:400 14px 'IBM Plex Sans',sans-serif}.ds-field input:focus{border-color:#006A4D;outline:3px solid rgba(0,106,77,.12)}"
+    },
+    {
+      "name": "Operational Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "A bordered paper surface for one coherent operational task.",
+      "html": "<section class=\"ds-panel\"><h3>Needs attention</h3><p>Review blocked launches and failed operations.</p></section>",
+      "css": ".ds-panel{background:#FBF6E7;color:#1A1812;border:1px solid #D4C9AF;border-radius:10px;padding:16px;box-shadow:0 1px 2px rgba(22,32,27,.06)}.ds-panel h3{margin:0;font:600 16px 'IBM Plex Serif',serif}.ds-panel p{margin:6px 0 0;color:#665F50;font:400 13px/1.5 'IBM Plex Sans',sans-serif}"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "description": "A compact semantic state marker, never decoration.",
+      "html": "<span class=\"ds-status\"><i></i>Healthy</span>",
+      "css": ".ds-status{display:inline-flex;align-items:center;gap:6px;background:#DFE9E2;color:#024A36;border-radius:999px;padding:3px 9px;font:600 11px 'IBM Plex Sans',sans-serif}.ds-status i{width:7px;height:7px;border-radius:50%;background:#006A4D}"
+    },
+    {
+      "name": "Domain Navigation Item",
+      "kind": "nav",
+      "description": "A quiet command-rail link with a restrained active marker.",
+      "html": "<a class=\"ds-nav-item\" href=\"#\"><span>◎</span><b>System Health</b></a>",
+      "css": ".ds-nav-item{display:flex;align-items:center;gap:10px;background:rgba(223,233,226,.13);color:#FBF6E7;border-left:2px solid #D6A253;border-radius:6px;padding:8px 10px;text-decoration:none;font:600 12px 'IBM Plex Sans',sans-serif}.ds-nav-item:focus-visible{outline:3px solid rgba(251,246,231,.45);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Parliamentary Operations Ledger",
+    "overview": "Needle Admin is the operational/control-plane expression of the Briefcase visual language: warm paper, precise ink, and quiet institutional authority. It is dense enough for daily diagnosis without adopting a generic SaaS-dashboard aesthetic. Hierarchy comes from typography, tonal paper layers, and disciplined borders rather than decoration. The system is built for operate mode. Frequent work is direct, state is explicit, and unavailable data never masquerades as healthy or empty.",
+    "keyCharacteristics": ["Warm order-paper canvas with a solid dark command rail.", "Serif institutional headings, sans-serif controls, and mono operational metadata.", "Compact bordered surfaces, restrained elevation, and semantic color.", "Persistent domain navigation, contextual local navigation, and explicit loading/error/empty states."],
+    "rules": [
+      { "name": "The Semantic Color Rule", "body": "Never use saffron, red, or blue as ambient decoration; each must communicate an operational state.", "section": "colors" },
+      { "name": "The Unavailable Rule", "body": "Missing data uses explicit unavailable copy and never inherits a green, zero, or all-clear presentation.", "section": "colors" },
+      { "name": "The Three-Voice Rule", "body": "Serif names the institution, sans-serif runs the work, and mono reports machine state; do not interchange them casually.", "section": "typography" },
+      { "name": "The Flat-at-Rest Rule", "body": "A surface does not receive extra lift merely to look interactive; state, layering, or obstruction must justify elevation.", "section": "elevation" }
+    ],
+    "dos": ["Do preserve customer, tenant, seat, message, or case context in headings and links.", "Do keep retry actions limited to states whose backend semantics make another attempt safe.", "Do use responsive table regions, explicit labels, visible focus, and keyboard-operable dialogs.", "Do keep platform-wide and tenant-scoped authority visible in the interface copy."],
+    "donts": ["Don't turn failed requests into zero counts, healthy badges, or empty tables.", "Don't duplicate tenant geography or government workflows merely to fill an Admin navigation slot.", "Don't introduce decorative gradients, thick side accents, oversized promotional cards, or gratuitous motion.", "Don't expose credentials, tokens, sensitive payloads, or raw secret-bearing diagnostics."]
+  }
+}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiGet, apiPost } from '@/lib/api';
+import { ConstituencyNav } from '@/components/admin-ui/DomainNavs';
 
 const CARD = {
     background: '#fff',
@@ -244,7 +245,9 @@ export default function SeatMapsPage() {
     }
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', gap: '1rem', alignItems: 'start' }}>
+        <>
+        <ConstituencyNav />
+        <div className="admin-seat-map-layout">
             <section style={{ ...CARD, padding: 18 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <div>
@@ -501,5 +504,6 @@ export default function SeatMapsPage() {
                 </div>
             </section>
         </div>
+        </>
     );
 }
