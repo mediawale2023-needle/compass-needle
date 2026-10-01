@@ -2091,3 +2091,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Refined the seat registry into an operational status table with readiness metrics and explicit data states. Existing Admin endpoints, mutation payloads, tenant scoping, password-reset behavior, and destructive confirmation requirements are unchanged.
 - Verification: Admin Vitest 7 files / 16 tests passed; Admin production build passed with the same pre-existing SWC fallback, multiple-lockfile, and stale Browserslist warnings.
 - Files touched: `admin/app/dashboard/accounts/**`, `admin/app/dashboard/seats/**`, `admin/app/dashboard/seat-maps/page.js`, `admin/app/dashboard/shared-geography/workspace/page.js`, the three domain layouts/default redirects, `admin/components/admin-domains/accounts/ProfileEditorPage.jsx`, `admin/components/admin-domains/seats/SeatRegistryPage.jsx`, `admin/components/admin-ui/DomainNavs.jsx`, Admin CSS/tests, and `TASK_LOG.md`.
+
+# 2026-10-01 — Admin redesign Phases 5–7: Case, Messaging, and Platform Operations
+
+- Added persistent direct navigation across Case Intelligence, Knowledge, AI Engine, and Usage Analytics, eliminating intermediate landing-card navigation while preserving each diagnostic surface and API.
+- Reworked WhatsApp operations around Overview, Inbound, Outbound, Failures, and Retry Queue context. Independent resource failures now remain visible instead of collapsing healthy and unavailable data into one state.
+- Restricted UI retry actions to confirmed failed inbound/outbound rows. Received, processing, pending, and retrying rows now say `Investigate`, avoiding duplicate attempts while work may still be in flight; existing audited backend endpoints and processing semantics were not changed.
+- Standardized tenant health and job history with operational headers, metrics, explicit loading/error/empty states, readable summaries, and responsive table regions. Parliament sync remains a distinct system with its existing controls and backend behavior.
+- Verification: Admin Vitest 8 files / 18 tests passed, including new partial-failure and retry-safety coverage; Admin production build passed with unchanged environmental warnings.
+- Files touched: `admin/components/admin-domains/system/{WhatsAppOperationsPage,WhatsAppInboundPage,TenantHealthPage,JobRunsPage}.jsx`, `admin/tests/whatsapp-operations-ui.test.jsx`, Admin CSS, and `TASK_LOG.md`.

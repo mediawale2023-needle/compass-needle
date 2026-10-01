@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiGet, apiPost } from '@/lib/api';
+import { AdminDataState, AdminMetricStrip, AdminNotice, AdminPageHeader, AdminPanel, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
 
 const STATUS_BADGES = {
     received: 'badge badge-amber badge-dot',
@@ -73,31 +74,13 @@ export default function WhatsAppInboundPage() {
 
     return (
         <div className="space-y-6">
-            <div className="admin-domain-hero">
-                <div className="cn-eyebrow">Platform Control</div>
-                <h2 className="cn-h1 mt-3">WhatsApp inbound operations</h2>
-                <p className="cn-body mt-3 max-w-3xl text-sm">
-                    Every inbound WhatsApp message is persisted before business logic runs. Use this queue to inspect stuck intake, failed rows,
-                    and delivery retry history without guessing from cases alone.
-                </p>
-            </div>
+            <AdminPageHeader context="Messaging & Sync / Inbound" title="WhatsApp inbound" description="Inspect the persisted intake ledger, processing state, failed rows, and retry history without inferring state from cases." />
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-                {[
-                    ['Received', summary?.received_count ?? 0],
-                    ['Processing', summary?.processing_count ?? 0],
-                    ['Failed', summary?.failed_count ?? 0],
-                    ['Throttled', summary?.throttled_count ?? 0],
-                    ['Stale', (summary?.stale_received_count ?? 0) + (summary?.stale_processing_count ?? 0)],
-                ].map(([label, value]) => (
-                    <div key={label} className="stat-card">
-                        <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#1a2e28', lineHeight: 1 }}>{value}</div>
-                        <div style={{ color: '#6b7f76', fontSize: '0.72rem', fontWeight: 500, marginTop: 5, textTransform: 'uppercase', letterSpacing: '0.7px' }}>
-                            {label}
-                        </div>
-                    </div>
-                ))}
-            </div>
+            <AdminMetricStrip unavailable={Boolean(error)} items={[
+                { label: 'Received', value: summary?.received_count ?? 0 }, { label: 'Processing', value: summary?.processing_count ?? 0, tone: 'warning' },
+                { label: 'Failed', value: summary?.failed_count ?? 0, tone: 'danger' }, { label: 'Throttled', value: summary?.throttled_count ?? 0, tone: 'warning' },
+                { label: 'Stale', value: (summary?.stale_received_count ?? 0) + (summary?.stale_processing_count ?? 0), tone: 'danger' },
+            ]} />
 
             <div className="glass-panel" style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap' }}>
                 <label style={{ minWidth: 180 }}>
@@ -125,9 +108,13 @@ export default function WhatsAppInboundPage() {
                 </button>
             </div>
 
-            {error && <div className="toast toast-error">{error}</div>}
+            <AdminNotice tone="warning" title="Retry safety">
+                Only failed ledger rows can be retried here. Received or processing rows may still be owned by a worker and require investigation before another attempt.
+            </AdminNotice>
 
-            <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
+            <AdminPanel title="Inbound ledger" description="Rows refresh every 15 seconds. Search applies when Refresh is selected.">
+              <AdminDataState loading={loading} error={error} empty={!loading && !error && rows.length === 0} emptyTitle="No inbound rows matched" emptyDescription="Change the filters or wait for new inbound activity." onRetry={load}>
+               <AdminTableWrap label="WhatsApp inbound ledger">
                 <table className="data-table">
                     <thead>
                         <tr>
@@ -143,21 +130,7 @@ export default function WhatsAppInboundPage() {
                         </tr>
                     </thead>
                     <tbody>
-                        {loading ? (
-                            [...Array(6)].map((_, idx) => (
-                                <tr key={idx}>
-                                    <td colSpan={9}>
-                                        <div className="skeleton" style={{ height: 36, borderRadius: 8 }} />
-                                    </td>
-                                </tr>
-                            ))
-                        ) : rows.length === 0 ? (
-                            <tr>
-                                <td colSpan={9} style={{ textAlign: 'center', color: '#6b7f76', padding: '2rem' }}>
-                                    No inbound rows matched this filter.
-                                </td>
-                            </tr>
-                        ) : rows.map((row) => (
+                        {rows.map((row) => (
                             <tr key={row.id}>
                                 <td style={{ fontSize: '0.8rem', color: '#6b7f76' }}>
                                     {formatDateTime(row.last_received_at || row.created_at)}
@@ -178,9 +151,7 @@ export default function WhatsAppInboundPage() {
                                     {row.last_error ? String(row.last_error).slice(0, 140) : '—'}
                                 </td>
                                 <td style={{ textAlign: 'right' }}>
-                                    {row.status === 'processed' ? (
-                                        <span style={{ color: '#94a3a0', fontSize: '0.82rem' }}>Healthy</span>
-                                    ) : (
+                                    {row.status === 'failed' ? (
                                         <button
                                             className="btn-secondary"
                                             type="button"
@@ -189,13 +160,17 @@ export default function WhatsAppInboundPage() {
                                         >
                                             {retryingId === row.id ? 'Retrying…' : 'Retry'}
                                         </button>
+                                    ) : (
+                                        <span className="admin-muted-action">{row.status === 'processed' ? 'Complete' : 'Investigate'}</span>
                                     )}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
-            </div>
+               </AdminTableWrap>
+              </AdminDataState>
+            </AdminPanel>
         </div>
     );
 }
