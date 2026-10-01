@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { apiGet } from '@/lib/api';
+import { AdminDataState, AdminPageHeader, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
 
 function formatDate(isoStr) {
     if (!isoStr) return '—';
@@ -58,9 +59,11 @@ export default function AuditLogPage() {
     const [targetType, setTargetType] = useState('');
     const [days, setDays] = useState(30);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
     const fetchLogs = async () => {
         setLoading(true);
+        setError('');
         try {
             const params = new URLSearchParams();
             if (actor) params.set('actor', actor);
@@ -71,17 +74,15 @@ export default function AuditLogPage() {
             setEntries(data.entries || []);
             setFilterOptions(data.filter_options || { actors: [], actions: [], target_types: [] });
         } catch (e) {
-            console.error('Failed to fetch audit log:', e);
-        }
-        setLoading(false);
+            setError(e.message || 'Audit history could not be loaded.');
+        } finally { setLoading(false); }
     };
 
     useEffect(() => { fetchLogs(); }, [actor, action, targetType, days]);
 
     return (
         <>
-            <h1 className="page-title">Audit Log</h1>
-            <p className="page-desc">Track all administrative actions across the platform.</p>
+            <AdminPageHeader context="Administration / Audit" title="Audit log" description="Trace recorded administrative actions across platform and tenant-scoped resources." />
 
             {/* Filters */}
             <div className="glass-panel" style={{ marginBottom: 16, padding: '0.875rem 1.25rem' }}>
@@ -117,23 +118,9 @@ export default function AuditLogPage() {
             </div>
 
             {/* Log Entries */}
-            <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
-                {loading ? (
-                    <div style={{ padding: '2rem', textAlign: 'center' }}>
-                        <div className="skeleton" style={{ width: 200, height: 20, margin: '0 auto 10px' }} />
-                        <div className="skeleton" style={{ width: 300, height: 16, margin: '0 auto' }} />
-                    </div>
-                ) : entries.length === 0 ? (
-                    <div className="empty-state">
-                        <div className="empty-state-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                            </svg>
-                        </div>
-                        <div className="empty-state-title">No audit entries</div>
-                        <div className="empty-state-desc">Actions will appear here as they happen.</div>
-                    </div>
-                ) : (
+            <div className="glass-panel" style={{ padding: 0 }}>
+                <AdminDataState loading={loading} error={error} empty={!loading && !error && entries.length === 0} emptyTitle="No audit entries" emptyDescription="Recorded actions will appear here as they happen." onRetry={fetchLogs}>
+                    <AdminTableWrap label="Administrative audit history">
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -197,7 +184,8 @@ export default function AuditLogPage() {
                             })}
                         </tbody>
                     </table>
-                )}
+                    </AdminTableWrap>
+                </AdminDataState>
             </div>
 
             <div style={{ marginTop: 10, fontSize: '0.68rem', color: '#94a3a0', textAlign: 'right' }}>

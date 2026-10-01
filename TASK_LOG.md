@@ -2100,3 +2100,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Standardized tenant health and job history with operational headers, metrics, explicit loading/error/empty states, readable summaries, and responsive table regions. Parliament sync remains a distinct system with its existing controls and backend behavior.
 - Verification: Admin Vitest 8 files / 18 tests passed, including new partial-failure and retry-safety coverage; Admin production build passed with unchanged environmental warnings.
 - Files touched: `admin/components/admin-domains/system/{WhatsAppOperationsPage,WhatsAppInboundPage,TenantHealthPage,JobRunsPage}.jsx`, `admin/tests/whatsapp-operations-ui.test.jsx`, Admin CSS, and `TASK_LOG.md`.
+
+# 2026-10-01 — Admin redesign Phase 8: Administration
+
+- Added consistent Administration context headers and persistent navigation across Staff & Access, Audit Log, Announcements, and Settings.
+- Made permission boundaries explicit: customer staff remain tenant-scoped, restricted editors remain platform-level, and platform announcements clearly identify their all-tenant audience.
+- Replaced the Audit Log's silent fetch failure with an explicit retryable unavailable state and responsive table region. Added confirmation and surfaced error/success feedback for editor removal rather than silently deleting access.
+- Existing authorization, staff reassignment, suspension, audit data, announcement publishing, password behavior, and Admin APIs are unchanged.
+- Verification: Admin Vitest 8 files / 18 tests passed; Admin production build passed with unchanged SWC fallback, multiple-lockfile, and stale Browserslist warnings.
+- Files touched: `admin/components/admin-domains/staff-access/{StaffManagementPage,AuditLogPage}.jsx`, `admin/components/admin-domains/system/{AnnouncementsPage,SystemSettingsPage}.jsx`, shared Admin CSS, and `TASK_LOG.md`.

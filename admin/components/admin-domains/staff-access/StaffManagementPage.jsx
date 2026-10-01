@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
+import { AdminNotice, AdminPageHeader, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
 
 const ROLE_COLORS = { manager: 'badge-purple', staff: 'badge-blue', user: 'badge-slate', mp: 'badge-green', pr: 'badge-blue' };
 
@@ -108,6 +109,10 @@ export default function StaffManagementPage() {
 
     return (
         <>
+            <AdminPageHeader context="Administration / Access" title="Staff & access" description="Manage tenant-scoped staff identities, roles, account assignment, and access state." />
+            <AdminNotice tone="info" title="Permission scope">
+                Staff accounts belong to one customer tenant. Reassignment changes that account boundary; it does not create platform-admin access.
+            </AdminNotice>
             {actionMsg.text && (
                 <div className={`toast ${actionMsg.type === 'error' ? 'toast-error' : 'toast-success'}`}>
                     {actionMsg.text}
@@ -157,7 +162,8 @@ export default function StaffManagementPage() {
                     </div>
                 </div>
             ) : (
-                <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
+                <div className="glass-panel" style={{ padding: 0 }}>
+                    <AdminTableWrap label="Tenant staff accounts">
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -220,6 +226,7 @@ export default function StaffManagementPage() {
                             ))}
                         </tbody>
                     </table>
+                    </AdminTableWrap>
                 </div>
             )}
 

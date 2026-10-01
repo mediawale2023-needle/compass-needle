@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { apiGet, apiPatch, apiPost, apiDelete } from '@/lib/api';
+import ConfirmModal from '@/components/ConfirmModal';
+import { AdminNotice, AdminPageHeader } from '@/components/admin-ui/AdminPrimitives';
 
 export default function SettingsPage() {
     const [editors, setEditors] = useState([]);
@@ -8,9 +10,11 @@ export default function SettingsPage() {
     const [edForm, setEdForm] = useState({ username: '', display_name: '', password: '' });
     const [msg, setMsg] = useState({ type: '', text: '' });
     const [edMsg, setEdMsg] = useState({ type: '', text: '' });
+    const [editorsError, setEditorsError] = useState('');
+    const [deleteTarget, setDeleteTarget] = useState(null);
 
     useEffect(() => {
-        apiGet('/api/admin/editors').then(r => setEditors(r.editors || [])).catch(() => { });
+        apiGet('/api/admin/editors').then(r => setEditors(r.editors || [])).catch((err) => setEditorsError(err.message || 'Editor accounts could not be loaded.'));
     }, []);
 
     const showMsg = (setter, type, text) => {
@@ -38,15 +42,23 @@ export default function SettingsPage() {
         } catch (err) { showMsg(setEdMsg, 'error', err.message); }
     };
 
-    const handleDeleteEditor = async (id) => {
+    const handleDeleteEditor = async () => {
+        if (!deleteTarget) return;
+        const id = deleteTarget.id;
+        setDeleteTarget(null);
         try {
             await apiDelete(`/api/admin/editors/${id}`);
             setEditors(editors.filter(e => e.id !== id));
-        } catch { }
+            showMsg(setEdMsg, 'success', 'Editor access removed.');
+        } catch (err) { showMsg(setEdMsg, 'error', err.message || 'Editor access could not be removed.'); }
     };
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div className="space-y-6">
+            <AdminPageHeader context="Administration / Settings" title="Security & editor access" description="Manage your own administrator credential and restricted platform editor accounts." />
+            <AdminNotice tone="info" title="Platform-level controls">Editors have restricted platform visibility. Customer staff and tenant assignments are managed in Staff & Access.</AdminNotice>
+            {deleteTarget && <ConfirmModal title={`Remove @${deleteTarget.username}?`} description="This editor will lose restricted Admin access. Customer tenant accounts are not affected." confirmLabel="Remove access" variant="danger" onConfirm={handleDeleteEditor} onCancel={() => setDeleteTarget(null)} />}
+            <div className="admin-settings-grid">
             {/* Admin Password Reset */}
             <div className="glass-panel">
                 <div style={{ fontWeight: 700, color: '#1a2e28', fontSize: '0.95rem', marginBottom: '1.25rem' }}>
@@ -96,6 +108,7 @@ export default function SettingsPage() {
                     Create Editor
                 </button>
 
+                {editorsError && <div className="toast toast-error">{editorsError}</div>}
                 {editors.length > 0 && (
                     <>
                         <hr className="divider" />
@@ -108,7 +121,7 @@ export default function SettingsPage() {
                                     <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1a2e28' }}>{ed.display_name}</span>
                                     <span style={{ color: '#6b7f76', fontSize: '0.76rem', marginLeft: 8 }}>@{ed.username}</span>
                                 </div>
-                                <button className="btn-danger" style={{ fontSize: '0.72rem', padding: '4px 10px' }} onClick={() => handleDeleteEditor(ed.id)}>
+                                <button className="btn-danger" style={{ fontSize: '0.72rem', padding: '4px 10px' }} onClick={() => setDeleteTarget(ed)}>
                                     Remove
                                 </button>
                             </div>
@@ -120,6 +133,7 @@ export default function SettingsPage() {
                         No editors created yet
                     </div>
                 )}
+            </div>
             </div>
         </div>
     );

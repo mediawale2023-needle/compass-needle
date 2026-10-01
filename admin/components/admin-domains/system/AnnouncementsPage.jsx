@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
+import { AdminNotice, AdminPageHeader } from '@/components/admin-ui/AdminPrimitives';
 
 export default function AnnouncementsPage() {
     const [announcements, setAnnouncements] = useState([]);
@@ -78,6 +79,8 @@ export default function AnnouncementsPage() {
 
     return (
         <>
+            <AdminPageHeader context="Administration / Communications" title="Announcements" description="Publish and manage platform-wide notices shown on every MP dashboard." />
+            <AdminNotice tone="warning" title="Platform-wide audience">Active announcements are visible across all customer tenants immediately.</AdminNotice>
             {actionMsg && <div className="toast toast-success">{actionMsg}</div>}
             {error && <div className="toast toast-error">{error}</div>}
 
