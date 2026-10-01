@@ -148,10 +148,6 @@ export default function Sidebar({ open = false, onClose }) {
                 </nav>
 
                 <div className="admin-sidebar-footer">
-                    <div className="admin-sidebar-status">
-                        <span><i className="admin-status-dot" aria-hidden="true" />Platform console</span>
-                        <small>Needle Admin · Control plane</small>
-                    </div>
                     <div className="admin-user">
                         <span className="admin-user-avatar" aria-hidden="true">{initials}</span>
                         <span className="admin-user-copy">

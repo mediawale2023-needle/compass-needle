@@ -313,27 +313,31 @@ export default function DashboardOverview() {
 
     return (
         <div>
-            <AdminPageHeader
-                context={lastChecked ? `Last checked ${lastChecked} ago` : null}
-                title="Command Centre"
-                description="Platform readiness and launch blockers."
-                actions={(
-                    <button
-                        className="btn-secondary"
-                        type="button"
-                        onClick={() => Object.values(loaders).forEach((load) => load())}
-                    >
-                        Refresh all
-                    </button>
-                )}
-            />
-
-            <AttentionStrip
-                stats={stats}
-                alerts={alerts}
-                alertsReady={state.alerts === 'ready'}
-                statsReady={state.stats === 'ready'}
-            />
+            {/* Masthead: title block and counter row share one surface, split
+                by a hairline, rather than reading as two stacked cards. Both
+                primitives are unchanged — only their container is new. */}
+            <section className="admin-command-header">
+                <AdminPageHeader
+                    context={lastChecked ? `Last checked ${lastChecked} ago` : null}
+                    title="Command Centre"
+                    description="Platform readiness and launch blockers."
+                    actions={(
+                        <button
+                            className="btn-secondary"
+                            type="button"
+                            onClick={() => Object.values(loaders).forEach((load) => load())}
+                        >
+                            Refresh all
+                        </button>
+                    )}
+                />
+                <AttentionStrip
+                    stats={stats}
+                    alerts={alerts}
+                    alertsReady={state.alerts === 'ready'}
+                    statsReady={state.stats === 'ready'}
+                />
+            </section>
 
             <ActionQueue
                 alerts={alerts}

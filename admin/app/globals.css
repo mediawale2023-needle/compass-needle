@@ -1296,7 +1296,7 @@ body { background: var(--paper); color: var(--ink); }
 .admin-shell-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.2; }
 .admin-main:has(.admin-page-header) .admin-shell-title { display: none; }
 
-.admin-content { padding: 16px 24px 40px; max-width: 1600px; margin: 0 auto; }
+.admin-content { padding: 12px 22px 28px; max-width: 1600px; margin: 0 auto; }
 /* ─── Sidebar ─────────────────────────────────────────────────────────────
  * Briefcase navigation language: compact single-line rows, mono uppercase
  * domain headings, a 2px green left rail for the active item over a very
@@ -1341,12 +1341,9 @@ body { background: var(--paper); color: var(--ink); }
 .admin-nav-item.active .admin-nav-icon { color:var(--chrome-hi); }
 .admin-nav-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
+/* Footer is just the signed-in operator and a way out. */
 .admin-sidebar-footer { border-top:1px solid var(--chrome-line); }
-.admin-sidebar-status { padding:12px 18px 11px; }
-.admin-sidebar-status span { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:600; color:var(--chrome-hi); }
-.admin-sidebar-status small { display:block; margin-top:4px; font:9.5px/1.3 var(--font-mono); letter-spacing:.08em; color:var(--chrome-muted); }
-.admin-status-dot { width:8px; height:8px; border-radius:50%; flex:none; background:var(--chrome-accent); box-shadow:0 0 0 3px rgba(78,156,114,.18); }
-.admin-user { display:flex; align-items:center; gap:12px; padding:11px 18px; border-top:1px solid var(--chrome-line); }
+.admin-user { display:flex; align-items:center; gap:12px; padding:11px 18px; }
 .admin-user-avatar {
   width:30px; height:30px; border-radius:50%; display:grid; place-items:center; flex:none;
   background:rgba(255,253,247,.10); color:var(--chrome-hi);
@@ -1418,29 +1415,38 @@ body { background: var(--paper); color: var(--ink); }
 /* ── Page header — exactly one title per page ─────────────────────────── */
 .admin-page-header {
     display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
-    margin:0 0 14px; padding:0 0 12px; border-bottom:1px solid var(--line); background:none;
+    margin:0 0 10px; padding:0 0 9px; border-bottom:1px solid var(--line); background:none;
 }
 .admin-page-heading { min-width:0; }
-.admin-context-line { font:500 9.5px/1 var(--font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ink-4); margin-bottom:6px; }
+.admin-context-line { font:500 9.5px/1 var(--font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ink-4); margin-bottom:4px; }
 .admin-page-header h2 { margin:0; font-family:var(--font-display); font-size:18px; font-weight:600; letter-spacing:-.01em; line-height:1.2; color:var(--ink); }
-.admin-page-header p { margin:4px 0 0; max-width:74ch; font:12.5px/1.45 var(--font-sans); color:var(--ink-3); }
+.admin-page-header p { margin:2px 0 0; max-width:74ch; font:12.5px/1.4 var(--font-sans); color:var(--ink-3); }
 .admin-page-actions { display:flex; align-items:center; gap:8px; flex:none; }
+
+/* Command Centre masthead: the title block and the counter row are one
+ * continuous work surface divided by a hairline, not two floating cards. */
+.admin-command-header {
+    border:1px solid var(--line); background:var(--surface);
+    box-shadow:var(--shadow-xs); margin-bottom:10px;
+}
+.admin-command-header .admin-page-header { margin:0; padding:10px 12px; }
+.admin-command-header .admin-metric-strip { border:0; box-shadow:none; margin:0; }
 
 /* ── Panels — square work surfaces, not cards ─────────────────────────── */
 .admin-panel {
     border:1px solid var(--line); border-radius:0; background:var(--surface);
-    box-shadow:var(--shadow-xs); padding:0; margin-bottom:12px;
+    box-shadow:var(--shadow-xs); padding:0; margin-bottom:10px;
 }
 .admin-panel-header {
-    display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
-    margin:0; padding:12px 14px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    margin:0; padding:9px 12px; border-bottom:1px solid var(--line);
 }
 .admin-panel-header h3 { margin:0; font-family:var(--font-display); font-size:14px; font-weight:600; color:var(--ink); }
-.admin-panel-header p { margin:3px 0 0; max-width:74ch; font:12px/1.45 var(--font-sans); color:var(--ink-3); }
+.admin-panel-header p { margin:2px 0 0; max-width:74ch; font:11.5px/1.35 var(--font-sans); color:var(--ink-3); }
 .admin-panel-actions { display:flex; gap:8px; flex:none; }
 .admin-panel > .admin-state-stack,
 .admin-panel > .admin-empty-state,
-.admin-panel > .admin-notice { margin:14px; }
+.admin-panel > .admin-notice { margin:10px 12px; }
 
 /* ── Secondary (domain) nav ───────────────────────────────────────────── */
 .admin-section-nav {
@@ -1460,18 +1466,19 @@ body { background: var(--paper); color: var(--ink); }
     border:1px solid var(--line); border-radius:0; background:var(--surface);
     box-shadow:var(--shadow-xs); margin-bottom:12px;
 }
-.admin-metric-strip > div { padding:10px 14px; border-right:1px solid var(--line); }
+.admin-metric-strip > div { padding:8px 12px; border-right:1px solid var(--line); }
+.admin-metric-strip > div:last-child { border-right:0; }
 .admin-metric-strip dt { font:500 9.5px/1 var(--font-mono); letter-spacing:.12em; text-transform:uppercase; color:var(--ink-4); }
-.admin-metric-strip dd { margin:6px 0 0; font:600 19px/1 var(--font-mono); font-variant-numeric:tabular-nums; color:var(--ink); }
+.admin-metric-strip dd { margin:4px 0 0; font:600 18px/1 var(--font-mono); font-variant-numeric:tabular-nums; color:var(--ink); }
 .admin-metric-strip span { display:block; margin-top:4px; font:11px var(--font-sans); color:var(--ink-3); }
 .admin-metric-strip [data-tone="danger"] dd { color:var(--sansad-maroon); }
 .admin-metric-strip [data-tone="warning"] dd { color:var(--amber); }
 .admin-metric-strip [data-tone="success"] dd { color:var(--sansad-green); }
 
 /* ── Needs attention now — operational rows with a severity rail ──────── */
-.admin-action-queue { display:flex; flex-direction:column; }
+.admin-action-queue { display:flex; flex-direction:column; gap:0; border:0; background:transparent; }
 .admin-action-row {
-    display:flex; align-items:center; gap:12px; padding:10px 14px;
+    display:flex; align-items:center; gap:12px; padding:8px 12px;
     border-top:1px solid var(--line); border-left:2px solid transparent;
     text-decoration:none; color:inherit; transition:background .12s ease;
 }
@@ -1490,19 +1497,32 @@ body { background: var(--paper); color: var(--ink); }
 .admin-action-row[data-severity="error"] .admin-action-severity { color:var(--sansad-maroon); }
 .admin-action-row[data-severity="warning"] .admin-action-severity { color:#7c5514; }
 .admin-action-copy { flex:1; min-width:0; display:flex; flex-direction:column; }
-.admin-action-copy strong { font:600 12.5px/1.3 var(--font-sans); color:var(--ink); }
-.admin-action-copy small { margin-top:2px; font:11.5px/1.4 var(--font-sans); color:var(--ink-3); }
+.admin-action-copy strong { font:600 12.5px/1.25 var(--font-sans); color:var(--ink); }
+/* Overrides the single-line ellipsis declared earlier in this file: an
+ * alert description that cannot be read is not an alert. */
+.admin-action-copy small {
+    margin-top:1px; font:11.5px/1.35 var(--font-sans); color:var(--ink-3);
+    white-space:normal; overflow:hidden; text-overflow:clip;
+    display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical;
+}
 .admin-action-scope { flex:none; font:10px var(--font-mono); letter-spacing:.04em; color:var(--ink-4); }
 .admin-action-arrow { flex:none; color:var(--ink-4); font-size:13px; }
 
 /* ── Platform readiness ───────────────────────────────────────────────── */
-.admin-command-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
-.admin-command-grid > .admin-panel { margin-bottom:0; }
+.admin-command-grid {
+    display:grid; grid-template-columns:1fr 1fr;
+    border:1px solid var(--line); background:var(--surface);
+    box-shadow:var(--shadow-xs); margin-bottom:10px;
+}
+.admin-command-grid > .admin-panel { margin:0; border:0; box-shadow:none; background:transparent; }
+.admin-command-grid > .admin-panel + .admin-panel { border-left:1px solid var(--line); }
 .admin-health-grid { display:flex; flex-direction:column; }
 .admin-health-service {
-    display:flex; align-items:center; gap:10px; padding:10px 14px;
-    border-top:1px solid var(--line); text-decoration:none; color:inherit;
+    display:flex; align-items:center; gap:10px; padding:8px 12px;
+    border:0; border-top:1px solid var(--line); border-radius:0;
+    text-decoration:none; color:inherit;
 }
+.admin-health-service:hover { border-color:var(--line); }
 .admin-health-grid > .admin-health-service:first-child { border-top:0; }
 .admin-health-service:hover { background:var(--row-hover); }
 .admin-health-service:focus-visible { outline:2px solid var(--sansad-green); outline-offset:-2px; }
@@ -1519,14 +1539,14 @@ body { background: var(--paper); color: var(--ink); }
 .admin-activity-list { margin:0; display:flex; flex-direction:column; }
 .admin-activity-list > div {
     display:flex; align-items:baseline; justify-content:space-between; gap:12px;
-    padding:8px 14px; border-top:1px solid var(--line);
+    padding:6px 12px; border-bottom:0; border-top:1px solid var(--line);
 }
 .admin-activity-list > div:first-child { border-top:0; }
 .admin-activity-list dt { font:12.5px var(--font-sans); color:var(--ink-3); }
 .admin-activity-list dd { margin:0; font:600 13px var(--font-mono); font-variant-numeric:tabular-nums; color:var(--ink); }
 
 /* ── Filter bar ───────────────────────────────────────────────────────── */
-.admin-filter-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); }
+.admin-filter-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:8px; margin:0; padding:8px 12px; border-bottom:1px solid var(--line); }
 .admin-search-field { flex:1; min-width:180px; display:block; }
 .admin-filter-pills { display:flex; gap:0; border:1px solid var(--line-2); }
 .admin-filter-pills button {
@@ -1542,14 +1562,14 @@ body { background: var(--paper); color: var(--ink); }
 .admin-table-region { border-radius:0; }
 .data-table { width:100%; border-collapse:collapse; }
 .data-table th {
-    padding:8px 14px; text-align:left; border-bottom:1px solid var(--line);
+    padding:6px 12px; text-align:left; border-bottom:1px solid var(--line);
     font:600 9.5px var(--font-mono); letter-spacing:.08em; text-transform:uppercase;
     color:var(--ink-4); white-space:nowrap; background:var(--surface);
 }
-.data-table td { padding:10px 14px; border-bottom:1px solid var(--line); font:12.5px var(--font-sans); color:var(--ink); vertical-align:top; }
+.data-table td { padding:7px 12px; border-bottom:1px solid var(--line); font:12.5px/1.35 var(--font-sans); color:var(--ink); vertical-align:top; }
 .data-table tbody tr:last-child td { border-bottom:0; }
 .data-table tbody tr:hover { background:var(--row-hover); }
-.data-table td small { display:block; margin-top:2px; font:10.5px var(--font-mono); color:var(--ink-4); }
+.data-table td small { display:block; margin-top:1px; font:10.5px/1.3 var(--font-mono); color:var(--ink-4); }
 .data-table td strong { font-weight:600; }
 .data-table a { color:var(--sansad-green-deep); text-decoration:none; font-weight:600; }
 .data-table a:hover { text-decoration:underline; }
@@ -1580,7 +1600,11 @@ body { background: var(--paper); color: var(--ink); }
 .admin-notice { border-radius:0; }
 
 /* ── Responsive ───────────────────────────────────────────────────────── */
-@media (max-width:1100px) { .admin-command-grid { grid-template-columns:1fr; } }
+@media (max-width:1100px) {
+    .admin-command-grid { grid-template-columns:1fr; }
+    /* Stacked, so the seam between the two panels runs horizontally. */
+    .admin-command-grid > .admin-panel + .admin-panel { border-left:0; border-top:1px solid var(--line); }
+}
 @media (max-width:860px) {
     .admin-metric-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .admin-metric-strip > div { border-bottom:1px solid var(--line); }
@@ -1589,28 +1613,60 @@ body { background: var(--paper); color: var(--ink); }
     .admin-metric-strip > div:last-child { border-right:0; border-bottom:0; }
 }
 @media (max-width:760px) {
-    /* The account table carries six fields; a six-column scroll is unusable
-     * on a phone, so this one becomes stacked records. Dense operational
-     * tables elsewhere keep their scroll region rather than becoming cards.
-     * The field label is absolutely positioned so each cell's own content
-     * (name over handle, value over unit) still stacks naturally instead of
-     * being flattened into one row. */
+    /* Account readiness becomes a compact record per account rather than six
+     * vertically labelled fields. The table markup is unchanged — the cells
+     * are placed onto a small grid, so each account reads as
+     *     Name                       [STAGE]
+     *     Seat · type
+     *     Profile 82%          [WHATSAPP]
+     *     Next action →
+     * Labels are dropped except for Profile, where a bare percentage would
+     * be ambiguous. Dense operational tables elsewhere keep their scroll
+     * region rather than becoming cards. */
     .admin-command-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
-    .admin-command-table, .admin-command-table tbody, .admin-command-table tr, .admin-command-table td { display:block; width:100%; }
-    .admin-command-table tr { border-bottom:1px solid var(--line); padding:8px 0; }
-    .admin-command-table tr:last-child { border-bottom:0; }
-    .admin-command-table td { border-bottom:0; position:relative; padding:3px 14px 3px 104px; min-height:20px; }
-    .admin-command-table td::before {
-        content:attr(data-label); position:absolute; left:14px; top:4px; width:84px;
-        font:600 9.5px/1.3 var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4);
+    .admin-command-table, .admin-command-table tbody { display:block; width:100%; }
+    .admin-command-table tr {
+        display:grid; grid-template-columns:1fr auto; column-gap:10px; row-gap:2px;
+        padding:9px 12px; border-bottom:1px solid var(--line);
     }
-    .admin-command-table td small { margin-top:1px; }
-    .admin-action-row { flex-wrap:wrap; }
-    .admin-action-scope { order:3; }
+    .admin-command-table tr:last-child { border-bottom:0; }
+    .admin-command-table td { display:block; border:0; padding:0; min-width:0; }
+    .admin-command-table td::before { display:none; }
+    .admin-command-table td:nth-child(1) { grid-column:1; grid-row:1; }          /* account  */
+    .admin-command-table td:nth-child(3) { grid-column:2; grid-row:1; justify-self:end; }  /* stage */
+    .admin-command-table td:nth-child(2) { grid-column:1 / -1; grid-row:2; }     /* seat     */
+    .admin-command-table td:nth-child(4) { grid-column:1; grid-row:3; align-self:center; }  /* profile */
+    .admin-command-table td:nth-child(5) { grid-column:2; grid-row:3; justify-self:end; }   /* whatsapp */
+    .admin-command-table td:nth-child(6) { grid-column:1 / -1; grid-row:4; margin-top:3px; }/* action  */
+    .admin-command-table td:nth-child(4)::before {
+        display:inline; content:'Profile'; margin-right:6px;
+        font:600 9.5px var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4);
+    }
+    .admin-command-table td:nth-child(2) small { display:inline; margin-left:6px; }
+
+    /* An alert the operator cannot read is not an alert: allow two lines.
+     * The row becomes a small grid so the account/platform scope keeps its
+     * place on a second line instead of being dropped or squeezed out. */
+    .admin-action-copy small { -webkit-line-clamp:2; }
+    .admin-action-row {
+        display:grid; grid-template-columns:auto 1fr auto;
+        column-gap:10px; row-gap:2px; align-items:start;
+    }
+    .admin-action-severity { grid-column:1; grid-row:1; width:auto; padding-top:1px; }
+    .admin-action-copy { grid-column:2; grid-row:1; }
+    .admin-action-arrow { grid-column:3; grid-row:1; align-self:center; }
+    .admin-action-scope { display:block; grid-column:2; grid-row:2; text-align:left; }
+
     /* Search takes the full width before the filter pills, rather than
      * being squeezed to its min-width and floating mid-row. */
     .admin-filter-bar { flex-direction:column; align-items:stretch; }
     .admin-filter-pills { align-self:flex-start; }
+
+    /* An earlier breakpoint turns these headers into columns; the compact
+     * row styling above centres on the cross axis, which then reads as
+     * centred text. Pin them back to the leading edge. */
+    .admin-page-header, .admin-panel-header { align-items:flex-start; }
+    .admin-page-actions > *, .admin-panel-actions > * { flex:0 0 auto; }
 }
 
 /* A counter with no substantiating data states so plainly, at text scale
