@@ -163,7 +163,7 @@ export default function AnnouncementsPage() {
                             style={{
                                 display: 'flex', alignItems: 'flex-start', gap: '1rem',
                                 opacity: a.is_active ? 1 : 0.65,
-                                borderLeft: `3px solid ${a.is_active ? '#006a4d' : '#cbd5e1'}`,
+                                borderColor: a.is_active ? 'var(--line-2)' : 'var(--line)',
                                 padding: '14px 18px',
                                 transition: 'opacity 0.2s',
                             }}

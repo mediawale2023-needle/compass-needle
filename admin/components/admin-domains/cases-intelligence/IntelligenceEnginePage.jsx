@@ -156,8 +156,7 @@ function StatsPanel({ stats, loading }) {
                 return (
                     <div key={st} style={{
                         background: '#111827',
-                        border: `1px solid ${c.border}20`,
-                        borderLeft: `3px solid ${c.border}`,
+                        border: `1px solid ${c.border}55`,
                         borderRadius: 8, padding: 12,
                     }}>
                         <div style={{ color: c.border, fontSize: 10, marginBottom: 2 }}>{c.label || st}</div>

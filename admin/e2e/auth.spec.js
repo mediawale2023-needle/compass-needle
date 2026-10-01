@@ -86,3 +86,17 @@ test('Admin can sign in and reach the overview dashboard', async ({ page }) => {
     const token = await page.evaluate(() => sessionStorage.getItem('admin_token'));
     await expect(token).toBe('admin-token-123');
 });
+
+test('Admin navigation remains available on a narrow viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(() => {
+        sessionStorage.setItem('admin_token', 'admin-token-123');
+        sessionStorage.setItem('admin_user', JSON.stringify({ username: 'sysadmin', display_name: 'System Admin', role: 'sysadmin' }));
+    });
+    await mockAdminApi(page);
+    await page.goto('/dashboard');
+
+    await page.getByRole('button', { name: 'Open navigation' }).click();
+    await expect(page.getByRole('link', { name: /WhatsApp Operations/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Staff & Access/ })).toBeVisible();
+});

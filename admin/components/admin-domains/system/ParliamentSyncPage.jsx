@@ -1,6 +1,7 @@
 'use client';
-import { Fragment, useState, useEffect, useCallback } from 'react';
+import { Fragment, useState, useEffect, useCallback, useRef } from 'react';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
+import { AdminNotice } from '@/components/admin-ui/AdminPrimitives';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -16,7 +17,7 @@ function ConfidenceBar({ value }) {
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1, height: 5, background: '#e2ebe5', borderRadius: 99, overflow: 'hidden' }}>
-                <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 99, transition: 'width 0.4s' }} />
+                <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 99 }} />
             </div>
             <span style={{ fontSize: '0.72rem', fontWeight: 600, color, minWidth: 30 }}>{pct.toFixed(0)}%</span>
         </div>
@@ -86,10 +87,16 @@ function DataDrawer({ tenant, onClose, onToast }) {
     const [expandedRowId, setExpandedRowId] = useState(null);
     const [rowDetail, setRowDetail]         = useState(null);
     const [rowLoading, setRowLoading]       = useState(false);
+    const [recordsError, setRecordsError]   = useState('');
+    const [countsError, setCountsError]     = useState('');
+    const drawerRef = useRef(null);
+    const closeButtonRef = useRef(null);
+    const restoreFocusRef = useRef(null);
     const PAGE_SIZE = 30;
 
     const loadRecords = useCallback(async (tab, pg) => {
         setLoading(true);
+        setRecordsError('');
         try {
             const d = await apiGet(
                 `/api/admin/parliament/data/${tenant.tenant_id}?data_type=${tab}&limit=${PAGE_SIZE}&offset=${pg * PAGE_SIZE}`
@@ -97,6 +104,7 @@ function DataDrawer({ tenant, onClose, onToast }) {
             setRecords(d.records || []);
             setTotal(d.total || 0);
         } catch (e) {
+            setRecordsError(e.message || 'Parliament records could not be loaded.');
             onToast(e.message || 'Failed to load records', 'error');
         }
         setLoading(false);
@@ -119,13 +127,30 @@ function DataDrawer({ tenant, onClose, onToast }) {
                 try {
                     const d = await apiGet(`/api/admin/parliament/data/${tenant.tenant_id}?data_type=${key}&limit=1&offset=0`);
                     results[key] = d.total || 0;
-                } catch { results[key] = 0; }
+                } catch { results[key] = null; }
             }));
             setCounts(results);
+            setCountsError(Object.values(results).some((value) => value === null) ? 'Some record counts are unavailable.' : '');
         };
         fetchCounts();
         loadCoverage();
     }, [tenant.tenant_id, loadCoverage]);
+
+    useEffect(() => {
+        restoreFocusRef.current = document.activeElement;
+        closeButtonRef.current?.focus();
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+            if (event.key !== 'Tab' || !drawerRef.current) return;
+            const focusable = [...drawerRef.current.querySelectorAll('button:not(:disabled), a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])')];
+            if (!focusable.length) return;
+            const first = focusable[0]; const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => { document.removeEventListener('keydown', handleKeyDown); restoreFocusRef.current?.focus?.(); };
+    }, [onClose]);
 
     useEffect(() => {
         setPage(0);
@@ -221,6 +246,7 @@ function DataDrawer({ tenant, onClose, onToast }) {
             {/* Backdrop */}
             <div
                 onClick={onClose}
+                aria-hidden="true"
                 style={{
                     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)',
                     zIndex: 1000, backdropFilter: 'blur(2px)',
@@ -228,7 +254,7 @@ function DataDrawer({ tenant, onClose, onToast }) {
             />
 
             {/* Drawer panel */}
-            <div style={{
+            <div ref={drawerRef} role="dialog" aria-modal="true" aria-labelledby="parliament-drawer-title" style={{
                 position: 'fixed', top: 0, right: 0, bottom: 0, width: 720,
                 background: 'white', zIndex: 1001, boxShadow: '-4px 0 32px rgba(0,0,0,0.12)',
                 display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -240,7 +266,7 @@ function DataDrawer({ tenant, onClose, onToast }) {
                     flexShrink: 0,
                 }}>
                     <div>
-                        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#1a2e28' }}>
+                        <div id="parliament-drawer-title" style={{ fontSize: '1rem', fontWeight: 700, color: '#1a2e28' }}>
                             {tenant.mp_name || tenant.tenant_name}
                         </div>
                         <div style={{ fontSize: '0.78rem', color: '#6b7f76', marginTop: 2 }}>
@@ -275,6 +301,8 @@ function DataDrawer({ tenant, onClose, onToast }) {
                             </button>
                         )}
                         <button
+                            ref={closeButtonRef}
+                            aria-label="Close Parliament records"
                             onClick={triggerBackfill}
                             disabled={backfilling}
                             style={{
@@ -336,6 +364,7 @@ function DataDrawer({ tenant, onClose, onToast }) {
 
                 {/* Records area */}
                 <div style={{ flex: 1, overflow: 'auto', padding: '0 0 16px' }}>
+                    {countsError && <div style={{ margin: '12px 24px 0' }}><AdminNotice tone="danger" title="Counts unavailable">{countsError}</AdminNotice></div>}
                     {/* Phase 1 Brain: answer coverage strip (questions tab only) */}
                     {activeTab === 'questions' && coverage && coverage.total > 0 && (
                         <div style={{
@@ -352,7 +381,7 @@ function DataDrawer({ tenant, onClose, onToast }) {
                                         width: `${coverage.pct_covered}%`, height: '100%',
                                         background: coverage.pct_covered >= 80 ? '#006a4d'
                                                   : coverage.pct_covered >= 40 ? '#d97706' : '#dc2626',
-                                        borderRadius: 99, transition: 'width 0.4s',
+                                        borderRadius: 99,
                                     }} />
                                 </div>
                             </div>
@@ -368,7 +397,9 @@ function DataDrawer({ tenant, onClose, onToast }) {
                         </div>
                     )}
 
-                    {loading ? (
+                    {recordsError ? (
+                        <div style={{ padding: 24 }}><AdminNotice tone="danger" title="Records unavailable">{recordsError}</AdminNotice></div>
+                    ) : loading ? (
                         <div style={{ padding: 40, textAlign: 'center', color: '#6b7f76', fontSize: '0.85rem' }}>
                             Loading…
                         </div>
@@ -429,7 +460,6 @@ function DataDrawer({ tenant, onClose, onToast }) {
                                 {records.map((r, i) => (
                                     <Fragment key={r.id || i}>
                                     <tr
-                                        onClick={() => activeTab === 'questions' ? toggleExpand(r) : null}
                                         style={{
                                             borderBottom: '1px solid #f0f4f2',
                                             cursor: activeTab === 'questions' ? 'pointer' : 'default',
@@ -438,12 +468,9 @@ function DataDrawer({ tenant, onClose, onToast }) {
                                         {activeTab === 'questions' && (
                                             <>
                                                 <Td muted w={30}>
-                                                    <span style={{
-                                                        display: 'inline-block', width: 14, textAlign: 'center',
-                                                        color: '#006a4d', fontWeight: 700,
-                                                        transform: expandedRowId === r.id ? 'rotate(90deg)' : 'none',
-                                                        transition: 'transform 0.15s',
-                                                    }}>›</span>
+                                                    <button type="button" aria-label={`${expandedRowId === r.id ? 'Collapse' : 'Expand'} question ${r.real_question_number || r.question_number || ''}`} aria-expanded={expandedRowId === r.id} onClick={() => toggleExpand(r)} className="btn-ghost" style={{ width: 28, minHeight: 28, padding: 0 }}>
+                                                        <span aria-hidden="true" style={{ display: 'inline-block', color: '#006a4d', fontWeight: 700, transform: expandedRowId === r.id ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>›</span>
+                                                    </button>
                                                 </Td>
                                                 <Td muted>{r.session_name || '—'}</Td>
                                                 <Td mono>{r.real_question_number || r.question_number || '—'}</Td>
@@ -889,6 +916,7 @@ export default function ParliamentSyncPage() {
     const [filter, setFilter]       = useState('all');
     const [toast, setToast]         = useState(null);
     const [drawerTenant, setDrawerTenant] = useState(null);
+    const [loadError, setLoadError] = useState('');
 
     const showToast = (msg, type = 'success') => {
         setToast({ msg, type });
@@ -897,10 +925,12 @@ export default function ParliamentSyncPage() {
 
     const load = useCallback(async () => {
         setLoading(true);
+        setLoadError('');
         try {
             const d = await apiGet('/api/admin/parliament/sync/status');
             setData(d);
         } catch (e) {
+            setLoadError(e.message || 'Parliament sync status could not be loaded.');
             showToast(e.message || 'Failed to load sync status', 'error');
         }
         setLoading(false);
@@ -979,7 +1009,7 @@ export default function ParliamentSyncPage() {
                     </button>
                     <button
                         onClick={runResolveAll}
-                        disabled={resolving}
+                        disabled={resolving || Boolean(loadError)}
                         style={{
                             padding: '8px 20px', borderRadius: 9, border: 'none',
                             background: resolving ? '#e2ebe5' : '#006a4d',
@@ -993,11 +1023,13 @@ export default function ParliamentSyncPage() {
 
             {/* Stats */}
             <div style={{ display: 'flex', gap: 14, marginBottom: 24 }}>
-                <StatCard label="Total MPs"    value={stats.total}        color="#1a2e28" />
-                <StatCard label="Confirmed"    value={stats.confirmed}    color="#006a4d" />
-                <StatCard label="Needs Review" value={stats.needs_review} color="#d97706" />
-                <StatCard label="Unmatched"    value={stats.unmatched}    color="#dc2626" />
+                <StatCard label="Total MPs"    value={loadError ? 'Unavailable' : stats.total}        color="#1a2e28" />
+                <StatCard label="Confirmed"    value={loadError ? 'Unavailable' : stats.confirmed}    color="#006a4d" />
+                <StatCard label="Needs Review" value={loadError ? 'Unavailable' : stats.needs_review} color="#d97706" />
+                <StatCard label="Unmatched"    value={loadError ? 'Unavailable' : stats.unmatched}    color="#dc2626" />
             </div>
+
+            {loadError && <div style={{ marginBottom: 16 }}><AdminNotice tone="danger" title="Parliament sync data unavailable" action={<button type="button" className="btn-secondary" onClick={load}>Try again</button>}>{loadError}</AdminNotice></div>}
 
             {/* Filter tabs */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
@@ -1023,7 +1055,7 @@ export default function ParliamentSyncPage() {
 
             {/* Table */}
             <div style={{ background: 'white', borderRadius: 14, border: '1px solid #e2ebe5', overflow: 'hidden' }}>
-                {loading ? (
+                {loadError ? null : loading ? (
                     <div style={{ padding: 48, textAlign: 'center', color: '#6b7f76', fontSize: '0.88rem' }}>
                         Loading sync status…
                     </div>

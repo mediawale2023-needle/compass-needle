@@ -247,6 +247,8 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 
 ## Admin IA Memory
 
+- Admin operational retries must stay conservative: expose retry actions only for confirmed failed WhatsApp ledger rows. `received`, `processing`, `pending`, and `retrying` can still be in flight and should remain investigation states unless backend claim/idempotency guarantees are strengthened and reviewed.
+- Admin resource failures must be represented independently. A failed health, diagnostic, or queue request must render `Data unavailable` for that source and must never be converted into a zero count, `healthy`, or `all covered` state.
 - The admin frontend should now be treated as domain-first rather than tool-first. Canonical top-level domains are `Overview`, `Accounts`, `Seats`, `Shared Geography`, `Seat Maps`, `Cases & Intelligence`, `Staff & Access`, and `System`.
 - Shared admin implementations should live under `admin/components/admin-domains/...`, with route ownership flowing from those modules into the new domain routes. Old tool-shaped routes are compatibility entry points only and should redirect into the new domains rather than owning page logic themselves.
 - The `Legacy Tools` sidebar section should stay removed unless a future migration truly requires a temporary operator escape hatch. Once a route is covered by a domain route plus redirect, it should no longer be promoted in primary navigation.

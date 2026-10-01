@@ -5,6 +5,7 @@ import { AdminSectionNav } from './AdminPrimitives';
 const CASE_OPERATIONS_ITEMS = [
     { label: 'Case Intelligence', href: '/dashboard/cases-intelligence/explorer' },
     { label: 'Knowledge', href: '/dashboard/cases-intelligence/knowledge' },
+    { label: 'Constituency Profiles', href: '/dashboard/constituency' },
     { label: 'AI Engine', href: '/dashboard/cases-intelligence/engine' },
     { label: 'Usage Analytics', href: '/dashboard/cases-intelligence/analytics' },
 ];

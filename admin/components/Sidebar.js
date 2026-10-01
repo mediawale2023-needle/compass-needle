@@ -44,11 +44,13 @@ const NAV_GROUPS = [
   ]},
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onClose }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   return (
-    <aside className="admin-sidebar">
+    <>
+    {open && <button type="button" className="admin-sidebar-backdrop" aria-label="Close navigation" onClick={onClose} />}
+    <aside className="admin-sidebar" data-open={open ? 'true' : 'false'}>
       <div className="admin-sidebar-brand">
         <Image src="/needle-logo-cream.svg" alt="Needle" width={58} height={34} priority />
         <div>
@@ -63,7 +65,7 @@ export default function Sidebar() {
             {group.items.map((item) => {
               const active = item.exact ? pathname === item.href : (pathname === item.href || pathname.startsWith(item.href + '/'));
               return (
-                <Link href={item.href} key={item.href} className={`admin-nav-item ${active ? 'active' : ''}`}>
+                <Link href={item.href} key={item.href} className={`admin-nav-item ${active ? 'active' : ''}`} onClick={onClose}>
                   {item.icon}
                   <span className="admin-nav-copy">
                     <span className="admin-nav-label">{item.label}</span>
@@ -83,5 +85,6 @@ export default function Sidebar() {
         <button onClick={logout} className="admin-signout">Sign out</button>
       </div>
     </aside>
+    </>
   );
 }

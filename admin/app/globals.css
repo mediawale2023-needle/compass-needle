@@ -12,7 +12,7 @@
 
     --ink: #1a1812;
     --ink-2: #4b463a;
-    --ink-3: #625c4d;
+    --ink-3: #665f50;
     --ink-4: #827967;
 
     --paper: #f2ebd9;
@@ -611,7 +611,7 @@ button, input, select, textarea, a {
 }
 
 .btn-danger {
-    background: linear-gradient(135deg, #dc2626, #ef4444);
+    background: var(--sansad-maroon);
     color: white;
     border: none;
     border-radius: var(--radius-md);
@@ -849,7 +849,6 @@ select.form-input {
 .completeness-fill {
     height: 100%;
     border-radius: 99px;
-    transition: width 0.5s ease;
 }
 
 .fill-good {
@@ -1110,7 +1109,6 @@ select.form-input {
     font-size: 0.68rem;
     color: white;
     font-weight: 700;
-    transition: width 0.4s ease;
 }
 
 /* ─── Misc utilities ─── */
@@ -1218,7 +1216,7 @@ select.form-input {
 :root {
   --ink: #1A1812;
   --ink-2: #3D392F;
-  --ink-3: #746E61;
+  --ink-3: #665F50;
   --paper: #F2EBD9;
   --paper-2: #E8E0CB;
   --surface: #FBF6E7;
@@ -1251,7 +1249,7 @@ body { background: var(--paper); color: var(--ink); }
 .admin-sidebar {
   position: fixed; inset: 0 auto 0 0; z-index: 50; width: 264px;
   display: flex; flex-direction: column; color: var(--chrome-text);
-  background: linear-gradient(180deg,#063D2D 0%,#043426 100%);
+  background: var(--chrome);
   border-right: 1px solid var(--chrome-line);
 }
 .admin-sidebar-brand { display:flex; align-items:center; gap:12px; padding:18px 18px 16px; border-bottom:1px solid var(--chrome-line); }
@@ -1288,4 +1286,12 @@ body { background: var(--paper); color: var(--ink); }
 .badge-amber { background:#F4E3CE; color:#8A4B14; }
 .badge-red { background:#F2DAD3; color:#8B2E1F; }
 .badge-blue { background:#DDE5EE; color:#23496B; }
-@media (max-width:1024px) { .admin-sidebar{display:none;} .admin-main{margin-left:0;} }
+.admin-mobile-nav-button { display: none; width: 38px; height: 38px; border: 1px solid var(--line-2); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-size: 1rem; cursor: pointer; }
+.admin-sidebar-backdrop { display: none; }
+@media (max-width:1024px) {
+  .admin-main{margin-left:0;}
+  .admin-mobile-nav-button { display: inline-grid; place-items: center; flex: 0 0 auto; }
+  .admin-sidebar { display:flex; transform:translateX(-102%); transition:transform .18s ease; box-shadow:var(--shadow-lg); }
+  .admin-sidebar[data-open="true"] { transform:translateX(0); }
+  .admin-sidebar-backdrop { display:block; position:fixed; inset:0; z-index:49; border:0; background:rgba(26,24,18,.42); }
+}

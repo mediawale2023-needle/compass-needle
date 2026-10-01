@@ -15,6 +15,7 @@ vi.mock('next/link', () => ({
 
 import WhatsAppInboundPage from '@/components/admin-domains/system/WhatsAppInboundPage';
 import WhatsAppOperationsPage from '@/components/admin-domains/system/WhatsAppOperationsPage';
+import ParliamentSyncPage from '@/components/admin-domains/system/ParliamentSyncPage';
 
 describe('WhatsApp operational retry safety', () => {
     beforeEach(() => {
@@ -50,5 +51,19 @@ describe('WhatsApp operational retry safety', () => {
         expect(screen.getByText('WhatsApp is healthy')).toBeInTheDocument();
         expect(screen.getByText('Live Meta diagnostics are unavailable.')).toBeInTheDocument();
         expect(screen.getByText('No pending or failed outbound replies')).toBeInTheDocument();
+    });
+});
+
+describe('Parliament operational states', () => {
+    beforeEach(() => { apiGetMock.mockReset(); apiPostMock.mockReset(); });
+
+    it('does not convert a sync-status failure into zero or no-tenants copy', async () => {
+        apiGetMock.mockRejectedValue(new Error('sync service offline'));
+        render(<ParliamentSyncPage />);
+
+        expect(await screen.findByText('Parliament sync data unavailable')).toBeInTheDocument();
+        expect(screen.getAllByText('Unavailable')).toHaveLength(4);
+        expect(screen.queryByText('No MP tenants found.')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Run Auto-Resolve/ })).toBeDisabled();
     });
 });

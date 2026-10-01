@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import Sidebar from '@/components/Sidebar';
@@ -21,6 +21,7 @@ export default function DashboardLayout({ children }) {
     const { user, loading } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
+    const [navigationOpen, setNavigationOpen] = useState(false);
 
     useEffect(() => {
         if (!loading && !user) router.push('/');
@@ -52,9 +53,10 @@ export default function DashboardLayout({ children }) {
 
     return (
         <div className="admin-shell">
-            <Sidebar />
+            <Sidebar open={navigationOpen} onClose={() => setNavigationOpen(false)} />
             <main className="admin-main">
                 <div className="admin-header">
+                    <button type="button" className="admin-mobile-nav-button" aria-label="Open navigation" aria-expanded={navigationOpen} onClick={() => setNavigationOpen(true)}>☰</button>
                     <div>
                         <h1 className="cn-h1">{meta.title}</h1>
                         {meta.desc && (
