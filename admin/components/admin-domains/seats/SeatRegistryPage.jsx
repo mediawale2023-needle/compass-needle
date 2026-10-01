@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { apiGet } from '@/lib/api';
+import { AdminDataState, AdminMetricStrip, AdminPageHeader, AdminPanel, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
 
 function seatBadge(seatType) {
     return seatType === 'mla'
@@ -52,25 +53,15 @@ export default function SeatRegistryPage() {
 
     return (
         <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: '1.5rem' }}>
-                {[
-                    { label: 'Seats', value: counts.total, accent: '#1a2e28' },
-                    { label: 'Geography Ready', value: counts.geographyReady, accent: '#10b981' },
-                    { label: 'With Accounts', value: counts.withTenants, accent: '#0ea5e9' },
-                    { label: 'Accounts, No Geography', value: counts.needsAttention, accent: '#f43f5e' },
-                ].map((c) => (
-                    <div key={c.label} className="stat-card" style={{ borderLeft: `3px solid ${c.accent}` }}>
-                        <div style={{ fontSize: '1.9rem', fontWeight: 800, color: c.accent, lineHeight: 1, letterSpacing: '-1px' }}>
-                            {loading ? '…' : c.value}
-                        </div>
-                        <div style={{ color: '#6b7f76', fontSize: '0.72rem', fontWeight: 500, marginTop: 5, textTransform: 'uppercase', letterSpacing: '0.7px' }}>
-                            {c.label}
-                        </div>
-                    </div>
-                ))}
-            </div>
+            <AdminPageHeader title="Seat Registry" description="Shared constituency records, geography readiness, map coverage, corrections, and the accounts using each seat." actions={<Link href="/dashboard/shared-geography/workspace" className="btn-primary">Add seat geography</Link>} />
+            <AdminMetricStrip unavailable={Boolean(error)} items={[
+                { label: 'Seats', value: loading ? '…' : counts.total },
+                { label: 'Geography ready', value: loading ? '…' : counts.geographyReady, tone: 'success' },
+                { label: 'With accounts', value: loading ? '…' : counts.withTenants },
+                { label: 'Accounts, no geography', value: loading ? '…' : counts.needsAttention, tone: counts.needsAttention ? 'danger' : 'success' },
+            ]} />
 
-            <div style={{ display: 'flex', gap: 10, marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="admin-filter-bar" style={{ marginTop: '1rem' }}>
                 <input
                     className="form-input"
                     style={{ maxWidth: 320 }}
@@ -88,28 +79,11 @@ export default function SeatRegistryPage() {
                         {t === 'all' ? 'All seats' : t.toUpperCase()}
                     </button>
                 ))}
-                <div style={{ marginLeft: 'auto' }}>
-                    <Link href="/dashboard/shared-geography/workspace" className="btn-secondary" style={{ textDecoration: 'none', fontSize: '0.74rem' }}>
-                        Upload new seat geography
-                    </Link>
-                </div>
             </div>
 
-            {error && <div className="toast toast-error" style={{ marginBottom: '1rem' }}>{error}</div>}
-
-            {loading ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {[...Array(6)].map((_, i) => <div key={i} className="skeleton" style={{ height: 48, borderRadius: 8 }} />)}
-                </div>
-            ) : filtered.length === 0 ? (
-                <div className="glass-panel">
-                    <div className="empty-state">
-                        <div className="empty-state-title">No seats found</div>
-                        <div className="empty-state-desc">Seats appear here once an account is created for a constituency or seat geography is uploaded.</div>
-                    </div>
-                </div>
-            ) : (
-                <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
+            <AdminPanel>
+            <AdminDataState loading={loading} error={error} empty={!loading && !error && filtered.length === 0} emptyTitle="No seats found" emptyDescription="Seats appear once an account is created for a constituency or shared geography is uploaded.">
+                <AdminTableWrap label="Shared seat registry">
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -181,8 +155,9 @@ export default function SeatRegistryPage() {
                             })}
                         </tbody>
                     </table>
-                </div>
-            )}
+                </AdminTableWrap>
+            </AdminDataState>
+            </AdminPanel>
         </>
     );
 }

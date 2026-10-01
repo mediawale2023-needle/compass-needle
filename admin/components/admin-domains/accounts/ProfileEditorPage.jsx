@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiGet, apiPatch, apiDelete } from '@/lib/api';
+import { AdminDataState } from '@/components/admin-ui/AdminPrimitives';
 
 export default function ProfileEditorPage() {
     const searchParams = useSearchParams();
@@ -18,11 +19,26 @@ export default function ProfileEditorPage() {
     const [tempPasswordResult, setTempPasswordResult] = useState('');
     const [deleteConfirm, setDeleteConfirm] = useState('');
     const [msg, setMsg] = useState({ type: '', text: '' });
+    const [accountQuery, setAccountQuery] = useState('');
+    const [accountsLoading, setAccountsLoading] = useState(true);
+    const [accountsError, setAccountsError] = useState('');
+    const [profileLoading, setProfileLoading] = useState(false);
+    const [profileError, setProfileError] = useState('');
 
     useEffect(() => {
-        apiGet('/api/admin/mps').then(r => setMps(r.mps || [])).catch(() => { });
+        setAccountsLoading(true);
+        setAccountsError('');
+        apiGet('/api/admin/mps').then(r => {
+            const accounts = r.mps || [];
+            setMps(accounts);
+            if (requestedTenantId) {
+                const requested = accounts.find((item) => String(item.tenant_id) === String(requestedTenantId));
+                if (requested) setSelected(requested);
+            }
+        }).catch(() => setAccountsError('Customer accounts could not be loaded. Try again or check the Admin API.'))
+            .finally(() => setAccountsLoading(false));
         apiGet('/api/admin/constituencies').then(r => setConstituencies(r.constituencies || [])).catch(() => { });
-    }, []);
+    }, [requestedTenantId]);
 
     useEffect(() => {
         if (!requestedTenantId || selected || mps.length === 0) return;
@@ -33,6 +49,8 @@ export default function ProfileEditorPage() {
     useEffect(() => {
         if (!selected) return;
         const loadProfile = async () => {
+            setProfileLoading(true);
+            setProfileError('');
             const p = await apiGet(`/api/admin/mps/${selected.tenant_id}/profile`);
             setProfile(p);
             setIdentityForm({
@@ -51,7 +69,9 @@ export default function ProfileEditorPage() {
                 sovereignty_rules: p.sovereignty_rules || '',
             });
         };
-        loadProfile().catch(() => { });
+        loadProfile()
+            .catch(() => setProfileError('This account profile could not be loaded. Select the account again or check the Admin API.'))
+            .finally(() => setProfileLoading(false));
     }, [selected]);
 
     const completeness = (() => {
@@ -145,31 +165,48 @@ export default function ProfileEditorPage() {
     };
 
     const mpList = mps.filter(m => m.role !== 'admin' && m.role !== 'super_admin' && m.role !== 'sysadmin');
+    const visibleAccounts = mpList.filter((account) => {
+        const haystack = `${account.display_name || ''} ${account.username || ''} ${account.parliamentary_constituency || ''}`.toLowerCase();
+        return !accountQuery || haystack.includes(accountQuery.toLowerCase());
+    });
 
     return (
         <>
-            {mpList.length === 0 ? (
-                <div className="glass-panel">
-                    <div className="empty-state">
-                        <div className="empty-state-title">No accounts registered</div>
-                        <div className="empty-state-desc">Create an account first from the Overview page</div>
-                    </div>
-                </div>
-            ) : (
+            <AdminDataState
+                loading={accountsLoading}
+                error={accountsError}
+                empty={!accountsLoading && !accountsError && mpList.length === 0}
+                emptyTitle="No accounts registered"
+                emptyDescription="Create an account first from the Overview page."
+            >
+            {mpList.length > 0 && (
                 <>
-                    <div className="form-row">
-                        <label className="form-label">Select Account to Edit</label>
-                        <select className="form-input" value={selected?.user_id || ''} onChange={(e) => {
-                            const mp = mpList.find(m => m.user_id === Number(e.target.value));
-                            setSelected(mp || null);
-                            setMsg({});
-                        }}>
-                            <option value="">Choose an account…</option>
-                            {mpList.map(m => <option key={m.user_id} value={m.user_id}>{m.display_name} (@{m.username})</option>)}
-                        </select>
+                    <div className="admin-account-registry">
+                        <label className="admin-search-field">
+                            <span className="form-label">Search accounts</span>
+                            <input className="form-input" value={accountQuery} onChange={(event) => setAccountQuery(event.target.value)} placeholder="Name, seat, or username" />
+                        </label>
+                        <div className="admin-account-list" aria-label="Customer accounts">
+                            {visibleAccounts.map((account) => (
+                                <button
+                                    type="button"
+                                    key={account.user_id}
+                                    aria-label={`Open ${account.display_name} account`}
+                                    data-selected={selected?.user_id === account.user_id}
+                                    onClick={() => { setSelected(account); setMsg({}); }}
+                                >
+                                    <span><strong>{account.display_name}</strong><small>@{account.username}</small></span>
+                                    <span><strong>{account.parliamentary_constituency || 'Seat not assigned'}</strong><small>{account.account_stage || 'elected'} · {(account.seat_type || 'mp').toUpperCase()}</small></span>
+                                    <span>{selected?.user_id === account.user_id ? 'Editing' : 'Open'} →</span>
+                                </button>
+                            ))}
+                            {visibleAccounts.length === 0 && <div className="admin-empty-state"><h3>No matching accounts</h3><p>Try another name, seat, or username.</p></div>}
+                        </div>
                     </div>
 
-                    {selected && profile && (
+                    {selected && (
+                        <AdminDataState loading={profileLoading} error={profileError} empty={!profileLoading && !profileError && !profile} emptyTitle="Profile not available">
+                    {profile && (
                         <>
                             {/* Completeness Bar */}
                             <div className="glass-panel" style={{ marginBottom: '1.25rem' }}>
@@ -197,7 +234,7 @@ export default function ProfileEditorPage() {
                                 </div>
                             )}
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: '1.25rem' }}>
+                            <div className="admin-account-edit-grid">
                                 {/* Identity */}
                                 <div className="glass-panel">
                                     <div className="section-title">Identity & Credentials</div>
@@ -355,8 +392,11 @@ export default function ProfileEditorPage() {
                             </div>
                         </>
                     )}
+                        </AdminDataState>
+                    )}
                 </>
             )}
+            </AdminDataState>
         </>
     );
 }

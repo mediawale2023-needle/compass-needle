@@ -2083,3 +2083,11 @@ Chronological log of completed repository work. Read before making changes to un
 - Preserved all existing Admin APIs and contextual routing. No backend, auth, tenant, WhatsApp, sync, schema, or production behavior changed.
 - Verification: Admin Vitest 7 files / 16 tests passed; Admin production build passed with existing SWC fallback, multiple-lockfile, and stale Browserslist warnings.
 - Files touched: `admin/app/dashboard/page.js`, `admin/app/globals.css`, `admin/components/admin-ui/AdminPrimitives.jsx`, `admin/tests/dashboard.test.jsx`, `TASK_LOG.md`.
+
+# 2026-10-01 — Admin redesign Phase 3: Accounts and Constituencies
+
+- Reworked Accounts into a searchable operator registry with direct profile selection, explicit account/profile loading and failure states, and canonical links to tenant-owned WhatsApp and geography controls.
+- Added persistent domain navigation for Accounts and Constituencies, retained the existing seat registry/map/geography routes, and converted the former Case Operations, Platform Operations, and Administration landing cards into direct default-route redirects under shared domain navigation.
+- Refined the seat registry into an operational status table with readiness metrics and explicit data states. Existing Admin endpoints, mutation payloads, tenant scoping, password-reset behavior, and destructive confirmation requirements are unchanged.
+- Verification: Admin Vitest 7 files / 16 tests passed; Admin production build passed with the same pre-existing SWC fallback, multiple-lockfile, and stale Browserslist warnings.
+- Files touched: `admin/app/dashboard/accounts/**`, `admin/app/dashboard/seats/**`, `admin/app/dashboard/seat-maps/page.js`, `admin/app/dashboard/shared-geography/workspace/page.js`, the three domain layouts/default redirects, `admin/components/admin-domains/accounts/ProfileEditorPage.jsx`, `admin/components/admin-domains/seats/SeatRegistryPage.jsx`, `admin/components/admin-ui/DomainNavs.jsx`, Admin CSS/tests, and `TASK_LOG.md`.

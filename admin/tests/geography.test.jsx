@@ -20,6 +20,7 @@ vi.mock('@/lib/api', () => ({
 }));
 
 vi.mock('next/navigation', () => ({
+    usePathname: () => '/dashboard/shared-geography/workspace',
     useSearchParams: () => useSearchParamsMock(),
     useRouter: () => ({
         push: useRouterPushMock,
