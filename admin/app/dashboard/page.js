@@ -3,137 +3,27 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiGet } from '@/lib/api';
-import { AdminDataState, AdminMetricStrip, AdminPageHeader, AdminPanel, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
+import { AdminDataState } from '@/components/admin-ui/AdminPrimitives';
 
 function timeAgo(value) {
-    if (!value) return 'No observation';
+    if (!value) return 'No recent observation';
     const seconds = Math.max(0, (Date.now() - new Date(value).getTime()) / 1000);
-    if (seconds < 60) return 'just now';
+    if (seconds < 60) return 'Just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)} hr ago`;
     return `${Math.floor(seconds / 86400)} d ago`;
 }
-
-function alertDestination(alert) {
-    const query = alert.tenant_id ? `?tenant_id=${encodeURIComponent(alert.tenant_id)}` : '';
+function destination(alert) {
     if (alert.type === 'setup_incomplete') return `/dashboard/mps/${alert.tenant_id}/setup`;
-    if (alert.type === 'low_completeness') return `/dashboard/accounts${query}`;
-    if (alert.type === 'tenant_inactive') return `/dashboard/system/health${query}`;
+    if (alert.type === 'low_completeness') return `/dashboard/accounts?tenant_id=${alert.tenant_id}`;
+    if (alert.type === 'tenant_inactive') return `/dashboard/system/health?tenant_id=${alert.tenant_id}`;
     if (alert.type?.startsWith('whatsapp_inbound')) return '/dashboard/system/whatsapp-inbound';
     if (alert.type === 'whatsapp_health') return '/dashboard/system/whatsapp';
     if (alert.type?.startsWith('job_')) return '/dashboard/system/jobs';
-    if (alert.type === 'expiring_announcement') return '/dashboard/system/announcements';
     return alert.tenant_id ? `/dashboard/mps/${alert.tenant_id}` : '/dashboard/system/health';
 }
-
-function severityLabel(severity) {
-    if (severity === 'critical' || severity === 'error') return 'Critical';
-    if (severity === 'warning') return 'Warning';
-    return 'Review';
-}
-
-function ActionQueue({ alerts, loading, error, onRetry }) {
-    const sorted = useMemo(() => [...alerts].sort((a, b) => {
-        const rank = { critical: 0, error: 0, warning: 1, info: 2 };
-        return (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3);
-    }), [alerts]);
-    return (
-        <AdminPanel title="Needs attention now" description="Live operational alerts ordered by severity. Open an item to continue with its account or system context." actions={<Link className="btn-secondary" href="/dashboard/staff-access/audit">Audit log</Link>}>
-            <AdminDataState loading={loading} error={error} empty={!loading && !error && sorted.length === 0} emptyTitle="No active operational alerts" emptyDescription="All alert checks completed and returned no current issues." onRetry={onRetry}>
-                <div className="admin-action-queue">
-                    {sorted.slice(0, 8).map((alert, index) => (
-                        <Link key={`${alert.type}-${alert.tenant_id || 'global'}-${index}`} href={alertDestination(alert)} className="admin-action-row" data-severity={alert.severity || 'info'}>
-                            <span className="admin-action-severity">{severityLabel(alert.severity)}</span>
-                            <span className="admin-action-copy"><strong>{alert.title}</strong><small>{alert.description}</small></span>
-                            <span className="admin-action-scope">{alert.tenant_id ? `Account #${alert.tenant_id}` : 'Platform'}</span>
-                            <span aria-hidden="true" className="admin-action-arrow">→</span>
-                        </Link>
-                    ))}
-                </div>
-            </AdminDataState>
-        </AdminPanel>
-    );
-}
-
-function ReadinessSummary({ stats, accounts, alerts, unavailable }) {
-    const items = useMemo(() => {
-        const blocked = alerts.filter((item) => item.type === 'setup_incomplete').length;
-        const stale = alerts.filter((item) => item.type === 'tenant_inactive').length;
-        const lowProfiles = alerts.filter((item) => item.type === 'low_completeness').length;
-        const missingWhatsApp = accounts.filter((item) => !item.whatsapp_number || String(item.whatsapp_number).startsWith('temp_')).length;
-        return [
-            { label: 'Open alerts', value: alerts.length, tone: alerts.length ? 'danger' : 'success' },
-            { label: 'Blocked launches', value: blocked, tone: blocked ? 'warning' : 'success' },
-            { label: 'Stale accounts', value: stale, tone: stale ? 'warning' : 'neutral' },
-            { label: 'Low profiles', value: lowProfiles, tone: lowProfiles ? 'warning' : 'neutral' },
-            { label: 'Missing WhatsApp', value: missingWhatsApp, tone: missingWhatsApp ? 'danger' : 'success' },
-            { label: 'Total cases', value: stats?.total_cases ?? '—' },
-        ];
-    }, [accounts, alerts, stats]);
-    return <AdminMetricStrip items={items} unavailable={unavailable} />;
-}
-
-function SystemHealth({ health, loading, error, onRetry }) {
-    const services = health ? [
-        { label: 'WhatsApp', status: health.whatsapp?.status || 'red', detail: health.whatsapp?.reason || (health.whatsapp?.last_webhook ? `Last webhook ${timeAgo(health.whatsapp.last_webhook)}` : 'No webhook observation'), href: '/dashboard/system/whatsapp' },
-        { label: 'OpenAI', status: health.openai?.status || 'red', detail: health.openai?.configured ? 'Configured' : 'Not configured', href: '/dashboard/cases-intelligence/engine' },
-        { label: 'Gemini', status: health.gemini?.status || 'red', detail: health.gemini?.configured ? 'Configured' : 'Not configured', href: '/dashboard/cases-intelligence/engine' },
-    ] : [];
-    return (
-        <AdminPanel title="Platform readiness" description={health?.last_checked ? `Last checked ${timeAgo(health.last_checked)}` : 'Live service configuration and messaging health.'} actions={<Link href="/dashboard/system/health" className="btn-secondary">Open system health</Link>}>
-            <AdminDataState loading={loading} error={error} onRetry={onRetry}>
-                <div className="admin-health-grid">
-                    {services.map((service) => (
-                        <Link key={service.label} href={service.href} className="admin-health-service">
-                            <span className="admin-health-dot" data-status={service.status} />
-                            <span><strong>{service.label}</strong><small>{service.detail}</small></span>
-                            <span aria-hidden="true">→</span>
-                        </Link>
-                    ))}
-                </div>
-            </AdminDataState>
-        </AdminPanel>
-    );
-}
-
-function AccountActivity({ accounts, loading, error, onRetry }) {
-    const [query, setQuery] = useState('');
-    const [filter, setFilter] = useState('all');
-    const visible = useMemo(() => accounts.filter((account) => {
-        if (filter === 'setup' && (account.completeness || 0) >= 70) return false;
-        if (filter === 'whatsapp' && account.whatsapp_number && !String(account.whatsapp_number).startsWith('temp_')) return false;
-        const haystack = `${account.display_name || ''} ${account.username || ''} ${account.parliamentary_constituency || ''}`.toLowerCase();
-        return !query || haystack.includes(query.toLowerCase());
-    }), [accounts, filter, query]);
-    return (
-        <AdminPanel title="Account readiness" description="Search customer accounts and continue with the next setup or support action." actions={<Link href="/dashboard/accounts/new" className="btn-primary">Create account</Link>}>
-            <div className="admin-filter-bar">
-                <label className="admin-search-field"><span className="sr-only">Search accounts</span><input className="form-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, seat, or username" /></label>
-                <div className="admin-filter-pills" aria-label="Account filters">
-                    {[['all', 'All'], ['setup', 'Needs setup'], ['whatsapp', 'Missing WhatsApp']].map(([value, label]) => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}
-                </div>
-            </div>
-            <AdminDataState loading={loading} error={error} empty={!loading && !error && visible.length === 0} emptyTitle="No accounts match this view" emptyDescription="Change the search or readiness filter to see other accounts." onRetry={onRetry}>
-                <AdminTableWrap label="Account readiness registry">
-                    <table className="data-table admin-command-table">
-                        <thead><tr><th>Account</th><th>Seat</th><th>Stage</th><th>Profile</th><th>WhatsApp</th><th>Next action</th></tr></thead>
-                        <tbody>{visible.slice(0, 12).map((account) => {
-                            const incomplete = (account.completeness || 0) < 70;
-                            const missingWhatsApp = !account.whatsapp_number || String(account.whatsapp_number).startsWith('temp_');
-                            return <tr key={account.tenant_id}>
-                                <td><strong>{account.display_name}</strong><small>@{account.username} · Account #{account.tenant_id}</small></td>
-                                <td>{account.parliamentary_constituency || 'Not assigned'}<small>{account.seat_type?.toUpperCase() || account.house || '—'}</small></td>
-                                <td><span className={`badge ${account.account_stage === 'aspirant' ? 'badge-amber' : 'badge-green'}`}>{account.account_stage || 'elected'}</span></td>
-                                <td><span className="cn-data">{account.completeness || 0}%</span></td>
-                                <td>{missingWhatsApp ? <span className="badge badge-red">Missing</span> : <span className="badge badge-green">Configured</span>}</td>
-                                <td><Link href={incomplete ? `/dashboard/mps/${account.tenant_id}/setup` : `/dashboard/mps/${account.tenant_id}`}>{incomplete ? 'Continue setup' : 'Open account'} →</Link></td>
-                            </tr>;
-                        })}</tbody>
-                    </table>
-                </AdminTableWrap>
-            </AdminDataState>
-        </AdminPanel>
-    );
+function tone(severity) {
+    return severity === 'critical' || severity === 'error' ? 'critical' : severity === 'warning' ? 'warning' : 'review';
 }
 
 export default function DashboardOverview() {
@@ -141,44 +31,84 @@ export default function DashboardOverview() {
     const [accounts, setAccounts] = useState([]);
     const [alerts, setAlerts] = useState([]);
     const [health, setHealth] = useState(null);
-    const [state, setState] = useState({ stats: 'loading', accounts: 'loading', alerts: 'loading', health: 'loading' });
+    const [state, setState] = useState({ stats:'loading', accounts:'loading', alerts:'loading', health:'loading' });
     const [errors, setErrors] = useState({});
-    const loadResource = useCallback(async (key, path, apply) => {
-        setState((current) => ({ ...current, [key]: 'loading' }));
-        setErrors((current) => ({ ...current, [key]: '' }));
-        try {
-            const result = await apiGet(path); apply(result); setState((current) => ({ ...current, [key]: 'ready' }));
-        } catch (error) {
-            setErrors((current) => ({ ...current, [key]: error.message || `Failed to load ${key}` }));
-            setState((current) => ({ ...current, [key]: 'error' }));
-        }
+    const load = useCallback(async (key, path, apply) => {
+        setState(s => ({...s,[key]:'loading'})); setErrors(e => ({...e,[key]:''}));
+        try { const result = await apiGet(path); apply(result); setState(s => ({...s,[key]:'ready'})); }
+        catch (error) { setErrors(e => ({...e,[key]:error.message || 'Data unavailable'})); setState(s => ({...s,[key]:'error'})); }
     }, []);
     const loaders = useMemo(() => ({
-        stats: () => loadResource('stats', '/api/admin/stats', setStats),
-        accounts: () => loadResource('accounts', '/api/admin/mps', (result) => setAccounts(result.mps || [])),
-        alerts: () => loadResource('alerts', '/api/admin/alerts', (result) => setAlerts(result.alerts || [])),
-        health: () => loadResource('health', '/api/admin/system-health', setHealth),
-    }), [loadResource]);
-    useEffect(() => { Object.values(loaders).forEach((load) => load()); }, [loaders]);
-    const summaryUnavailable = state.stats === 'error' || state.accounts === 'error' || state.alerts === 'error';
-    return <div className="space-y-5">
-        <AdminPageHeader title="Command Centre" description="Prioritise failures and launch blockers, then move directly into the affected account or operating system." actions={<button className="btn-secondary" type="button" onClick={() => Object.values(loaders).forEach((load) => load())}>Refresh all</button>} />
-        <ActionQueue alerts={alerts} loading={state.alerts === 'loading'} error={errors.alerts} onRetry={loaders.alerts} />
-        <ReadinessSummary stats={stats} accounts={accounts} alerts={alerts} unavailable={summaryUnavailable} />
-        <div className="admin-command-grid">
-            <SystemHealth health={health} loading={state.health === 'loading'} error={errors.health} onRetry={loaders.health} />
-            <AdminPanel title="Operational activity" description="Current platform totals from the Admin reporting API.">
-                <AdminDataState loading={state.stats === 'loading'} error={errors.stats} onRetry={loaders.stats}>
-                    <dl className="admin-activity-list">
-                        <div><dt>Customer accounts</dt><dd>{stats?.total_accounts ?? stats?.total_mps ?? '—'}</dd></div>
-                        <div><dt>MP seats</dt><dd>{stats?.mp_seats ?? stats?.lok_sabha ?? '—'}</dd></div>
-                        <div><dt>MLA seats</dt><dd>{stats?.mla_seats ?? '—'}</dd></div>
-                        <div><dt>Aspirants</dt><dd>{stats?.aspirants ?? '—'}</dd></div>
-                        <div><dt>Profiles</dt><dd>{stats?.total_profiles ?? '—'}</dd></div>
-                    </dl>
+        stats:()=>load('stats','/api/admin/stats',setStats),
+        accounts:()=>load('accounts','/api/admin/mps',r=>setAccounts(r.mps||[])),
+        alerts:()=>load('alerts','/api/admin/alerts',r=>setAlerts(r.alerts||[])),
+        health:()=>load('health','/api/admin/system-health',setHealth),
+    }),[load]);
+    useEffect(()=>{ Object.values(loaders).forEach(fn=>fn()); },[loaders]);
+
+    const sortedAlerts = useMemo(()=>[...alerts].sort((a,b)=>({critical:0,error:0,warning:1,info:2}[a.severity]??3)-({critical:0,error:0,warning:1,info:2}[b.severity]??3)),[alerts]);
+    const blocked = alerts.filter(a=>a.type==='setup_incomplete').length;
+    const stale = alerts.filter(a=>a.type==='tenant_inactive').length;
+    const missingWhatsApp = accounts.filter(a=>!a.whatsapp_number || String(a.whatsapp_number).startsWith('temp_')).length;
+    const attentionAccounts = new Set(alerts.filter(a=>a.tenant_id).map(a=>a.tenant_id)).size;
+    const services = health ? [
+        ['WhatsApp',health.whatsapp?.status,health.whatsapp?.reason || (health.whatsapp?.last_webhook ? `Last activity ${timeAgo(health.whatsapp.last_webhook)}` : 'No recent webhook'),'/dashboard/system/whatsapp'],
+        ['OpenAI',health.openai?.status,health.openai?.configured?'Configured':'Not configured','/dashboard/cases-intelligence/engine'],
+        ['Gemini',health.gemini?.status,health.gemini?.configured?'Configured':'Not configured','/dashboard/cases-intelligence/engine'],
+    ] : [];
+
+    return <div className="command-centre-v2">
+        <section className="cc-hero">
+            <div>
+                <span className="cc-kicker">Platform command</span>
+                <h2>Command Centre</h2>
+                <p>See what needs intervention, confirm platform readiness, and move directly into the affected operation.</p>
+            </div>
+            <div className="cc-hero-actions">
+                <Link className="btn-secondary" href="/dashboard/staff-access/audit">Audit log</Link>
+                <button className="btn-primary" type="button" onClick={()=>Object.values(loaders).forEach(fn=>fn())}>Refresh data</button>
+            </div>
+        </section>
+
+        <section className="cc-kpi-grid" aria-label="Operational overview">
+            <Link href="/dashboard/accounts" className="cc-kpi"><span>Customer accounts</span><strong>{state.stats==='error'?'—':(stats?.total_accounts ?? stats?.total_mps ?? accounts.length)}</strong><small>Open account workspace →</small></Link>
+            <div className="cc-kpi" data-tone={alerts.length?'danger':'success'}><span>Needs attention</span><strong>{state.alerts==='error'?'—':alerts.length}</strong><small>{state.alerts==='error'?'Alert data unavailable':`${attentionAccounts} affected accounts`}</small></div>
+            <div className="cc-kpi" data-tone={blocked?'warning':'success'}><span>Launch blockers</span><strong>{state.alerts==='error'?'—':blocked}</strong><small>{blocked?'Setup intervention required':'No blocked launches'}</small></div>
+            <Link href="/dashboard/system/whatsapp" className="cc-kpi" data-tone={missingWhatsApp?'warning':'success'}><span>Messaging readiness</span><strong>{state.accounts==='error'?'—':missingWhatsApp}</strong><small>{missingWhatsApp?'accounts missing WhatsApp':'All accounts configured'} →</small></Link>
+            <Link href="/dashboard/cases-intelligence/explorer" className="cc-kpi"><span>Total cases</span><strong>{state.stats==='error'?'—':(stats?.total_cases ?? '—')}</strong><small>Open case intelligence →</small></Link>
+        </section>
+
+        <div className="cc-primary-grid">
+            <section className="cc-panel cc-attention">
+                <header className="cc-panel-head"><div><span className="cc-kicker">Priority queue</span><h3>Needs attention</h3><p>Highest-severity exceptions only. Resolve the issue in context.</p></div><span className="cc-count">{alerts.length || 0} open</span></header>
+                <AdminDataState loading={state.alerts==='loading'} error={errors.alerts} empty={!errors.alerts && state.alerts!=='loading' && sortedAlerts.length===0} emptyTitle="No active operational alerts" emptyDescription="Current checks returned no issues." onRetry={loaders.alerts}>
+                    <div className="cc-alert-list">{sortedAlerts.slice(0,5).map((alert,index)=><Link href={destination(alert)} className="cc-alert" data-tone={tone(alert.severity)} key={`${alert.type}-${alert.tenant_id||'platform'}-${index}`}>
+                        <span className="cc-alert-marker" /><span className="cc-alert-copy"><strong>{alert.title}</strong><small>{alert.description}</small></span><span className="cc-alert-scope">{alert.tenant_id?`Account #${alert.tenant_id}`:'Platform'}</span><span className="cc-arrow">→</span>
+                    </Link>)}</div>
+                    {sortedAlerts.length>5 && <div className="cc-panel-foot"><Link href="/dashboard/system/health">View all {sortedAlerts.length} operational alerts →</Link></div>}
                 </AdminDataState>
-            </AdminPanel>
+            </section>
+
+            <section className="cc-panel">
+                <header className="cc-panel-head"><div><span className="cc-kicker">Live services</span><h3>Platform health</h3><p>{health?.last_checked?`Checked ${timeAgo(health.last_checked)}`:'Service readiness and configuration'}</p></div><Link href="/dashboard/system/health">Details →</Link></header>
+                <AdminDataState loading={state.health==='loading'} error={errors.health} onRetry={loaders.health}>
+                    <div className="cc-service-list">{services.map(([name,status,detail,href])=><Link href={href} className="cc-service" key={name}><span className="cc-service-dot" data-status={status||'red'} /><span><strong>{name}</strong><small>{detail}</small></span><span>→</span></Link>)}</div>
+                </AdminDataState>
+                <div className="cc-health-links"><Link href="/dashboard/system/jobs">Background jobs →</Link><Link href="/dashboard/system/parliament-sync">Parliament sync →</Link></div>
+            </section>
         </div>
-        <AccountActivity accounts={accounts} loading={state.accounts === 'loading'} error={errors.accounts} onRetry={loaders.accounts} />
+
+        <div className="cc-secondary-grid">
+            <section className="cc-panel">
+                <header className="cc-panel-head"><div><span className="cc-kicker">Customer readiness</span><h3>Accounts requiring intervention</h3><p>Go to Accounts for the complete registry.</p></div><Link className="btn-secondary" href="/dashboard/accounts">Open Accounts</Link></header>
+                <AdminDataState loading={state.accounts==='loading'} error={errors.accounts} onRetry={loaders.accounts}>
+                    <div className="cc-readiness-row"><div><strong>{stale}</strong><span>Stale accounts</span></div><div><strong>{missingWhatsApp}</strong><span>Missing WhatsApp</span></div><div><strong>{accounts.filter(a=>(a.completeness||0)<70).length}</strong><span>Incomplete profiles</span></div><div><strong>{blocked}</strong><span>Blocked launches</span></div></div>
+                </AdminDataState>
+            </section>
+            <section className="cc-panel cc-quick">
+                <header className="cc-panel-head"><div><span className="cc-kicker">Shortcuts</span><h3>Common operations</h3></div></header>
+                <div className="cc-quick-links"><Link href="/dashboard/accounts/new">Create account <span>→</span></Link><Link href="/dashboard/system/whatsapp">WhatsApp operations <span>→</span></Link><Link href="/dashboard/seats">Seats & geography <span>→</span></Link><Link href="/dashboard/cases-intelligence/explorer">Case intelligence <span>→</span></Link></div>
+            </section>
+        </div>
     </div>;
 }
