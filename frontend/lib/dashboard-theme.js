@@ -1,3 +1,8 @@
+// DEPRECATED — Gen 1 palette, duplicating `briefcasePalette`. Canonical
+// tokens live in `@/lib/briefcase-tokens` (`gen2`). The only live consumer
+// is DashboardEmptyState; the other components/dashboard/Dashboard*.jsx
+// files that import this are unreachable from any route (the Overview route
+// renders OverviewDashboard). Do not add new consumers.
 export const dashboardPalette = {
     paper: '#F2EBD9',
     paperDeep: '#E8E0CB',

@@ -60,6 +60,12 @@ function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5, filled = 
 
 // ─── Shared design tokens ────────────────────────────────────
 // Values mirror Main.dc.html (the canonical Case Detail design source).
+// Gen 2b — the case workspace's own palette. It is NOT canonical: green,
+// amber, hairline and ink all differ from `@/lib/briefcase-tokens` (`gen2`),
+// and it carries a `slate` that the status palette prohibits elsewhere.
+// Deliberately left unmigrated — swapping these would visibly redesign the
+// most workflow-critical surface in the product. Fold into canonical only
+// behind an explicit visual review of the case detail workspace.
 const C = {
     paper:       '#F4F0E7',
     paperDeep:   '#ECE6DA',

@@ -4,14 +4,11 @@
 // Only truthful counts computed by useBriefcaseCases: needsYou (new +
 // pending_review + awaiting_location), newToday, uncategorised. No SLA metric,
 // no fabricated scoring, no serif numerals, no icon grid.
-const C = {
-    surface: '#FFFEFB',
-    border: '#E4DECB',
-    ink: '#211F19',
-    muted: '#6C6858',
-};
-const SANS = '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif';
-const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
+import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
+
+const C = { ...gen2, border: gen2.hair };
+const SANS = gen2Fonts.sans;
+const MONO = gen2Fonts.mono;
 
 export default function BriefcaseTriageStrip({ triage }) {
     const counters = [

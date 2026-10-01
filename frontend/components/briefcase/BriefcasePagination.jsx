@@ -1,12 +1,14 @@
 'use client';
 
+import { gen2 } from '@/lib/briefcase-tokens';
+
 const C = {
-    surface: '#FFFEFB',
-    hair: '#E4DECB',
+    ...gen2,
+    activeBg: gen2.activeTint,
+    // Local override: pagination's divider is a shade darker than the
+    // canonical hairSoft (#DDD6C5). Kept as-is so this canonicalisation
+    // stays visually inert; fold into canonical under a visual review.
     hairSoft: '#D8D0BE',
-    ink: '#211F19',
-    muted: '#6C6858',
-    activeBg: '#F7F2E7',
 };
 
 function pageWindow(page, totalPages) {
