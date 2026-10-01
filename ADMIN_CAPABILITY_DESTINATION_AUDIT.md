@@ -1,6 +1,7 @@
 # Admin Capability Destination Audit
 
-Date: 2026-10-01  
+Date: 2026-10-01
+
 Branch: `admin-briefcase-phase1`
 
 This checklist verifies that the Admin redesign preserves the pre-existing operator capabilities. It records the canonical destination and the compatibility route where one exists. It does not assert new backend behavior.
