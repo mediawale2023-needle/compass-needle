@@ -60,13 +60,16 @@
     --text-secondary: var(--ink-3);
     --text-muted: var(--ink-2);
 
-    /* Sidebar chrome — the one dark surface, mirroring Briefcase's rail. */
-    --chrome: #1d2a24;
-    --chrome-2: #243128;
-    --chrome-line: rgba(255, 253, 247, 0.10);
-    --chrome-text: #cfcab9;
-    --chrome-muted: #8d8878;
-    --chrome-hi: #fffefb;
+    /* Sidebar chrome — the one dark surface, mirroring Briefcase's rail.
+     * These are the values the rail already renders. They came from a
+     * duplicate :root further down this file (removed below) and are kept
+     * verbatim so the sidebar is unchanged by that removal. */
+    --chrome: #063D2D;
+    --chrome-2: #0A4A37;
+    --chrome-line: rgba(242, 235, 217, 0.15);
+    --chrome-text: #E8E0CB;
+    --chrome-muted: #B8B09F;
+    --chrome-hi: #FBF6E7;
     --chrome-active: rgba(255, 253, 247, 0.055);
     --chrome-accent: #4e9c72;
 
@@ -1240,33 +1243,16 @@ select.form-input {
     color: var(--text-secondary);
 }
 .data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: #f8faf9; }
+.data-table tr:hover td { background: var(--row-hover); }
 
 
 /* ─── Briefcase-aligned Admin Shell (Phase 1) ─── */
-:root {
-  --ink: #1A1812;
-  --ink-2: #3D392F;
-  --ink-3: #665F50;
-  --paper: #F2EBD9;
-  --paper-2: #E8E0CB;
-  --surface: #FBF6E7;
-  --surface-2: #F7F0DC;
-  --line: rgba(26,24,18,0.14);
-  --line-2: rgba(26,24,18,0.28);
-  --sansad-green: #006A4D;
-  --sansad-green-light: #087C5B;
-  --saffron: #C76A1A;
-  --steel: #23496B;
-  --chrome: #063D2D;
-  --chrome-2: #0A4A37;
-  --chrome-line: rgba(242,235,217,0.15);
-  --chrome-text: #E8E0CB;
-  --chrome-muted: #B8B09F;
-  --chrome-hi: #FBF6E7;
-  --shadow-sm: 0 1px 2px rgba(26,24,18,.05), 0 0 0 1px rgba(26,24,18,.025);
-  --shadow-md: 0 8px 24px -16px rgba(26,24,18,.32);
-}
+/* A duplicate :root stood here redeclaring paper/surface/ink/line/green with
+ * Gen 1 values, after the canonical block at the top of this file. Because it
+ * came later it won, so the Gen 2 palette never took effect: the canvas
+ * rendered #F2EBD9 and every work surface #FBF6E7 — the whole page one shade
+ * of paper. Removed, leaving a single token source. Its sidebar chrome values
+ * were folded into the canonical block, so the rail is unchanged. */
 body { background: var(--paper); color: var(--ink); }
 .admin-shell { background: var(--paper); }
 .admin-main { margin-left: 220px; }
@@ -1605,10 +1591,12 @@ body { background: var(--paper); color: var(--ink); }
     /* Stacked, so the seam between the two panels runs horizontally. */
     .admin-command-grid > .admin-panel + .admin-panel { border-left:0; border-top:1px solid var(--line); }
 }
-@media (max-width:860px) {
+@media (max-width:640px) {
     .admin-metric-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .admin-metric-strip > div { border-bottom:1px solid var(--line); }
     .admin-metric-strip > div:nth-child(2n) { border-right:0; }
+    /* An odd final counter spans the row rather than sitting orphaned. */
+    .admin-metric-strip > div:nth-child(odd):last-child { grid-column:1 / -1; }
     /* A part-filled final row must not leave a hairline hanging in space. */
     .admin-metric-strip > div:last-child { border-right:0; border-bottom:0; }
 }
