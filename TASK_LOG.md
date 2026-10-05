@@ -1,5 +1,11 @@
 # Task Log
 
+- Date: 2026-10-05
+- Request: PR #146 dedicated Admin visual implementation, preserving PR #145 workflows and the existing Needle logo.
+- Summary: Started the approved seven-phase visual implementation from merged `main`. Established the shared operational-ledger foundation: expanded page hierarchy and spacing, low-radius structured surfaces, semantic metric cards, reusable status treatment, calmer table/form density, and responsive metric composition. No application behavior or data contracts changed.
+- Files touched: `admin/components/admin-ui/AdminPrimitives.jsx`, `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: Domain conversion and rendered visual QA remain in progress; no deployment or merge performed.
+
 ## 2026-10-05 — PR #145 Admin E2E alignment
 
 - Updated the narrow-viewport navigation E2E assertion to use the approved `Messaging` and `People & Access` destinations without changing the Admin sidebar or Needle brand block.
