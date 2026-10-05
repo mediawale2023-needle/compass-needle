@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiGet } from '@/lib/api';
-import { AdminDataState, AdminMetricStrip, AdminPageHeader, AdminPanel, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
+import { AdminDataState, AdminMetricCards, AdminPageHeader, AdminPanel, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
 
 // Compact relative age, matching the Briefcase convention (formatBriefcaseAge
 // in frontend/components/briefcase/briefcase-shared.jsx): a single unit, never
@@ -57,7 +57,10 @@ function AttentionStrip({ stats, alerts, alertsReady, statsReady }) {
             { label: 'Total cases', value: totalCases ?? '—', unavailable: !statsReady || totalCases === null },
         ];
     }, [alerts, alertsReady, stats, statsReady]);
-    return <AdminMetricStrip items={items} />;
+    return <AdminMetricCards items={items.map((item) => ({
+        ...item,
+        detail: item.label === 'Critical' ? 'Immediate intervention' : item.label === 'Warning' ? 'Needs operator review' : item.label === 'Review' ? 'Informational queue' : item.label === 'Accounts' ? 'Customer workspaces' : 'Across all accounts',
+    }))} />;
 }
 
 // ─── Needs attention now — the dominant area ──────────────────────────────
@@ -81,7 +84,10 @@ function ActionQueue({ alerts, loading, error, onRetry }) {
                 onRetry={onRetry}
                 skeletonRows={5}
             >
-                <div className="admin-action-queue">
+                <div className="admin-action-queue" role="table" aria-label="Operational issue queue">
+                    <div className="admin-action-head" role="row">
+                        <span>Priority</span><span>Issue</span><span>Account</span><span>Age</span><span>Impact</span><span>Action</span>
+                    </div>
                     {sorted.slice(0, 8).map((alert, index) => (
                         <Link
                             key={`${alert.type}-${alert.tenant_id || 'global'}-${index}`}
@@ -97,7 +103,9 @@ function ActionQueue({ alerts, loading, error, onRetry }) {
                             <span className="admin-action-scope">
                                 {alert.tenant_id ? `Account #${alert.tenant_id}` : 'Platform'}
                             </span>
-                            <span aria-hidden="true" className="admin-action-arrow">→</span>
+                            <time className="admin-action-age">{formatAge(alert.created_at || alert.detected_at) || 'Current'}</time>
+                            <span className="admin-action-impact">{alert.severity === 'critical' || alert.severity === 'error' ? 'Service at risk' : alert.severity === 'warning' ? 'Degraded operation' : 'Review recommended'}</span>
+                            <span className="admin-action-arrow">Investigate →</span>
                         </Link>
                     ))}
                 </div>
@@ -388,7 +396,7 @@ export default function DashboardOverview() {
             {/* Masthead: title block and counter row share one surface, split
                 by a hairline, rather than reading as two stacked cards. Both
                 primitives are unchanged — only their container is new. */}
-            <section className="admin-command-header">
+            <section className="admin-command-header admin-command-masthead">
                 <AdminPageHeader
                     context={lastChecked ? `Last checked ${lastChecked} ago` : null}
                     title="Command Centre"

@@ -6,6 +6,12 @@
 - Files touched: `admin/components/admin-ui/AdminPrimitives.jsx`, `admin/app/globals.css`, `TASK_LOG.md`
 - Risks or follow-ups: Domain conversion and rendered visual QA remain in progress; no deployment or merge performed.
 
+- Date: 2026-10-05
+- Request: PR #146 Command Centre visual transformation.
+- Summary: Rebuilt the Command Centre presentation around spacious headline metric cards, a six-column operational issue queue with priority/account/age/impact/action context, stronger pulse cards, and separated readiness/activity/quick-action work areas. Existing loaders, API endpoints, alert routing, and real metrics remain unchanged.
+- Files touched: `admin/app/dashboard/page.js`, `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: Alert age remains explicitly `Current` when the existing API does not provide a timestamp; no value is fabricated.
+
 ## 2026-10-05 — PR #145 Admin E2E alignment
 
 - Updated the narrow-viewport navigation E2E assertion to use the approved `Messaging` and `People & Access` destinations without changing the Admin sidebar or Needle brand block.
