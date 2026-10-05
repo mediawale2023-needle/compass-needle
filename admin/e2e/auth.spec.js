@@ -97,6 +97,7 @@ test('Admin navigation remains available on a narrow viewport', async ({ page })
     await page.goto('/dashboard');
 
     await page.getByRole('button', { name: 'Open navigation' }).click();
-    await expect(page.getByRole('link', { name: /WhatsApp Operations/ })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Staff & Access/ })).toBeVisible();
+    const sidebar = page.locator('.admin-sidebar');
+    await expect(sidebar.getByRole('link', { name: 'Messaging', exact: true })).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: 'People & Access', exact: true })).toBeVisible();
 });
