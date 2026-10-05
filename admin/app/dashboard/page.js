@@ -48,15 +48,13 @@ function AttentionStrip({ stats, alerts, alertsReady, statsReady }) {
         const critical = bySeverity(['critical', 'error']);
         const warning = bySeverity(['warning']);
         const review = alerts.length - critical - warning;
-        const seats = statsReady && (stats?.mp_seats != null || stats?.mla_seats != null)
-            ? (stats?.mp_seats || 0) + (stats?.mla_seats || 0)
-            : null;
+        const totalCases = statsReady ? (stats?.total_cases ?? null) : null;
         return [
             { label: 'Critical', value: critical, tone: critical ? 'danger' : 'success', unavailable: !alertsReady },
             { label: 'Warning', value: warning, tone: warning ? 'warning' : 'neutral', unavailable: !alertsReady },
             { label: 'Review', value: review, tone: 'neutral', unavailable: !alertsReady },
             { label: 'Accounts', value: stats?.total_accounts ?? stats?.total_mps ?? '—', unavailable: !statsReady },
-            { label: 'Seats', value: seats ?? '—', unavailable: !statsReady || seats === null },
+            { label: 'Total cases', value: totalCases ?? '—', unavailable: !statsReady || totalCases === null },
         ];
     }, [alerts, alertsReady, stats, statsReady]);
     return <AdminMetricStrip items={items} />;
@@ -71,8 +69,8 @@ function ActionQueue({ alerts, loading, error, onRetry }) {
     return (
         <AdminPanel
             title="Needs attention now"
-            description="Live operational alerts ordered by severity. Open an item to continue in its account or system context."
-            actions={<Link className="btn-secondary" href="/dashboard/staff-access/audit">Audit log</Link>}
+            description="Prioritised operational issues. See what is affected and continue directly to the corrective action."
+            actions={<Link className="btn-secondary" href="/dashboard/staff-access/audit">View all activity</Link>}
         >
             <AdminDataState
                 loading={loading}
@@ -320,7 +318,7 @@ export default function DashboardOverview() {
                 <AdminPageHeader
                     context={lastChecked ? `Last checked ${lastChecked} ago` : null}
                     title="Command Centre"
-                    description="Platform readiness and launch blockers."
+                    description="Here’s what needs your attention today."
                     actions={(
                         <button
                             className="btn-secondary"
