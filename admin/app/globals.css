@@ -1704,3 +1704,38 @@ body { background: var(--paper); color: var(--ink); }
 @media (max-width: 560px) {
   .admin-quick-actions { grid-template-columns:1fr; }
 }
+
+
+/* Account 360 — approved single-customer operating view. */
+.account360-tabs { display:flex; gap:0; margin:0 0 16px; overflow-x:auto; border:1px solid var(--line); background:var(--surface); }
+.account360-tabs a { flex:0 0 auto; padding:10px 14px; border-right:1px solid var(--line); color:var(--ink-3); font-size:.72rem; font-weight:700; text-decoration:none; }
+.account360-tabs a:last-child { border-right:0; }
+.account360-tabs a:hover { background:var(--surface-2); color:var(--sansad-green); }
+.account360-grid { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(320px,.85fr); gap:16px; margin-bottom:16px; }
+.account360-grid > .glass-panel { margin-bottom:0 !important; }
+.account360-kicker { margin-bottom:12px; color:var(--ink-3); font:600 .64rem/1 var(--font-sans); letter-spacing:.1em; text-transform:uppercase; }
+.account360-healthline { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.account360-healthline > strong { color:var(--ink); font-size:1rem; }
+.account360-readiness { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1px; border:1px solid var(--line); background:var(--line); }
+.account360-readiness a { display:grid; grid-template-columns:22px minmax(0,1fr) 14px; align-items:center; gap:8px; padding:10px; background:var(--surface); color:var(--ink); text-decoration:none; }
+.account360-readiness a:hover { background:var(--surface-2); }
+.account360-readiness strong,.account360-readiness small { display:block; }
+.account360-readiness strong { font-size:.75rem; }
+.account360-readiness small { margin-top:2px; color:var(--ink-3); font-size:.66rem; }
+.account360-readiness b { color:var(--sansad-green); }
+.account360-check { display:grid; place-items:center; width:20px; height:20px; border:1px solid #d6a660; color:#8a4d13; background:var(--warning-tint); font:700 .68rem/1 var(--font-mono); }
+.account360-check.ready { border-color:#9bb2a5; color:var(--sansad-green); background:var(--success-tint); }
+.account360-stat-row { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin-bottom:14px; border:1px solid var(--line); }
+.account360-stat-row > div { padding:12px 8px; border-right:1px solid var(--line); text-align:center; }
+.account360-stat-row > div:last-child { border-right:0; }
+.account360-stat-row strong,.account360-stat-row small { display:block; }
+.account360-stat-row strong { color:var(--ink); font:600 1.15rem/1 var(--font-mono); }
+.account360-stat-row small { margin-top:5px; color:var(--ink-3); font-size:.62rem; text-transform:uppercase; letter-spacing:.06em; }
+.account360-meta { margin-bottom:12px; color:var(--ink-3); font-size:.72rem; }
+@media (max-width: 980px) { .account360-grid { grid-template-columns:1fr; } }
+@media (max-width: 620px) {
+ .account360-readiness { grid-template-columns:1fr; }
+ .account360-stat-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .account360-stat-row > div:nth-child(2) { border-right:0; }
+ .account360-stat-row > div:nth-child(-n+2) { border-bottom:1px solid var(--line); }
+}
