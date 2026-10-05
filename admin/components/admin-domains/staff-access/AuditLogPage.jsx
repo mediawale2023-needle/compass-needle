@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { apiGet } from '@/lib/api';
 import { AdminDataState, AdminPageHeader, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
 
@@ -82,10 +83,13 @@ export default function AuditLogPage() {
 
     return (
         <>
-            <AdminPageHeader context="Administration / Audit" title="Audit log" description="Trace recorded administrative actions across platform and tenant-scoped resources." />
+            <AdminPageHeader context="Administration" title="Audit & Settings" description="Trace administrative actions and reach platform governance settings from one administration workspace." />
+            <nav className="admin-section-nav" aria-label="Audit and settings">
+                <a href="#audit-log">Audit Log</a><Link href="/dashboard/system/settings">Settings</Link><Link href="/dashboard/system/announcements">Announcements</Link>
+            </nav>
 
             {/* Filters */}
-            <div className="glass-panel" style={{ marginBottom: 16, padding: '0.875rem 1.25rem' }}>
+            <div id="audit-log" className="glass-panel" style={{ marginBottom: 16, padding: '0.875rem 1.25rem' }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <select className="form-input" value={actor} onChange={e => setActor(e.target.value)}
                         style={{ width: 160, fontSize: '0.78rem' }}>
