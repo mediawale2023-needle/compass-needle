@@ -12,6 +12,12 @@
 - Files touched: `admin/app/dashboard/page.js`, `admin/app/globals.css`, `TASK_LOG.md`
 - Risks or follow-ups: Alert age remains explicitly `Current` when the existing API does not provide a timestamp; no value is fabricated.
 
+- Date: 2026-10-05
+- Request: PR #146 Account 360 and progressive-onboarding visual phase.
+- Summary: Elevated Account 360 into a distinct customer workspace with a stronger identity header, spacious readiness and case-state panels, and clearer local navigation. Reframed onboarding as a four-stage workflow with a page masthead, prominent progress rail, focused stage canvas, stronger field rhythm, and responsive single-column progression. Submission behavior and validation are unchanged.
+- Files touched: `admin/components/admin-domains/accounts/CreateAccountPage.jsx`, `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: Existing account detail page still contains legacy inline declarations, but scoped visual-system rules intentionally override presentation without changing controls.
+
 ## 2026-10-05 — PR #145 Admin E2E alignment
 
 - Updated the narrow-viewport navigation E2E assertion to use the approved `Messaging` and `People & Access` destinations without changing the Admin sidebar or Needle brand block.

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
+import { AdminPageHeader } from '@/components/admin-ui/AdminPrimitives';
 
 export default function CreateAccountPage() {
     const router = useRouter();
@@ -84,7 +85,8 @@ export default function CreateAccountPage() {
 
     return (
         <>
-            <div style={{ marginBottom: '1.5rem' }}>
+            <AdminPageHeader context="Customers / Onboarding" title="Create customer account" description="Provision identity, seat access, operational configuration and launch readiness in four deliberate stages." />
+            <div className="onboarding-back">
                 <button className="btn-secondary" onClick={() => router.push('/dashboard/accounts')} style={{ fontSize: '0.8rem', padding: '6px 14px' }}>
                     ← Back to Accounts
                 </button>
@@ -108,7 +110,7 @@ export default function CreateAccountPage() {
                     })}
                 </div>
 
-                <div className="glass-panel onboarding-stage">
+                <div className="glass-panel onboarding-stage" aria-live="polite">
                     {step === 1 && <>
                         <div className="section-title">1. Account identity</div>
                         <p className="onboarding-help">Start with the minimum information needed to identify the customer and political seat.</p>
