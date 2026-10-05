@@ -1772,3 +1772,25 @@ body { background: var(--paper); color: var(--ink); }
  .onboarding-span-2 { grid-column:auto; }
  .onboarding-review > div { border-right:0; }
 }
+
+
+/* Case operations — row-to-investigation workflow. */
+.case-row-clickable { cursor:pointer; }
+.case-row-clickable:hover td,.case-row-selected td { background:var(--surface-2); }
+.case-row-selected td:first-child { box-shadow:inset 3px 0 0 var(--sansad-green); }
+.case-investigation { padding:0 !important; overflow:hidden; }
+.case-investigation-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; padding:14px 16px; border-bottom:1px solid var(--line); }
+.case-investigation-head strong,.case-investigation-head small { display:block; }
+.case-investigation-head strong { font-size:.86rem; }
+.case-investigation-head small { margin-top:4px; color:var(--ink-3); font-size:.7rem; }
+.case-investigation-body { padding:16px; }
+.case-investigation-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border:1px solid var(--line); margin-bottom:14px; }
+.case-investigation-summary > div { padding:10px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
+.case-investigation-summary > div:nth-child(3n) { border-right:0; }
+.case-investigation-summary span,.case-investigation-summary strong { display:block; }
+.case-investigation-summary span,.case-investigation-copy > span { color:var(--ink-3); font-size:.61rem; letter-spacing:.07em; text-transform:uppercase; }
+.case-investigation-summary strong { margin-top:4px; font-size:.76rem; }
+.case-investigation-copy { margin-top:10px; padding:12px; border:1px solid var(--line); background:var(--surface-2); }
+.case-investigation-copy p { margin:6px 0 0; color:var(--ink); font-size:.78rem; line-height:1.55; white-space:pre-wrap; }
+.case-investigation-dates { display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; color:var(--ink-3); font:500 .65rem/1.4 var(--font-mono); }
+@media (max-width:700px) { .case-investigation-summary { grid-template-columns:1fr; } .case-investigation-summary > div { border-right:0; } }
