@@ -30,6 +30,12 @@
 - Files touched: `admin/app/globals.css`, `TASK_LOG.md`
 - Risks or follow-ups: Visual QA must confirm long geography, audit and people rows preserve horizontal usability at narrow widths.
 
+- Date: 2026-10-05
+- Request: PR #146 responsive-polish phase.
+- Summary: Added a distinct 1280px laptop density pass, reinforced the labelled mobile navigation drawer, protected 390px layouts from page-level overflow, retained horizontally scrollable labelled table regions, and raised coarse-pointer controls to 44px minimum targets. The information architecture remains identical at every breakpoint.
+- Files touched: `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: Browser screenshots and overflow measurements remain the hard visual gate.
+
 ## 2026-10-05 — PR #145 Admin E2E alignment
 
 - Updated the narrow-viewport navigation E2E assertion to use the approved `Messaging` and `People & Access` destinations without changing the Admin sidebar or Needle brand block.

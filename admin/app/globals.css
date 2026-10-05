@@ -518,6 +518,44 @@ button, input, select, textarea, a {
     .admin-metric-strip > div:nth-last-child(-n+2) { border-bottom: 0; }
 }
 
+/* Responsive polish: same IA, context-aware density at laptop and phone. */
+@media (max-width: 1320px) and (min-width: 1025px) {
+  .admin-content { padding-left:26px; padding-right:26px; }
+  .admin-page-header h2 { font-size:32px; }
+  .admin-metric-cards { gap:10px; }
+  .admin-metric-cards > div { min-height:126px; padding:17px; }
+  .admin-action-head,.admin-action-row { grid-template-columns:72px minmax(200px,1.35fr) 100px 64px minmax(110px,.7fr) 94px; gap:10px; }
+}
+@media(max-width:1024px){
+ .admin-main{margin-left:0}
+ .admin-mobile-nav-button{min-width:44px;min-height:44px}
+ .admin-sidebar{width:min(310px,86vw)}
+ .admin-sidebar-brand{padding:18px}
+ .admin-nav-item{min-height:46px;padding:12px 18px}
+ .admin-sidebar-backdrop{backdrop-filter:blur(3px)}
+}
+@media(max-width:720px){
+ html,body{max-width:100%;overflow-x:hidden}
+ .admin-content{width:100%;min-width:0}
+ .admin-header{padding-left:14px;padding-right:14px}
+ .admin-section-nav{width:calc(100vw - 32px);overflow-x:auto;scrollbar-width:thin}
+ .admin-section-nav a{min-height:44px;padding:13px 15px;white-space:nowrap}
+ .admin-table-region{max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-color:var(--line-2) var(--surface-2)}
+ .data-table{min-width:720px}
+ .admin-command-table{min-width:0}
+ .admin-page-actions{width:100%;flex-wrap:wrap}
+ .admin-page-actions .btn-primary,.admin-page-actions .btn-secondary{flex:1 1 auto}
+ .admin-panel-header{flex-direction:column;align-items:flex-start;gap:14px}
+ .admin-panel-actions{width:100%;overflow-x:auto}
+ .btn-primary,.btn-secondary,.btn-danger,.btn-ghost,.admin-filter-pills button{min-height:44px}
+ .account360-tabs{width:calc(100vw - 32px);scrollbar-width:thin}
+ .account360-tabs a{min-height:44px}
+ .admin-command-grid{margin:24px 0}
+}
+@media(pointer:coarse){
+ .admin-nav-item,.admin-section-nav a,.account360-tabs a,button,.btn-primary,.btn-secondary,.btn-danger,.btn-ghost{min-height:44px}
+}
+
 /* Remaining domains share one spacious operating rhythm. */
 .admin-metric-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0 0 26px; border:0; background:transparent; box-shadow:none; }
 .admin-metric-strip > div { min-height:96px; padding:17px 18px; border:1px solid var(--line-2) !important; background:var(--surface); }
