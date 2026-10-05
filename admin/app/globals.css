@@ -518,6 +518,40 @@ button, input, select, textarea, a {
     .admin-metric-strip > div:nth-last-child(-n+2) { border-bottom: 0; }
 }
 
+/* Remaining domains share one spacious operating rhythm. */
+.admin-metric-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0 0 26px; border:0; background:transparent; box-shadow:none; }
+.admin-metric-strip > div { min-height:96px; padding:17px 18px; border:1px solid var(--line-2) !important; background:var(--surface); }
+.admin-metric-strip dt { font-size:9.5px; letter-spacing:.13em; }
+.admin-metric-strip dd { margin-top:14px; font-family:var(--font-display); font-size:28px; }
+.admin-filter-bar { margin:0 0 22px; padding:16px; border:1px solid var(--line-2); background:var(--admin-hero); }
+.admin-settings-grid { gap:22px; }
+.admin-settings-grid > .glass-panel { padding:26px; }
+.admin-seat-map-layout { gap:22px; }
+.admin-account-registry { padding:20px; border-color:var(--line-2); }
+.admin-account-list { margin-top:16px; }
+
+/* Domain tables read like registries rather than boxed spreadsheets. */
+.admin-table-region { border:1px solid var(--line-2); background:var(--surface); }
+.admin-panel .admin-table-region { border-left:0; border-right:0; border-bottom:0; }
+.admin-panel:has(> .admin-state-stack) .admin-table-region { margin-left:calc(var(--admin-panel-pad) * -1); margin-right:calc(var(--admin-panel-pad) * -1); width:auto; }
+.data-table tbody tr { transition:background var(--transition); }
+.data-table td strong { color:var(--ink); }
+.data-table td small { display:block; margin-top:4px; color:var(--ink-3); }
+
+/* Settings, people and audit actions remain visible without dominating data. */
+.admin-settings-grid .section-title,.admin-settings-grid > .glass-panel > div:first-child { font-family:var(--font-display) !important; font-size:19px !important; color:var(--ink) !important; }
+.admin-notice { min-height:66px; padding:16px 18px; border-color:var(--line-2); }
+.admin-notice strong { font-size:13px; }
+.admin-notice p { margin-top:5px; font-size:12px; }
+
+@media(max-width:1000px){.admin-metric-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){
+ .admin-metric-strip{grid-template-columns:1fr 1fr;gap:8px}
+ .admin-metric-strip>div{min-height:86px;padding:14px}
+ .admin-filter-bar{padding:12px}
+ .admin-settings-grid{grid-template-columns:1fr}
+}
+
 /* Case investigation and Messaging: failures lead, healthy traffic recedes. */
 .case-filter-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:0 0 22px; padding:18px; border:1px solid var(--line-2); background:var(--admin-hero); }
 .case-investigation { margin-top:28px !important; border-color:var(--line-2); }

@@ -24,6 +24,12 @@
 - Files touched: `admin/components/admin-domains/cases-intelligence/CaseIntelligencePage.jsx`, `admin/app/globals.css`, `TASK_LOG.md`
 - Risks or follow-ups: No message, case, retry, or routing logic changed.
 
+- Date: 2026-10-05
+- Request: PR #146 Data & Geography, System, People & Access, and Audit & Settings visual phase.
+- Summary: Unified remaining Admin domains under the operational-ledger system with spacious metric groups, readable registry tables, deliberate filter surfaces, clearer notices, and stronger settings-panel hierarchy. Existing domain pages, links, CRUD actions and capability boundaries remain in place.
+- Files touched: `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: Visual QA must confirm long geography, audit and people rows preserve horizontal usability at narrow widths.
+
 ## 2026-10-05 — PR #145 Admin E2E alignment
 
 - Updated the narrow-viewport navigation E2E assertion to use the approved `Messaging` and `People & Access` destinations without changing the Admin sidebar or Needle brand block.
