@@ -44,20 +44,23 @@ export default function WhatsAppOperationsPage() {
     const [retryingId, setRetryingId] = useState(null);
     const [toast, setToast] = useState(null);
     const [resourceErrors, setResourceErrors] = useState({});
+    const [inbound, setInbound] = useState(null);
 
     const load = async () => {
         setLoading(true);
         setResourceErrors({});
         try {
-            const [diagResult, queueResult, healthResult] = await Promise.allSettled([
+            const [diagResult, queueResult, healthResult, inboundResult] = await Promise.allSettled([
                 apiGet('/api/admin/debug/whatsapp'),
                 apiGet('/api/admin/whatsapp/outbound?page=1&page_size=100'),
                 apiGet('/api/admin/system-health'),
+                apiGet('/api/admin/whatsapp/inbound?limit=1'),
             ]);
             const errors = {};
             if (diagResult.status === 'fulfilled') setDiagnostics(diagResult.value); else errors.diagnostics = 'Live Meta diagnostics are unavailable.';
             if (queueResult.status === 'fulfilled') setOutbound(queueResult.value.items || []); else errors.outbound = 'The outbound message ledger is unavailable.';
             if (healthResult.status === 'fulfilled') setHealth(healthResult.value); else errors.health = 'WhatsApp system health is unavailable.';
+            if (inboundResult.status === 'fulfilled') setInbound(inboundResult.value); else errors.inbound = 'Inbound queue summary is unavailable.';
             setResourceErrors(errors);
         } catch (err) {
             setToast({ type: 'error', text: err.message || 'Failed to load WhatsApp operations' });
@@ -103,8 +106,8 @@ export default function WhatsAppOperationsPage() {
             )}
 
             <AdminPageHeader context="Messaging & Sync / WhatsApp" title="WhatsApp operations" description="Monitor Meta health, tenant routing, outbound delivery, failures, and operator-controlled retries." actions={<button type="button" className="btn-secondary" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>} />
-            <nav className="admin-section-nav" aria-label="WhatsApp operations sections">
-                <a href="#overview">Overview</a><Link href="/dashboard/system/whatsapp-inbound">Inbound</Link><a href="#outbound">Outbound</a><a href="#failures">Failures</a><a href="#retry-queue">Retry queue</a>
+            <nav className="admin-section-nav" aria-label="Messaging operations sections">
+                <a href="#overview">Overview</a><a href="#inbound-summary">Inbound</a><a href="#outbound">Outbound</a><a href="#failures">Failures</a><a href="#routing">Routing</a>
             </nav>
             {Object.keys(resourceErrors).length > 0 && <AdminNotice tone="danger" title="Some operational data is unavailable">Unavailable sources are marked below; healthy-looking empty values should not be assumed.</AdminNotice>}
 
@@ -182,7 +185,20 @@ export default function WhatsAppOperationsPage() {
                 />
             </div>}
 
-            <div className="glass-panel">
+            <div className="glass-panel" id="inbound-summary">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                    <div><h3 className="section-title" style={{ margin:0,border:'none',padding:0 }}>Inbound operations</h3>
+                    <p className="cn-body mt-2 text-sm">Queue health is surfaced here; open the detailed ledger only when an inbound message needs investigation.</p></div>
+                    <Link className="btn-secondary" href="/dashboard/system/whatsapp-inbound">Open inbound ledger</Link>
+                </div>
+                <div className="admin-pulse-grid">
+                    <HealthCard title="Failed inbound" tone={Number(inbound?.summary?.failed_count || 0) ? 'red' : 'green'} value={String(Number(inbound?.summary?.failed_count || 0))} detail="Messages that failed business processing." />
+                    <HealthCard title="Stuck received" tone={Number(inbound?.summary?.stale_received_count || 0) ? 'amber' : 'green'} value={String(Number(inbound?.summary?.stale_received_count || 0))} detail="Acknowledged by webhook but not completed." />
+                    <HealthCard title="Stuck processing" tone={Number(inbound?.summary?.stale_processing_count || 0) ? 'amber' : 'green'} value={String(Number(inbound?.summary?.stale_processing_count || 0))} detail="Claimed rows that did not finish." />
+                </div>
+            </div>
+
+            <div className="glass-panel" id="routing">
                 <div className="mb-4 flex items-start justify-between gap-4">
                     <div>
                         <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Tenant routing gaps</h3>
