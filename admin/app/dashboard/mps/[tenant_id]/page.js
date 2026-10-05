@@ -203,6 +203,20 @@ export default function MpDetailPage() {
 
     const p = data.profile || {};
     const isLS = p.house === 'Lok Sabha';
+    const totalCases = Number(data?.cases?.total || 0);
+    const openCases = Number(data?.cases?.open || 0);
+    const resolvedCases = Number(data?.cases?.resolved || 0);
+    const resolutionRate = totalCases ? Math.round((resolvedCases / totalCases) * 100) : 0;
+    const whatsappReady = Boolean(p.whatsapp_number && p.phone_number_id);
+    const staffReady = (data.staff || []).length > 0;
+    const launchReady = Boolean(data.onboarding_state?.live);
+    const readinessItems = [
+        { label: 'Profile', ready: Boolean(p.mp_name && p.constituency && p.state && p.party), detail: p.mp_name ? 'Identity configured' : 'Profile needs review' },
+        { label: 'WhatsApp', ready: whatsappReady, detail: whatsappReady ? 'Routing configured' : 'Number or Meta ID missing' },
+        { label: 'Staff', ready: staffReady, detail: staffReady ? `${data.staff.length} staff account${data.staff.length === 1 ? '' : 's'}` : 'No staff account' },
+        { label: 'Launch', ready: launchReady, detail: launchReady ? 'Production enabled' : 'Launch checklist incomplete' },
+    ];
+    const readinessIssues = readinessItems.filter((item) => !item.ready).length;
     const accountBadge = data?.account_stage === 'aspirant'
         ? `Aspirant ${data?.seat_label || ''}`.trim()
         : (data?.seat_label || p.house || 'MP');
@@ -264,6 +278,42 @@ export default function MpDetailPage() {
                     </Link>
                 </div>
             </div>
+
+            <nav className="account360-tabs" aria-label="Account workspace">
+                <a href="#overview">Overview</a><a href="#cases">Cases</a><a href="#whatsapp">Messaging</a>
+                <a href="#staff">Staff</a><Link href={`/dashboard/shared-geography/workspace?tenant_id=${tenantId}`}>Geography</Link>
+                <a href="#activity">Activity</a><Link href={`/dashboard/accounts/registry?tenant_id=${tenantId}`}>Settings</Link>
+            </nav>
+
+            <section id="overview" className="account360-grid">
+                <div className="glass-panel account360-health">
+                    <div className="account360-kicker">Account health</div>
+                    <div className="account360-healthline">
+                        <strong>{readinessIssues ? `${readinessIssues} item${readinessIssues === 1 ? '' : 's'} need attention` : 'Ready'}</strong>
+                        <span className={readinessIssues ? 'badge badge-amber' : 'badge badge-green'}>{readinessIssues ? 'Attention' : 'Healthy'}</span>
+                    </div>
+                    <div className="account360-readiness">
+                        {readinessItems.map((item) => (
+                            <Link key={item.label}
+                                href={item.label === 'WhatsApp' ? '#whatsapp' : item.label === 'Staff' ? '#staff' : item.label === 'Launch' ? `/dashboard/mps/${tenantId}/setup` : `/dashboard/accounts/registry?tenant_id=${tenantId}`}>
+                                <span className={item.ready ? 'account360-check ready' : 'account360-check'}>{item.ready ? '✓' : '!'}</span>
+                                <span><strong>{item.label}</strong><small>{item.detail}</small></span><b>→</b>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+                <div id="cases" className="glass-panel account360-case-summary">
+                    <div className="account360-kicker">Case operations</div>
+                    <div className="account360-stat-row">
+                        <div><strong>{totalCases}</strong><small>Total</small></div>
+                        <div><strong>{openCases}</strong><small>Open</small></div>
+                        <div><strong>{resolvedCases}</strong><small>Resolved</small></div>
+                        <div><strong>{resolutionRate}%</strong><small>Resolution</small></div>
+                    </div>
+                    <div className="account360-meta">Last case {timeAgo(data?.cases?.last_case)}</div>
+                    <Link className="btn-secondary" href={`/dashboard/cases-intelligence/explorer?tenant_id=${tenantId}`}>Open tenant cases</Link>
+                </div>
+            </section>
 
             <div className="glass-panel" style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
