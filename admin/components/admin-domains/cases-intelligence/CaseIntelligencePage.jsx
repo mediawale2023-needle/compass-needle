@@ -132,8 +132,8 @@ function PlatformHealth() {
 function CaseExplorer() {
     const [data, setData] = useState(null);
     const [filters, setFilters] = useState({ mp_id: '', period: '', category: '', status: '' });
-    const [caseId, setCaseId] = useState('');
     const [detail, setDetail] = useState(null);
+    const [detailLoading, setDetailLoading] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
 
@@ -150,9 +150,10 @@ function CaseExplorer() {
 
     useEffect(() => { fetchCases(); }, [filters]);
 
-    const loadDetail = () => {
-        if (!caseId) return;
-        apiGet(`/api/admin/cases/${caseId}`).then(setDetail).catch(() => setDetail(null));
+    const loadDetail = (id) => {
+        if (!id) return;
+        setDetailLoading(true);
+        apiGet(`/api/admin/cases/${id}`).then(setDetail).catch(() => setDetail(null)).finally(() => setDetailLoading(false));
     };
 
     return (
@@ -204,7 +205,7 @@ function CaseExplorer() {
                         </thead>
                         <tbody>
                             {data.cases.map(c => (
-                                <tr key={c.id}>
+                                <tr key={c.id} className={detail?.id === c.id ? 'case-row-selected' : 'case-row-clickable'} onClick={() => loadDetail(c.id)}>
                                     <td style={{ fontWeight: 600, color: '#006a4d' }}>#{c.id}</td>
                                     <td style={{ fontWeight: 500 }}>{c.mp}</td>
                                     <td style={{ color: '#6b7f76', fontSize: '0.8rem' }}>{c.phone}</td>
@@ -233,47 +234,26 @@ function CaseExplorer() {
                 </div>
             )}
 
-            <div className="glass-panel">
-                <div style={{ fontWeight: 600, color: '#1a2e28', fontSize: '0.9rem', marginBottom: 12 }}>Case Detail Lookup</div>
-                <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-                    <input className="form-input" type="number" min={1} placeholder="Enter Case ID" value={caseId} onChange={e => setCaseId(e.target.value)} style={{ flex: 1 }} />
-                    <button className="btn-primary" onClick={loadDetail}>Lookup</button>
+            <div className="glass-panel case-investigation">
+                <div className="case-investigation-head">
+                    <div><strong>Case investigation</strong><small>Select any case above to inspect it directly. Manual ID lookup is no longer required.</small></div>
+                    {detail && <span className="badge badge-slate">Case #{detail.id}</span>}
                 </div>
-                {detail && (
-                    <div style={{ border: '1px solid #e2ebe5', borderRadius: 10, padding: '1.25rem' }}>
-                        <div style={{ fontWeight: 700, color: '#1a2e28', marginBottom: 14, fontSize: '0.9rem' }}>Case #{detail.id}</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 16 }}>
+                {detailLoading ? <LoadingGrid count={1} /> : !detail ? (
+                    <div className="empty-state"><div className="empty-state-title">Select a case to investigate</div><div className="empty-state-desc">The complete case context will open here without leaving the operations queue.</div></div>
+                ) : (
+                    <div className="case-investigation-body">
+                        <div className="case-investigation-summary">
                             {[
-                                ['MP', detail.mp_name], ['Constituency', detail.mp_constituency], ['Phone', detail.phone],
-                                ['Category', detail.category], ['Status', detail.status], ['Critical', detail.critical ? 'Yes' : 'No'],
+                                ['Account', detail.mp_name], ['Constituency', detail.mp_constituency], ['Contact', detail.phone],
+                                ['Category', detail.category], ['Status', detail.status], ['Priority', detail.critical ? 'Critical' : 'Normal'],
                                 ['Location', detail.location], ['Assembly', detail.assembly], ['Confidence', detail.confidence],
-                            ].map(([l, v]) => (
-                                <div key={l}>
-                                    <div className="form-label">{l}</div>
-                                    <div style={{ fontSize: '0.85rem', color: '#1a2e28', fontWeight: 500 }}>{v || '—'}</div>
-                                </div>
-                            ))}
+                            ].map(([l, v]) => <div key={l}><span>{l}</span><strong>{v || '—'}</strong></div>)}
                         </div>
-                        <hr className="divider" />
-                        <div className="form-label" style={{ marginBottom: 6 }}>Full Message</div>
-                        <pre style={{ background: '#f8faf9', padding: '10px 14px', borderRadius: 8, fontSize: '0.8rem', whiteSpace: 'pre-wrap', marginBottom: 12, color: '#1a2e28', border: '1px solid #e2ebe5' }}>{detail.raw_message}</pre>
-                        {detail.response_to_citizen && (
-                            <>
-                                <div className="form-label" style={{ marginBottom: 6 }}>AI Response to Citizen</div>
-                                <pre style={{ background: '#f0fdf4', padding: '10px 14px', borderRadius: 8, fontSize: '0.8rem', whiteSpace: 'pre-wrap', marginBottom: 12, color: '#1a2e28', border: '1px solid #bbf7d0' }}>{detail.response_to_citizen}</pre>
-                            </>
-                        )}
-                        {detail.notes_for_staff && (
-                            <>
-                                <div className="form-label" style={{ marginBottom: 6 }}>Staff Notes</div>
-                                <pre style={{ background: '#fffbeb', padding: '10px 14px', borderRadius: 8, fontSize: '0.8rem', whiteSpace: 'pre-wrap', marginBottom: 12, color: '#1a2e28', border: '1px solid #fef08a' }}>{detail.notes_for_staff}</pre>
-                            </>
-                        )}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, color: '#6b7f76', fontSize: '0.74rem' }}>
-                            <div>Created: {detail.created_at}</div>
-                            <div>Updated: {detail.updated_at}</div>
-                            <div>Resolved: {detail.resolved_at || '—'}</div>
-                        </div>
+                        <div className="case-investigation-copy"><span>Citizen message</span><p>{detail.raw_message || '—'}</p></div>
+                        {detail.response_to_citizen && <div className="case-investigation-copy"><span>Response to citizen</span><p>{detail.response_to_citizen}</p></div>}
+                        {detail.notes_for_staff && <div className="case-investigation-copy"><span>Staff notes</span><p>{detail.notes_for_staff}</p></div>}
+                        <div className="case-investigation-dates"><span>Created {detail.created_at || '—'}</span><span>Updated {detail.updated_at || '—'}</span><span>Resolved {detail.resolved_at || '—'}</span></div>
                     </div>
                 )}
             </div>

@@ -43,11 +43,39 @@ test('Admin can create an MP from the new MP form', async ({ page }) => {
     await mockAdminMpsApi(page);
 
     await page.goto('/dashboard/accounts/new');
+
+    await expect(page.getByText('1. Account identity', { exact: true })).toBeVisible();
     await page.getByPlaceholder('Hon. Shri/Smt…').fill('Shri Jagdish Shettar');
-    await page.getByPlaceholder('username').fill('j_shettar');
-    await page.locator('input[type="password"]').first().fill('ValidPass1!');
     await page.getByPlaceholder('e.g. Karnataka').fill('Karnataka');
-    await page.getByRole('button', { name: 'Create Account' }).click();
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    await expect(page.getByText('2. Seat & access', { exact: true })).toBeVisible();
+    await page.locator('.form-row').filter({ hasText: 'Parliamentary Constituency' }).locator('select').selectOption('Bangalore North');
+    await page.locator('.form-row').filter({ hasText: 'Username' }).locator('input').fill('j_shettar');
+    await page.locator('.form-row').filter({ hasText: 'Temporary Password' }).locator('input').fill('ValidPass1!');
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    await expect(page.getByText('3. Configure account', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    await expect(page.getByText('4. Review & create', { exact: true })).toBeVisible();
+    await expect(page.getByText('Shri Jagdish Shettar', { exact: true })).toBeVisible();
+    await expect(page.getByText('Bangalore North', { exact: true })).toBeVisible();
+
+    const createRequestPromise = page.waitForRequest((request) =>
+        request.url() === 'http://127.0.0.1:4011/api/admin/mps' && request.method() === 'POST'
+    );
+    await page.getByRole('button', { name: 'Create Account & Continue Setup' }).click();
+    const createRequest = await createRequestPromise;
+
+    expect(createRequest.postDataJSON()).toMatchObject({
+        name: 'Shri Jagdish Shettar',
+        username: 'j_shettar',
+        constituency: 'Bangalore North',
+        state: 'Karnataka',
+        account_stage: 'elected',
+        seat_type: 'mp',
+    });
 
     await expect(page.getByText(/Created Shri Jagdish Shettar/i)).toBeVisible();
     await expect(page).toHaveURL(/\/dashboard\/mps\/7\/setup$/);

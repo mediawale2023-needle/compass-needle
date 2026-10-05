@@ -48,15 +48,13 @@ function AttentionStrip({ stats, alerts, alertsReady, statsReady }) {
         const critical = bySeverity(['critical', 'error']);
         const warning = bySeverity(['warning']);
         const review = alerts.length - critical - warning;
-        const seats = statsReady && (stats?.mp_seats != null || stats?.mla_seats != null)
-            ? (stats?.mp_seats || 0) + (stats?.mla_seats || 0)
-            : null;
+        const totalCases = statsReady ? (stats?.total_cases ?? null) : null;
         return [
             { label: 'Critical', value: critical, tone: critical ? 'danger' : 'success', unavailable: !alertsReady },
             { label: 'Warning', value: warning, tone: warning ? 'warning' : 'neutral', unavailable: !alertsReady },
             { label: 'Review', value: review, tone: 'neutral', unavailable: !alertsReady },
             { label: 'Accounts', value: stats?.total_accounts ?? stats?.total_mps ?? '—', unavailable: !statsReady },
-            { label: 'Seats', value: seats ?? '—', unavailable: !statsReady || seats === null },
+            { label: 'Total cases', value: totalCases ?? '—', unavailable: !statsReady || totalCases === null },
         ];
     }, [alerts, alertsReady, stats, statsReady]);
     return <AdminMetricStrip items={items} />;
@@ -71,8 +69,8 @@ function ActionQueue({ alerts, loading, error, onRetry }) {
     return (
         <AdminPanel
             title="Needs attention now"
-            description="Live operational alerts ordered by severity. Open an item to continue in its account or system context."
-            actions={<Link className="btn-secondary" href="/dashboard/staff-access/audit">Audit log</Link>}
+            description="Prioritised operational issues. See what is affected and continue directly to the corrective action."
+            actions={<Link className="btn-secondary" href="/dashboard/staff-access/audit">View all activity</Link>}
         >
             <AdminDataState
                 loading={loading}
@@ -279,12 +277,82 @@ function AccountReadiness({ accounts, loading, error, onRetry }) {
     );
 }
 
+
+function OperationalPulse({ inbound, outbound, jobs, loading }) {
+    const inboundSummary = inbound?.summary || {};
+    const failedInbound = Number(inboundSummary.failed_count || 0);
+    const stuckInbound = Number(inboundSummary.stale_received_count || 0) + Number(inboundSummary.stale_processing_count || 0);
+    const outboundItems = outbound?.items || [];
+    const failedOutbound = outboundItems.filter((item) => ['failed', 'error'].includes(String(item.status || '').toLowerCase())).length;
+    const jobSummary = jobs?.summary || {};
+    const cards = [
+        { label: 'Inbound backlog', value: stuckInbound, detail: failedInbound ? `${failedInbound} failed` : 'No failed inbound', href: '/dashboard/system/whatsapp-inbound', tone: failedInbound || stuckInbound ? 'warning' : 'success' },
+        { label: 'Outbound failures', value: failedOutbound, detail: 'Latest 50 messages', href: '/dashboard/system/whatsapp', tone: failedOutbound ? 'danger' : 'success' },
+        { label: 'Failed jobs', value: Number(jobSummary.failed || 0), detail: `${Number(jobSummary.running || 0)} running · ${Number(jobSummary.queued || 0)} queued`, href: '/dashboard/system/jobs', tone: Number(jobSummary.failed || 0) ? 'danger' : 'success' },
+    ];
+    return (
+        <AdminPanel title="Operational pulse" description="Live queue and failure signals from existing Needle operations data.">
+            <div className="admin-pulse-grid" aria-busy={loading}>
+                {cards.map((card) => (
+                    <Link key={card.label} href={card.href} className="admin-pulse-card" data-tone={card.tone}>
+                        <span>{card.label}</span>
+                        <strong>{loading ? '—' : card.value}</strong>
+                        <small>{loading ? 'Loading…' : card.detail}</small>
+                        <b>Investigate →</b>
+                    </Link>
+                ))}
+            </div>
+        </AdminPanel>
+    );
+}
+
+function RecentActivity({ entries, loading, error, onRetry }) {
+    return (
+        <AdminPanel title="Recent activity" description="Latest administrator actions from the audit trail."
+            actions={<Link href="/dashboard/staff-access/audit" className="btn-secondary">Full audit log</Link>}>
+            <AdminDataState loading={loading} error={error} onRetry={onRetry}
+                empty={!loading && !error && entries.length === 0}
+                emptyTitle="No recent admin activity" emptyDescription="No audit events were recorded in the selected period.">
+                <div className="admin-recent-feed">
+                    {entries.slice(0, 6).map((entry, index) => (
+                        <div key={entry.id || `${entry.created_at}-${index}`}>
+                            <span className="admin-feed-mark" />
+                            <span>
+                                <strong>{entry.action || 'Admin action'}</strong>
+                                <small>{entry.admin_username || 'Administrator'} · {entry.target_type || 'platform'}{entry.target_id ? ` · ${entry.target_id}` : ''}</small>
+                            </span>
+                            <time>{formatAge(entry.created_at) || '—'}</time>
+                        </div>
+                    ))}
+                </div>
+            </AdminDataState>
+        </AdminPanel>
+    );
+}
+
+function QuickActions() {
+    return (
+        <AdminPanel title="Quick actions" description="Common operator tasks without hunting through the navigation.">
+            <div className="admin-quick-actions">
+                <Link href="/dashboard/accounts/new"><strong>Create account</strong><small>Start a new customer onboarding flow</small><span>→</span></Link>
+                <Link href="/dashboard/cases-intelligence/explorer"><strong>Find a case</strong><small>Open case investigation and intelligence</small><span>→</span></Link>
+                <Link href="/dashboard/system/whatsapp"><strong>Messaging operations</strong><small>Inspect WhatsApp health and delivery</small><span>→</span></Link>
+                <Link href="/dashboard/system/health"><strong>System diagnostics</strong><small>Review integrations, jobs and platform health</small><span>→</span></Link>
+            </div>
+        </AdminPanel>
+    );
+}
+
 export default function DashboardOverview() {
     const [stats, setStats] = useState(null);
     const [accounts, setAccounts] = useState([]);
     const [alerts, setAlerts] = useState([]);
     const [health, setHealth] = useState(null);
-    const [state, setState] = useState({ stats: 'loading', accounts: 'loading', alerts: 'loading', health: 'loading' });
+    const [inbound, setInbound] = useState(null);
+    const [outbound, setOutbound] = useState(null);
+    const [jobs, setJobs] = useState(null);
+    const [audit, setAudit] = useState([]);
+    const [state, setState] = useState({ stats: 'loading', accounts: 'loading', alerts: 'loading', health: 'loading', inbound: 'loading', outbound: 'loading', jobs: 'loading', audit: 'loading' });
     const [errors, setErrors] = useState({});
 
     const loadResource = useCallback(async (key, path, apply) => {
@@ -305,6 +373,10 @@ export default function DashboardOverview() {
         accounts: () => loadResource('accounts', '/api/admin/mps', (result) => setAccounts(result.mps || [])),
         alerts: () => loadResource('alerts', '/api/admin/alerts', (result) => setAlerts(result.alerts || [])),
         health: () => loadResource('health', '/api/admin/system-health', setHealth),
+        inbound: () => loadResource('inbound', '/api/admin/whatsapp/inbound?limit=1', setInbound),
+        outbound: () => loadResource('outbound', '/api/admin/whatsapp/outbound?page=1&page_size=50', setOutbound),
+        jobs: () => loadResource('jobs', '/api/admin/jobs?page=1&page_size=10', setJobs),
+        audit: () => loadResource('audit', '/api/admin/audit?days=7', (result) => setAudit(result.entries || [])),
     }), [loadResource]);
 
     useEffect(() => { Object.values(loaders).forEach((load) => load()); }, [loaders]);
@@ -320,7 +392,7 @@ export default function DashboardOverview() {
                 <AdminPageHeader
                     context={lastChecked ? `Last checked ${lastChecked} ago` : null}
                     title="Command Centre"
-                    description="Platform readiness and launch blockers."
+                    description="Here’s what needs your attention today."
                     actions={(
                         <button
                             className="btn-secondary"
@@ -346,6 +418,13 @@ export default function DashboardOverview() {
                 onRetry={loaders.alerts}
             />
 
+            <OperationalPulse
+                inbound={inbound}
+                outbound={outbound}
+                jobs={jobs}
+                loading={state.inbound === 'loading' || state.outbound === 'loading' || state.jobs === 'loading'}
+            />
+
             <div className="admin-command-grid">
                 <PlatformReadiness
                     health={health}
@@ -359,6 +438,11 @@ export default function DashboardOverview() {
                     error={errors.stats}
                     onRetry={loaders.stats}
                 />
+            </div>
+
+            <div className="admin-command-grid">
+                <RecentActivity entries={audit} loading={state.audit === 'loading'} error={errors.audit} onRetry={loaders.audit} />
+                <QuickActions />
             </div>
 
             <AccountReadiness

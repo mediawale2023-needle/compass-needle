@@ -9,6 +9,7 @@ export default function CreateAccountPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [step, setStep] = useState(1);
 
     const [form, setForm] = useState({
         account_stage: 'elected',
@@ -31,6 +32,21 @@ export default function CreateAccountPage() {
             if (k === 'seat_type' && value === 'mp' && prev.house === 'Vidhan Sabha') next.house = 'Lok Sabha';
             return next;
         });
+    };
+
+    const stepValid = () => {
+        if (step === 1) return Boolean(form.name && form.state);
+        if (step === 2) return Boolean(form.username && form.password);
+        return true;
+    };
+
+    const nextStep = () => {
+        if (!stepValid()) {
+            setError(step === 1 ? 'Name and State are required before continuing' : 'Username and Password are required before continuing');
+            return;
+        }
+        setError('');
+        setStep((current) => Math.min(4, current + 1));
     };
 
     const handleSubmit = async (e) => {
@@ -74,113 +90,103 @@ export default function CreateAccountPage() {
                 </button>
             </div>
 
-            <form onSubmit={handleSubmit}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: '1.25rem' }}>
-                    <div className="glass-panel">
-                        <div className="section-title">Identity & Login</div>
+            <form onSubmit={handleSubmit} className="onboarding-flow">
+                <div className="onboarding-progress" aria-label="Account onboarding progress">
+                    {[
+                        ['Identity', 'Who this account represents'],
+                        ['Access', 'Login and seat assignment'],
+                        ['Configure', 'Messaging and intelligence profile'],
+                        ['Review', 'Validate before creation'],
+                    ].map(([label, detail], index) => {
+                        const number = index + 1;
+                        return (
+                            <button key={label} type="button" className={step === number ? 'active' : step > number ? 'complete' : ''}
+                                onClick={() => number < step && setStep(number)}>
+                                <span>{step > number ? '✓' : number}</span><b>{label}</b><small>{detail}</small>
+                            </button>
+                        );
+                    })}
+                </div>
 
-                        <div className="form-row">
-                            <label className="form-label">Account Stage *</label>
-                            <select className="form-input" value={form.account_stage} onChange={set('account_stage')}>
-                                <option value="elected">Elected</option>
-                                <option value="aspirant">Aspirant</option>
-                            </select>
-                        </div>
-                        <div className="form-row">
-                            <label className="form-label">Seat Type *</label>
-                            <select className="form-input" value={form.seat_type} onChange={set('seat_type')}>
-                                <option value="mp">MP Seat</option>
-                                <option value="mla">MLA Seat</option>
-                            </select>
-                        </div>
-                        <div className="form-row">
-                            <label className="form-label">{form.account_stage === 'aspirant' ? 'Candidate / Leader Name *' : `${form.seat_type === 'mla' ? 'MLA' : 'MP'} Full Name *`}</label>
-                            <input className="form-input" placeholder="Hon. Shri/Smt…" value={form.name} onChange={set('name')} required />
-                        </div>
-                        <div className="form-row">
-                            <label className="form-label">Display Name</label>
-                            <input className="form-input" placeholder="Dashboard display name" value={form.display_name} onChange={set('display_name')} />
-                        </div>
-                        <div className="form-row">
-                            <label className="form-label">House *</label>
-                            {form.seat_type === 'mla' ? (
-                                <input className="form-input" value="Vidhan Sabha" disabled />
-                            ) : (
-                                <select className="form-input" value={form.house} onChange={set('house')}>
-                                    <option value="Lok Sabha">Lok Sabha</option>
-                                    <option value="Rajya Sabha">Rajya Sabha</option>
-                                </select>
-                            )}
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                            <div>
-                                <label className="form-label">Username *</label>
-                                <input className="form-input" placeholder="username" value={form.username} onChange={set('username')} required />
+                <div className="glass-panel onboarding-stage">
+                    {step === 1 && <>
+                        <div className="section-title">1. Account identity</div>
+                        <p className="onboarding-help">Start with the minimum information needed to identify the customer and political seat.</p>
+                        <div className="onboarding-form-grid">
+                            <div className="form-row"><label className="form-label">Account Stage *</label>
+                                <select className="form-input" value={form.account_stage} onChange={set('account_stage')}><option value="elected">Elected</option><option value="aspirant">Aspirant</option></select>
                             </div>
-                            <div>
-                                <label className="form-label">Password *</label>
-                                <input className="form-input" type="password" value={form.password} onChange={set('password')} required />
+                            <div className="form-row"><label className="form-label">Seat Type *</label>
+                                <select className="form-input" value={form.seat_type} onChange={set('seat_type')}><option value="mp">MP Seat</option><option value="mla">MLA Seat</option></select>
                             </div>
+                            <div className="form-row onboarding-span-2"><label className="form-label">{form.account_stage === 'aspirant' ? 'Candidate / Leader Name *' : `${form.seat_type === 'mla' ? 'MLA' : 'MP'} Full Name *`}</label>
+                                <input className="form-input" placeholder="Hon. Shri/Smt…" value={form.name} onChange={set('name')} required />
+                            </div>
+                            <div className="form-row"><label className="form-label">Display Name</label><input className="form-input" placeholder="Dashboard display name" value={form.display_name} onChange={set('display_name')} /></div>
+                            <div className="form-row"><label className="form-label">State *</label><input className="form-input" placeholder="e.g. Karnataka" value={form.state} onChange={set('state')} required /></div>
+                            <div className="form-row onboarding-span-2"><label className="form-label">Party</label><input className="form-input" placeholder="e.g. BJP, INC" value={form.party} onChange={set('party')} /></div>
                         </div>
+                    </>}
 
-                        {form.seat_type === 'mp' && form.house === 'Lok Sabha' ? (
+                    {step === 2 && <>
+                        <div className="section-title">2. Seat & access</div>
+                        <p className="onboarding-help">Assign the constituency and create the primary login. The user will change the temporary password on first login.</p>
+                        <div className="onboarding-form-grid">
+                            <div className="form-row"><label className="form-label">House *</label>
+                                {form.seat_type === 'mla' ? <input className="form-input" value="Vidhan Sabha" disabled /> :
+                                <select className="form-input" value={form.house} onChange={set('house')}><option value="Lok Sabha">Lok Sabha</option><option value="Rajya Sabha">Rajya Sabha</option></select>}
+                            </div>
                             <div className="form-row">
-                                <label className="form-label">Parliamentary Constituency *</label>
-                                <select className="form-input" value={form.constituency} onChange={set('constituency')}>
-                                    <option value="">Select…</option>
-                                    {constituencies.map(c => <option key={c} value={c}>{c}</option>)}
-                                </select>
+                                <label className="form-label">{form.seat_type === 'mp' && form.house === 'Lok Sabha' ? 'Parliamentary Constituency *' : form.seat_type === 'mla' ? 'Assembly Seat Name' : 'State / Nominated'}</label>
+                                {form.seat_type === 'mp' && form.house === 'Lok Sabha' ?
+                                <select className="form-input" value={form.constituency} onChange={set('constituency')}><option value="">Select…</option>{constituencies.map(c => <option key={c} value={c}>{c}</option>)}</select> :
+                                <input className="form-input" value={form.constituency} onChange={set('constituency')} />}
                             </div>
-                        ) : (
-                            <div className="form-row">
-                                <label className="form-label">{form.seat_type === 'mla' ? 'Assembly Seat Name' : 'State / Nominated'}</label>
-                                <input className="form-input" placeholder="e.g. Maharashtra" value={form.constituency} onChange={set('constituency')} />
-                            </div>
-                        )}
+                            <div className="form-row"><label className="form-label">Username *</label><input className="form-input" value={form.username} onChange={set('username')} required /></div>
+                            <div className="form-row"><label className="form-label">Temporary Password *</label><input className="form-input" type="password" value={form.password} onChange={set('password')} required /></div>
+                        </div>
+                    </>}
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                            <div>
-                                <label className="form-label">State *</label>
-                                <input className="form-input" placeholder="e.g. Karnataka" value={form.state} onChange={set('state')} required />
-                            </div>
-                            <div>
-                                <label className="form-label">Party</label>
-                                <input className="form-input" placeholder="e.g. BJP, INC" value={form.party} onChange={set('party')} />
-                            </div>
+                    {step === 3 && <>
+                        <div className="section-title">3. Configure account</div>
+                        <p className="onboarding-help">These settings improve messaging and intelligence, but can be completed later from Account 360.</p>
+                        <div className="onboarding-form-grid">
+                            <div className="form-row onboarding-span-2"><label className="form-label">WhatsApp Number</label><input className="form-input" placeholder="+91…" value={form.whatsapp_number} onChange={set('whatsapp_number')} /></div>
+                            <div className="form-row onboarding-span-2"><label className="form-label">Languages</label><input className="form-input" placeholder="English, Hindi, Kannada" value={form.languages} onChange={set('languages')} /></div>
+                            <div className="form-row onboarding-span-2"><label className="form-label">Key Facts</label><textarea className="form-input" rows={5} value={form.key_facts} onChange={set('key_facts')} /></div>
+                            <div className="form-row onboarding-span-2"><label className="form-label">Alternate Constituency Names</label><input className="form-input" placeholder="Belagavi, Belgaum" value={form.alt_names} onChange={set('alt_names')} /></div>
                         </div>
-                        <div className="form-row">
-                            <label className="form-label">WhatsApp Number</label>
-                            <input className="form-input" placeholder="+91…" value={form.whatsapp_number} onChange={set('whatsapp_number')} />
-                        </div>
-                    </div>
+                    </>}
 
-                    <div className="glass-panel">
-                        <div className="section-title">Profile Data</div>
-
-                        <div className="form-row">
-                            <label className="form-label">Languages <span style={{ fontWeight: 400, color: '#94a3b8' }}>(comma-separated)</span></label>
-                            <input className="form-input" placeholder="English, Hindi, Kannada" value={form.languages} onChange={set('languages')} />
+                    {step === 4 && <>
+                        <div className="section-title">4. Review & create</div>
+                        <p className="onboarding-help">Creating the account does not bypass the existing setup checklist. Launch validation still happens after creation.</p>
+                        <div className="onboarding-review">
+                            <ReviewRow label="Account" value={form.display_name || form.name || '—'} />
+                            <ReviewRow label="Stage" value={form.account_stage} />
+                            <ReviewRow label="Seat" value={`${form.seat_type.toUpperCase()} · ${form.house}`} />
+                            <ReviewRow label="Constituency" value={form.constituency || 'India'} />
+                            <ReviewRow label="State / Party" value={`${form.state || '—'} · ${form.party || 'Independent'}`} />
+                            <ReviewRow label="Username" value={form.username || '—'} />
+                            <ReviewRow label="WhatsApp" value={form.whatsapp_number || 'Configure later'} />
+                            <ReviewRow label="Languages" value={form.languages || 'English, Hindi'} />
                         </div>
-                        <div className="form-row">
-                            <label className="form-label">Key Facts <span style={{ fontWeight: 400, color: '#94a3b8' }}>(one per line)</span></label>
-                            <textarea className="form-input" placeholder="Major industrial hub&#10;Border district" rows={5} value={form.key_facts} onChange={set('key_facts')} />
-                        </div>
-                        <div className="form-row">
-                            <label className="form-label">Alt Constituency Names <span style={{ fontWeight: 400, color: '#94a3b8' }}>(comma-separated)</span></label>
-                            <input className="form-input" placeholder="Belagavi, Belgaum" value={form.alt_names} onChange={set('alt_names')} />
-                        </div>
-                    </div>
+                        <div className="onboarding-next-note"><strong>After creation</strong><span>Needle opens the account setup checklist to validate routing, staff, geography and production readiness before launch.</span></div>
+                    </>}
                 </div>
 
                 {error && <div className="toast toast-error">{error}</div>}
                 {success && <div className="toast toast-success">{success}</div>}
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button type="submit" className="btn-primary" disabled={loading} style={{ padding: '10px 32px', fontSize: '0.88rem' }}>
-                        {loading ? 'Creating…' : 'Create Account'}
-                    </button>
+                <div className="onboarding-actions">
+                    <button type="button" className="btn-secondary" disabled={step === 1 || loading} onClick={() => { setError(''); setStep((current) => Math.max(1, current - 1)); }}>Back</button>
+                    {step < 4 ? <button type="button" className="btn-primary" onClick={nextStep}>Continue</button> :
+                    <button type="submit" className="btn-primary" disabled={loading}>{loading ? 'Creating…' : 'Create Account & Continue Setup'}</button>}
                 </div>
             </form>
         </>
     );
 }
+
+
+function ReviewRow({ label, value }) { return <div><span>{label}</span><strong>{value}</strong></div>; }

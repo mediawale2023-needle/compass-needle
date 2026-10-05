@@ -53,7 +53,10 @@ export default function SeatRegistryPage() {
 
     return (
         <>
-            <AdminPageHeader title="Seat Registry" description="Shared constituency records, geography readiness, map coverage, corrections, and the accounts using each seat." actions={<Link href="/dashboard/shared-geography/workspace" className="btn-primary">Add seat geography</Link>} />
+            <AdminPageHeader context="Operations / Data & Geography" title="Data & Geography" description="One operating view for seats, constituency data, geography readiness, corrections and map coverage." actions={<Link href="/dashboard/shared-geography/workspace" className="btn-primary">Open geography workspace</Link>} />
+            <nav className="admin-section-nav" aria-label="Data and geography sections">
+                <a href="#seats">Seats</a><Link href="/dashboard/shared-geography/workspace">Constituencies</Link><Link href="/dashboard/seat-maps">Seat Maps</Link><Link href="/dashboard/constituency">Intelligence</Link>
+            </nav>
             <AdminMetricStrip unavailable={Boolean(error)} items={[
                 { label: 'Seats', value: loading ? '…' : counts.total },
                 { label: 'Geography ready', value: loading ? '…' : counts.geographyReady, tone: 'success' },
@@ -81,7 +84,7 @@ export default function SeatRegistryPage() {
                 ))}
             </div>
 
-            <AdminPanel>
+            <AdminPanel id="seats">
             <AdminDataState loading={loading} error={error} empty={!loading && !error && filtered.length === 0} emptyTitle="No seats found" emptyDescription="Seats appear once an account is created for a constituency or shared geography is uploaded.">
                 <AdminTableWrap label="Shared seat registry">
                     <table className="data-table">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiGet } from '@/lib/api';
 import { AdminDataState, AdminMetricStrip, AdminPageHeader, AdminPanel, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
 
@@ -49,12 +50,15 @@ export default function TenantHealthPage() {
     normalizedTenants.forEach((tenant) => { if (counts[tenant.status] !== undefined) counts[tenant.status] += 1; });
 
     return <div className="space-y-6">
-        <AdminPageHeader context="Platform Operations / Health" title="Account health" description="Review account activity and identify stale or inactive customer environments before operational issues compound." actions={<button type="button" className="btn-secondary" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>} />
+        <AdminPageHeader context="Platform / System" title="System" description="Platform health, integrations, sync jobs and operational diagnostics in one place." actions={<button type="button" className="btn-secondary" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>} />
+        <nav className="admin-section-nav" aria-label="System operations">
+            <a href="#account-health">Account Health</a><Link href="/dashboard/system/whatsapp">Messaging</Link><Link href="/dashboard/system/parliament-sync">Parliament Sync</Link><Link href="/dashboard/system/jobs">Jobs</Link><Link href="/dashboard/system/settings">Integrations & Settings</Link>
+        </nav>
         <AdminMetricStrip unavailable={Boolean(error)} items={[
             { label: 'Active', value: counts.active, tone: 'success' }, { label: 'Stale', value: counts.stale, tone: 'warning' },
             { label: 'Inactive', value: counts.inactive, tone: 'danger' }, { label: 'No data', value: counts.no_data },
         ]} />
-        <AdminPanel title="Tenant activity registry" description="Health is derived from existing case and login activity; it is not a synthetic uptime score.">
+        <AdminPanel id="account-health" title="Tenant activity registry" description="Health is derived from existing case and login activity; it is not a synthetic uptime score.">
             <AdminDataState loading={loading} error={error} empty={!loading && !error && normalizedTenants.length === 0} emptyTitle="No tenant health data" emptyDescription="Health records appear after customer accounts begin activity." onRetry={load}>
                 <AdminTableWrap label="Tenant health"><table className="data-table">
                     <thead><tr><th>MP / tenant</th><th>Constituency</th><th>Status</th><th>Last case</th><th>Last login</th><th>Cases (30d)</th></tr></thead>
