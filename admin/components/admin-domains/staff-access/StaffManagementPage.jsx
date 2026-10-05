@@ -109,7 +109,7 @@ export default function StaffManagementPage() {
 
     return (
         <>
-            <AdminPageHeader context="Administration / Access" title="Staff & access" description="Manage tenant-scoped staff identities, roles, account assignment, and access state." />
+            <AdminPageHeader context="Administration" title="People & Access" description="Manage tenant-scoped people, roles, account assignment and access state." />
             <AdminNotice tone="info" title="Permission scope">
                 Staff accounts belong to one customer tenant. Reassignment changes that account boundary; it does not create platform-admin access.
             </AdminNotice>
