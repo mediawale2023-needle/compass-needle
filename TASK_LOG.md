@@ -18,6 +18,12 @@
 - Files touched: `admin/components/admin-domains/accounts/CreateAccountPage.jsx`, `admin/app/globals.css`, `TASK_LOG.md`
 - Risks or follow-ups: Existing account detail page still contains legacy inline declarations, but scoped visual-system rules intentionally override presentation without changing controls.
 
+- Date: 2026-10-05
+- Request: PR #146 Cases and Messaging visual phase.
+- Summary: Visually separated the case explorer controls, case ledger, and selected investigation workspace; expanded investigation metadata and message surfaces for focused reading. Messaging now gives failures and routing issues stronger semantic precedence while retaining the unified Overview/Inbound/Outbound/Failures/Routing workflow and existing safe-retry behavior.
+- Files touched: `admin/components/admin-domains/cases-intelligence/CaseIntelligencePage.jsx`, `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: No message, case, retry, or routing logic changed.
+
 ## 2026-10-05 — PR #145 Admin E2E alignment
 
 - Updated the narrow-viewport navigation E2E assertion to use the approved `Messaging` and `People & Access` destinations without changing the Admin sidebar or Needle brand block.

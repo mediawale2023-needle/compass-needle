@@ -158,7 +158,7 @@ function CaseExplorer() {
 
     return (
         <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: '1rem' }}>
+            <div className="case-filter-grid">
                 {[
                     { key: 'mp_id', label: 'MP', options: data?.filter_options?.mps?.map(m => ({ value: m.id, label: `${m.name} (${m.constituency})` })) },
                     { key: 'period', label: 'Period', options: [{ value: '7days', label: 'Last 7 Days' }, { value: '30days', label: 'Last 30 Days' }, { value: '90days', label: 'Last 90 Days' }] },

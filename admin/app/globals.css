@@ -518,6 +518,34 @@ button, input, select, textarea, a {
     .admin-metric-strip > div:nth-last-child(-n+2) { border-bottom: 0; }
 }
 
+/* Case investigation and Messaging: failures lead, healthy traffic recedes. */
+.case-filter-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:0 0 22px; padding:18px; border:1px solid var(--line-2); background:var(--admin-hero); }
+.case-investigation { margin-top:28px !important; border-color:var(--line-2); }
+.case-investigation-head { padding:22px 24px; background:var(--admin-hero); }
+.case-investigation-head strong { font-family:var(--font-display); font-size:21px; }
+.case-investigation-head small { margin-top:6px; font-size:12px; }
+.case-investigation-body { padding:24px; }
+.case-investigation-summary { grid-template-columns:repeat(3,minmax(0,1fr)); gap:1px; border:1px solid var(--line-2); background:var(--line); }
+.case-investigation-summary > div { min-height:78px; padding:15px; border:0; background:var(--surface); }
+.case-investigation-summary strong { margin-top:7px; font-size:13px; }
+.case-investigation-copy { margin-top:14px; padding:18px; border-color:var(--line-2); background:var(--admin-hero); }
+.case-investigation-copy p { margin-top:10px; font-size:14px; line-height:1.65; }
+
+#overview.glass-panel,#inbound-summary.glass-panel,#routing.glass-panel,#failures.glass-panel,#outbound.glass-panel { padding:26px; border-color:var(--line-2); }
+#overview.glass-panel { background:var(--admin-hero); }
+#failures.glass-panel { border-color:#d3a69d; background:#fcf5f1; }
+#routing.glass-panel { border-color:#d8ba82; }
+#outbound.glass-panel { padding:26px 0 0; overflow:hidden; }
+#outbound.glass-panel > div:not(.admin-state-stack):not(.admin-table-region) { margin-left:26px; margin-right:26px; }
+#outbound .admin-table-region { margin-top:20px; border-top:1px solid var(--line-2); }
+#inbound-summary .admin-pulse-grid > .glass-panel { padding:18px; background:var(--surface); }
+@media(max-width:850px){.case-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){
+ .case-filter-grid{grid-template-columns:1fr;padding:14px}
+ .case-investigation-summary{grid-template-columns:1fr}
+ #overview.glass-panel,#inbound-summary.glass-panel,#routing.glass-panel,#failures.glass-panel{padding:18px}
+}
+
 /* Account 360 and onboarding: calm hierarchy around one customer context. */
 #profile.glass-panel { position: relative; padding: 28px 30px; border-color: var(--line-2); background: var(--admin-hero); }
 #profile.glass-panel::after { content:''; position:absolute; inset:auto 0 0; height:3px; background:var(--sansad-green); }
