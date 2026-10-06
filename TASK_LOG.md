@@ -1,5 +1,13 @@
 # Task Log
 
+- Date: 2026-10-06
+- Request: Complete PR #146 visual-system verification and prepare the approved seven-commit branch for review.
+- Summary: Completed the final polish pass by removing three decorative side-tab/stripe treatments flagged by the design-system detector, without changing layout or behavior. Rendered the Admin with populated local mock data at 1440px, 1280px, and 390px and captured Command Centre, Account 360, all four onboarding stages, Cases investigation, Messaging overview/failures, Data & Geography, System, People & Access, and Audit & Settings. Every measured viewport had `scrollWidth === clientWidth`, no browser console/page errors were observed, the mobile navigation drawer rendered correctly, and the existing Needle sidebar logo/brand block remained untouched.
+- Files touched: `admin/app/globals.css`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Verification: Admin Vitest passed (8 files / 19 tests); Admin Playwright passed (3/3) on isolated `ADMIN_E2E_PORT=3014`; all backend test files passed; MP Vitest passed (9 files / 75 tests); MP production build passed; Admin production build passed. The full product run reached MP Playwright with 5/6 passing and one unrelated Briefcase draft-switching timeout; its exact targeted rerun passed (1/1), confirming a flaky/environmental failure rather than an Admin regression. Existing warnings remain: multiple Next.js lockfiles, missing native SWC with wasm fallback, stale Browserslist data, and Python 3.14 dependency/deprecation notices.
+- Risks or follow-ups: Screenshots use realistic local mock data only and do not touch production data. No backend, authentication, authorization, schema, tenant-isolation, WhatsApp-processing, government-adapter, Parliament-sync, production configuration, or deployment file changed. Push/PR/hosted-preview verification is the remaining gate; no merge or deployment has been performed.
+- Push record: pushed the seven-commit `admin-approved-visual-system` branch to `origin` for PR #146 review; no push to `main`, merge, production deployment, or production-configuration change was made.
+
 - Date: 2026-10-05
 - Request: PR #146 dedicated Admin visual implementation, preserving PR #145 workflows and the existing Needle logo.
 - Summary: Started the approved seven-phase visual implementation from merged `main`. Established the shared operational-ledger foundation: expanded page hierarchy and spacing, low-radius structured surfaces, semantic metric cards, reusable status treatment, calmer table/form density, and responsive metric composition. No application behavior or data contracts changed.

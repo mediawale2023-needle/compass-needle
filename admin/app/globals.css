@@ -620,7 +620,6 @@ button, input, select, textarea, a {
 
 /* Account 360 and onboarding: calm hierarchy around one customer context. */
 #profile.glass-panel { position: relative; padding: 28px 30px; border-color: var(--line-2); background: var(--admin-hero); }
-#profile.glass-panel::after { content:''; position:absolute; inset:auto 0 0; height:3px; background:var(--sansad-green); }
 #profile.glass-panel h2 { font-family:var(--font-display); font-size:28px !important; line-height:1.05; letter-spacing:-.02em; }
 #profile.glass-panel > div > div:first-child { border-radius:0 !important; background:var(--sansad-green-deep) !important; }
 .account360-tabs { margin: 0 0 28px; border-color: var(--line-2); }
@@ -669,7 +668,7 @@ button, input, select, textarea, a {
 .admin-action-queue { border: 1px solid var(--line-2); }
 .admin-action-head,.admin-action-row { display: grid; grid-template-columns: 86px minmax(220px,1.4fr) minmax(100px,.65fr) 72px minmax(120px,.7fr) 108px; gap: 14px; align-items: center; }
 .admin-action-head { min-height: 42px; padding: 0 16px; background: var(--surface-2); border-bottom: 1px solid var(--line-2); color: var(--ink-3); font: 600 9px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
-.admin-action-row { min-height: 72px; padding: 13px 16px; border: 0; border-bottom: 1px solid var(--line); border-left: 3px solid var(--line-2); }
+.admin-action-row { min-height: 72px; padding: 13px 16px; border: 0; border-bottom: 1px solid var(--line); border-left: 1px solid var(--line-2); }
 .admin-action-row:last-child { border-bottom: 0; }
 .admin-action-severity { width: auto; }
 .admin-action-copy small { margin-top: 5px; white-space: normal; line-height: 1.35; }
@@ -2008,12 +2007,8 @@ body { background: var(--paper); }
 
 .admin-metric-cards { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 14px; margin: 0; }
 .admin-metric-cards > div { position: relative; min-height: 138px; padding: 19px 20px 17px; border: 1px solid var(--line-2); background: var(--surface); }
-.admin-metric-cards > div::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--line-2); }
 .admin-metric-cards > div[data-tone="danger"] { background: var(--admin-critical-soft); border-color: #d3a69d; }
-.admin-metric-cards > div[data-tone="danger"]::before { background: var(--admin-critical); }
 .admin-metric-cards > div[data-tone="warning"] { background: var(--admin-warning-soft); border-color: #d8ba82; }
-.admin-metric-cards > div[data-tone="warning"]::before { background: var(--admin-warning); }
-.admin-metric-cards > div[data-tone="success"]::before { background: var(--sansad-green); }
 .admin-metric-cards dt { font: 600 10px/1 var(--font-mono); letter-spacing: .13em; text-transform: uppercase; color: var(--ink-3); }
 .admin-metric-cards dd { margin: 20px 0 11px; font: 600 clamp(28px,3vw,42px)/.9 var(--font-display); font-variant-numeric: tabular-nums; color: var(--ink); }
 .admin-metric-cards [data-tone="danger"] dd { color: var(--admin-critical); }
