@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiGet, apiPost } from '@/lib/api';
 import { AdminDataState, AdminNotice, AdminPageHeader, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
+import { MessagingNav } from '@/components/admin-ui/DomainNavs';
 
 function timeAgo(isoStr) {
     if (!isoStr) return '—';
@@ -106,9 +107,7 @@ export default function WhatsAppOperationsPage() {
             )}
 
             <AdminPageHeader context="Messaging & Sync / WhatsApp" title="WhatsApp operations" description="Monitor Meta health, tenant routing, outbound delivery, failures, and operator-controlled retries." actions={<button type="button" className="btn-secondary" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>} />
-            <nav className="admin-section-nav" aria-label="Messaging operations sections">
-                <a href="#overview">Overview</a><a href="#inbound-summary">Inbound</a><a href="#outbound">Outbound</a><a href="#failures">Failures</a><a href="#routing">Routing</a>
-            </nav>
+            <MessagingNav />
             {Object.keys(resourceErrors).length > 0 && <AdminNotice tone="danger" title="Some operational data is unavailable">Unavailable sources are marked below; healthy-looking empty values should not be assumed.</AdminNotice>}
 
             <div className="glass-panel" id="overview">

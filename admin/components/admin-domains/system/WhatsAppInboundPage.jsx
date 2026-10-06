@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiGet, apiPost } from '@/lib/api';
 import { AdminDataState, AdminMetricStrip, AdminNotice, AdminPageHeader, AdminPanel, AdminTableWrap } from '@/components/admin-ui/AdminPrimitives';
+import { MessagingNav } from '@/components/admin-ui/DomainNavs';
 
 const STATUS_BADGES = {
     received: 'badge badge-amber badge-dot',
@@ -75,6 +76,7 @@ export default function WhatsAppInboundPage() {
     return (
         <div className="space-y-6">
             <AdminPageHeader context="Messaging & Sync / Inbound" title="WhatsApp inbound" description="Inspect the persisted intake ledger, processing state, failed rows, and retry history without inferring state from cases." />
+            <MessagingNav />
 
             <AdminMetricStrip unavailable={Boolean(error)} items={[
                 { label: 'Received', value: summary?.received_count ?? 0 }, { label: 'Processing', value: summary?.processing_count ?? 0, tone: 'warning' },

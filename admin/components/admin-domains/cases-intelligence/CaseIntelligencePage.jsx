@@ -1,19 +1,22 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { apiGet } from '@/lib/api';
+import { AdminPageHeader } from '@/components/admin-ui/AdminPrimitives';
 
 export default function CaseIntelligencePage() {
-    const [view, setView] = useState('health');
+    const [view, setView] = useState('explorer');
 
     return (
         <>
-            <div className="tab-list">
+            <AdminPageHeader context="Operations / Cases" title="Case Explorer" description="Find a grievance, preserve tenant context, and investigate the complete case record from one operational workspace." />
+            <div className="case-workspace-switcher" role="group" aria-label="Case workspace view">
+                <span>Workspace view</span>
                 {[
-                    { key: 'health', label: 'Platform Health' },
                     { key: 'explorer', label: 'Case Explorer' },
                     { key: 'analytics', label: 'Grievance Analytics' },
+                    { key: 'health', label: 'Platform Health' },
                 ].map(v => (
-                    <button key={v.key} className={`tab-item${view === v.key ? ' active' : ''}`} onClick={() => setView(v.key)}>
+                    <button key={v.key} type="button" className={view === v.key ? 'active' : ''} aria-pressed={view === v.key} onClick={() => setView(v.key)}>
                         {v.label}
                     </button>
                 ))}

@@ -202,7 +202,6 @@ export default function MpDetailPage() {
     }
 
     const p = data.profile || {};
-    const isLS = p.house === 'Lok Sabha';
     const totalCases = Number(data?.cases?.total || 0);
     const openCases = Number(data?.cases?.open || 0);
     const resolvedCases = Number(data?.cases?.resolved || 0);
@@ -217,9 +216,18 @@ export default function MpDetailPage() {
         { label: 'Launch', ready: launchReady, detail: launchReady ? 'Production enabled' : 'Launch checklist incomplete' },
     ];
     const readinessIssues = readinessItems.filter((item) => !item.ready).length;
-    const accountBadge = data?.account_stage === 'aspirant'
-        ? `Aspirant ${data?.seat_label || ''}`.trim()
-        : (data?.seat_label || p.house || 'MP');
+    const accountName = p.mp_name || 'Account identity unavailable';
+    const constituency = p.constituency || 'Constituency unavailable';
+    const state = p.state || 'State unavailable';
+    const stage = data?.account_stage || p.account_stage || 'unavailable';
+    const stageLabel = stage === 'unavailable' ? 'Stage unavailable' : stage.charAt(0).toUpperCase() + stage.slice(1);
+    const seatType = data?.seat_type || p.seat_type || p.tenant_type || data?.tenant_type || '';
+    const seatLabel = seatType
+        ? seatType.toUpperCase()
+        : (data?.seat_label || p.seat_label || p.house || 'Seat type unavailable');
+    const initials = p.mp_name
+        ? p.mp_name.split(' ').filter(Boolean).slice(0, 2).map((word) => word[0]).join('').toUpperCase()
+        : '—';
 
     return (
         <>
@@ -233,51 +241,32 @@ export default function MpDetailPage() {
             </div>
 
             {/* Profile Summary */}
-            <div id="profile" className="glass-panel" style={{ marginBottom: 16, scrollMarginTop: 96 }}>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                    <div style={{
-                        width: 56, height: 56, borderRadius: 14,
-                        background: isLS ? 'linear-gradient(135deg, #006a4d, #00875f)' : 'linear-gradient(135deg, #8d153a, #b91c50)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: 'white', fontWeight: 700, fontSize: '1.2rem', flexShrink: 0,
-                    }}>
-                        {(p.mp_name || '?').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                            <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1a2e28' }}>
-                                {p.mp_name || '—'}
-                            </h2>
-                            <span className={`badge ${isLS ? 'badge-green' : 'badge-red'}`}>{accountBadge}</span>
+            <section id="profile" className="glass-panel account360-identity" style={{ marginBottom: 16, scrollMarginTop: 96 }}>
+                <div className="account360-identity-main">
+                    <div className="account360-monogram" aria-hidden="true">{initials}</div>
+                    <div className="account360-identity-copy">
+                        <h1>{accountName}</h1>
+                        <p>{constituency} <span aria-hidden="true">·</span> {state}</p>
+                        <div className="account360-identity-meta">
+                            <span>{seatLabel}</span>
+                            <span>{stageLabel}</span>
+                            <span>Tenant #{data?.tenant_id ?? tenantId}</span>
                         </div>
-                        <div style={{ display: 'flex', gap: 20, fontSize: '0.78rem', color: '#6b7f76', flexWrap: 'wrap', alignItems: 'center' }}>
-                            <span><strong>Constituency:</strong> {p.constituency || '—'}</span>
-                            <span><strong>State:</strong> {p.state || '—'}</span>
-                            <span><strong>Party:</strong> {p.party || '—'}</span>
-                            <span><strong>Stage:</strong> {data?.account_stage || 'elected'}</span>
-                            <span style={{
-                                fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 700,
-                                background: '#f0f4f1', color: '#006a4d',
-                                borderRadius: 5, padding: '2px 8px', border: '1px solid #d1e8df',
-                            }}>
-                                Tenant #{data?.tenant_id ?? tenantId}
-                            </span>
-                        </div>
-                        {p.key_facts && p.key_facts.length > 0 && (
-                            <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                {p.key_facts.slice(0, 5).map((f, i) => (
-                                    <span key={i} className="badge badge-slate" style={{ fontSize: '0.68rem' }}>{f}</span>
-                                ))}
-                            </div>
-                        )}
                     </div>
-                    <Link href={`/dashboard/mps/${tenantId}/setup`}
-                        className="btn-secondary"
-                        style={{ textDecoration: 'none', fontSize: '0.78rem', padding: '6px 14px', flexShrink: 0 }}>
-                        Setup Checklist
-                    </Link>
                 </div>
-            </div>
+                <div className="account360-identity-status">
+                    <span className={readinessIssues ? 'badge badge-amber badge-dot' : 'badge badge-green badge-dot'}>
+                        {readinessIssues ? `${readinessIssues} readiness issue${readinessIssues === 1 ? '' : 's'}` : 'Healthy'}
+                    </span>
+                    {p.party && <span className="account360-party">{p.party}</span>}
+                    <Link href={`/dashboard/mps/${tenantId}/setup`} className="btn-secondary">Setup Checklist</Link>
+                </div>
+                {p.key_facts && p.key_facts.length > 0 && (
+                    <div className="account360-key-facts">
+                        {p.key_facts.slice(0, 5).map((fact, index) => <span key={index}>{fact}</span>)}
+                    </div>
+                )}
+            </section>
 
             <nav className="account360-tabs" aria-label="Account workspace">
                 <a href="#overview">Overview</a><a href="#cases">Cases</a><a href="#whatsapp">Messaging</a>
@@ -315,7 +304,7 @@ export default function MpDetailPage() {
                 </div>
             </section>
 
-            <div className="glass-panel" style={{ marginBottom: 16 }}>
+            <div className="glass-panel account360-operations-panel" style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
                     <div>
                         <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
@@ -363,7 +352,7 @@ export default function MpDetailPage() {
                 </div>
             </div>
 
-            <div className="glass-panel" style={{ marginBottom: 16 }}>
+            <div className="glass-panel account360-support-panel" style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
                     <div>
                         <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
@@ -483,7 +472,7 @@ export default function MpDetailPage() {
             </div>
 
             {/* Quick Stats Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
+            <div className="account360-quick-stats">
                 <QuickStat label="Last Login" value={timeAgo(data.last_login)} />
                 <QuickStat label="Total Cases" value={data.cases?.total || 0} />
                 <QuickStat label="Open Cases" value={data.cases?.open || 0} accent={data.cases?.open > 0 ? '#d97706' : null} />
@@ -492,7 +481,7 @@ export default function MpDetailPage() {
             </div>
 
             {/* WhatsApp Configuration Panel */}
-            <div id="whatsapp" className="glass-panel" style={{ marginBottom: 16, scrollMarginTop: 96 }}>
+            <div id="whatsapp" className="glass-panel account360-detail-panel" style={{ marginBottom: 16, scrollMarginTop: 96 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: waEditing ? 14 : 0 }}>
                     <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
                         WhatsApp Configuration
@@ -589,9 +578,9 @@ export default function MpDetailPage() {
                 )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="account360-lower-grid">
                 {/* Left: Activity Timeline */}
-                <div className="glass-panel">
+                <div id="activity" className="glass-panel account360-detail-panel">
                     <h3 className="section-title">Recent Activity</h3>
                     {(!data.activity || data.activity.length === 0) ? (
                         <div className="empty-state" style={{ padding: '1.5rem' }}>
@@ -625,7 +614,7 @@ export default function MpDetailPage() {
                 {/* Right: Staff & Notes */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {/* Staff Roster */}
-                    <div id="staff" className="glass-panel" style={{ scrollMarginTop: 96 }}>
+                    <div id="staff" className="glass-panel account360-detail-panel" style={{ scrollMarginTop: 96 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                             <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
                                 Staff Roster
@@ -720,7 +709,7 @@ export default function MpDetailPage() {
                     </div>
 
                     {/* Admin Notes */}
-                    <div className="glass-panel" style={{ flex: 1 }}>
+                    <div className="glass-panel account360-detail-panel" style={{ flex: 1 }}>
                         <h3 className="section-title">Admin Notes</h3>
                         {/* Add note */}
                         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
