@@ -1,5 +1,49 @@
 # Task Log
 
+- Date: 2026-10-06
+- Request: Complete PR #146 visual-system verification and prepare the approved seven-commit branch for review.
+- Summary: Completed the final polish pass by removing three decorative side-tab/stripe treatments flagged by the design-system detector, without changing layout or behavior. Rendered the Admin with populated local mock data at 1440px, 1280px, and 390px and captured Command Centre, Account 360, all four onboarding stages, Cases investigation, Messaging overview/failures, Data & Geography, System, People & Access, and Audit & Settings. Every measured viewport had `scrollWidth === clientWidth`, no browser console/page errors were observed, the mobile navigation drawer rendered correctly, and the existing Needle sidebar logo/brand block remained untouched.
+- Files touched: `admin/app/globals.css`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Verification: Admin Vitest passed (8 files / 19 tests); Admin Playwright passed (3/3) on isolated `ADMIN_E2E_PORT=3014`; all backend test files passed; MP Vitest passed (9 files / 75 tests); MP production build passed; Admin production build passed. The full product run reached MP Playwright with 5/6 passing and one unrelated Briefcase draft-switching timeout; its exact targeted rerun passed (1/1), confirming a flaky/environmental failure rather than an Admin regression. Existing warnings remain: multiple Next.js lockfiles, missing native SWC with wasm fallback, stale Browserslist data, and Python 3.14 dependency/deprecation notices.
+- Risks or follow-ups: Screenshots use realistic local mock data only and do not touch production data. No backend, authentication, authorization, schema, tenant-isolation, WhatsApp-processing, government-adapter, Parliament-sync, production configuration, or deployment file changed. Push/PR/hosted-preview verification is the remaining gate; no merge or deployment has been performed.
+- Push record: pushed the seven-commit `admin-approved-visual-system` branch to `origin` for PR #146 review; no push to `main`, merge, production deployment, or production-configuration change was made.
+
+- Date: 2026-10-05
+- Request: PR #146 dedicated Admin visual implementation, preserving PR #145 workflows and the existing Needle logo.
+- Summary: Started the approved seven-phase visual implementation from merged `main`. Established the shared operational-ledger foundation: expanded page hierarchy and spacing, low-radius structured surfaces, semantic metric cards, reusable status treatment, calmer table/form density, and responsive metric composition. No application behavior or data contracts changed.
+- Files touched: `admin/components/admin-ui/AdminPrimitives.jsx`, `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: Domain conversion and rendered visual QA remain in progress; no deployment or merge performed.
+
+- Date: 2026-10-05
+- Request: PR #146 Command Centre visual transformation.
+- Summary: Rebuilt the Command Centre presentation around spacious headline metric cards, a six-column operational issue queue with priority/account/age/impact/action context, stronger pulse cards, and separated readiness/activity/quick-action work areas. Existing loaders, API endpoints, alert routing, and real metrics remain unchanged.
+- Files touched: `admin/app/dashboard/page.js`, `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: Alert age remains explicitly `Current` when the existing API does not provide a timestamp; no value is fabricated.
+
+- Date: 2026-10-05
+- Request: PR #146 Account 360 and progressive-onboarding visual phase.
+- Summary: Elevated Account 360 into a distinct customer workspace with a stronger identity header, spacious readiness and case-state panels, and clearer local navigation. Reframed onboarding as a four-stage workflow with a page masthead, prominent progress rail, focused stage canvas, stronger field rhythm, and responsive single-column progression. Submission behavior and validation are unchanged.
+- Files touched: `admin/components/admin-domains/accounts/CreateAccountPage.jsx`, `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: Existing account detail page still contains legacy inline declarations, but scoped visual-system rules intentionally override presentation without changing controls.
+
+- Date: 2026-10-05
+- Request: PR #146 Cases and Messaging visual phase.
+- Summary: Visually separated the case explorer controls, case ledger, and selected investigation workspace; expanded investigation metadata and message surfaces for focused reading. Messaging now gives failures and routing issues stronger semantic precedence while retaining the unified Overview/Inbound/Outbound/Failures/Routing workflow and existing safe-retry behavior.
+- Files touched: `admin/components/admin-domains/cases-intelligence/CaseIntelligencePage.jsx`, `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: No message, case, retry, or routing logic changed.
+
+- Date: 2026-10-05
+- Request: PR #146 Data & Geography, System, People & Access, and Audit & Settings visual phase.
+- Summary: Unified remaining Admin domains under the operational-ledger system with spacious metric groups, readable registry tables, deliberate filter surfaces, clearer notices, and stronger settings-panel hierarchy. Existing domain pages, links, CRUD actions and capability boundaries remain in place.
+- Files touched: `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: Visual QA must confirm long geography, audit and people rows preserve horizontal usability at narrow widths.
+
+- Date: 2026-10-05
+- Request: PR #146 responsive-polish phase.
+- Summary: Added a distinct 1280px laptop density pass, reinforced the labelled mobile navigation drawer, protected 390px layouts from page-level overflow, retained horizontally scrollable labelled table regions, and raised coarse-pointer controls to 44px minimum targets. The information architecture remains identical at every breakpoint.
+- Files touched: `admin/app/globals.css`, `TASK_LOG.md`
+- Risks or follow-ups: Browser screenshots and overflow measurements remain the hard visual gate.
+
 ## 2026-10-05 — PR #145 Admin E2E alignment
 
 - Updated the narrow-viewport navigation E2E assertion to use the approved `Messaging` and `People & Access` destinations without changing the Admin sidebar or Needle brand block.
@@ -2134,3 +2178,15 @@ Chronological log of completed repository work. Read before making changes to un
 - Corrected the final reviewer follow-up so the Parliament drawer close control—not Backfill—owns initial focus and the `Close Parliament records` accessible name. The focus trap, Escape close, and focus restoration remain unchanged.
 - Verification: sidecar JSON validation passed; Admin Vitest 8 files / 19 tests and Admin production build passed after the close-control correction. No backend or MP application code changed.
 - Push record: pushed the seven-commit Admin redesign series from `admin-briefcase-phase1` to `origin/admin-briefcase-phase1` for PR #139 review. No merge, `main` push, production deployment, or production configuration change was performed.
+
+# 2026-10-06 — PR #146 targeted final visual polish
+
+- Strengthened Account 360's populated identity hierarchy using only existing account data: name, constituency, state, seat/account type, stage, tenant ID, party, readiness, and seat facts now read immediately; genuinely absent values still degrade without invented data. Brought the lower tenant-operations, support-access, statistics, WhatsApp, activity, roster, and notes panels into the shared #146 visual system without changing their handlers.
+- Made Case Explorer the default Case Operations workspace and demoted Grievance Analytics / Platform Health to a compact secondary switcher while retaining every route and capability.
+- Replaced the competing broad Platform Operations navigation on Messaging pages with one shared `Overview / Inbound / Outbound / Failures / Routing` local navigation model; system destinations remain available through the System domain.
+- Extended Admin Playwright coverage for the 390px closed/open/closed drawer contract, horizontal-overflow safety, the Case Explorer default, and the single Messaging navigation contract. The existing Needle sidebar logo/brand markup and approved Command Centre/onboarding implementation were not changed.
+- Verification: Admin Vitest passed (8 files / 19 tests); Admin Playwright passed (4/4); Admin production build passed (43/43 pages); `git diff --check` passed; Impeccable detector returned no findings. Production-build screenshot QA at 1440px and 390px reported matching client/scroll widths and no console or page errors for Command Centre closed/open, populated Account 360, selected-case Case Explorer, and Messaging Overview.
+- Remaining environmental warnings are unchanged: Next.js multiple-lockfile root inference, missing native Darwin SWC with successful WASM fallback, and the existing Browserslist freshness warning. The in-app browser bridge remained unavailable because its sandbox metadata could not initialize, so the repository's real Playwright browser was used for rendered QA.
+- Files touched: `admin/app/dashboard/mps/[tenant_id]/page.js`, `admin/app/globals.css`, `admin/components/admin-domains/cases-intelligence/CaseIntelligencePage.jsx`, `admin/components/admin-domains/system/WhatsAppInboundPage.jsx`, `admin/components/admin-domains/system/WhatsAppOperationsPage.jsx`, `admin/components/admin-ui/DomainNavs.jsx`, `admin/e2e/auth.spec.js`, `PROJECT_MEMORY.md`, and `TASK_LOG.md`.
+- No backend, API, authentication, authorization, tenant-isolation, database/schema, WhatsApp-processing, government-adapter, Parliament-sync, deployment, production configuration, MP frontend, or production-data changes were made.
+- Push record: pushed the final-polish implementation to `origin/admin-approved-visual-system` for PR #146 review. No merge, `main` push, production deployment, or production configuration change was performed.

@@ -114,6 +114,34 @@ export function AdminMetricStrip({ items, unavailable = false }) {
     );
 }
 
+export function AdminMetricCards({ items, unavailable = false }) {
+    return (
+        <dl className="admin-metric-cards">
+            {items.map((item) => {
+                const isUnavailable = unavailable || item.unavailable;
+                return (
+                    <div key={item.label} data-tone={isUnavailable ? 'neutral' : (item.tone || 'neutral')}>
+                        <dt>{item.label}</dt>
+                        <dd data-unavailable={isUnavailable ? 'true' : undefined}>
+                            {isUnavailable ? 'Unavailable' : item.value}
+                        </dd>
+                        <span>{isUnavailable ? 'Source could not be verified' : (item.detail || 'Current operational state')}</span>
+                    </div>
+                );
+            })}
+        </dl>
+    );
+}
+
+export function AdminStatus({ tone = 'neutral', label, detail }) {
+    return (
+        <span className="admin-status" data-tone={tone}>
+            <i aria-hidden="true" />
+            <span><strong>{label}</strong>{detail && <small>{detail}</small>}</span>
+        </span>
+    );
+}
+
 export function AdminTableWrap({ label, children }) {
     return (
         <div className="admin-table-region" role="region" aria-label={label} tabIndex="0">
