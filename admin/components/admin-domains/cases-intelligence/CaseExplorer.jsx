@@ -127,9 +127,11 @@ export default function CaseExplorer() {
     const rows = useMemo(() => searchCases(data?.cases || [], query), [data, query]);
 
     // On desktop the investigation pane is always visible, so open the first
-    // case when nothing is selected. On phones the list leads.
+    // case when nothing is selected. On phones the list leads. The functional
+    // update re-checks at apply time: a click that lands before this effect
+    // flushes must win over the default.
     useEffect(() => {
-        if (desktop && !selectedId && rows.length) setSelectedId(String(rows[0].id));
+        if (desktop && !selectedId && rows.length) setSelectedId((current) => current ?? String(rows[0].id));
     }, [desktop, rows, selectedId]);
 
     const setFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));

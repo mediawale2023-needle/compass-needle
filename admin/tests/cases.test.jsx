@@ -227,13 +227,56 @@ describe('Case Explorer workspace', () => {
         routeApi();
         render(<CaseIntelligencePage />);
         const list = await screen.findByRole('list', { name: 'Cases' });
+        // Let the desktop default (first case) open, then pick another case.
+        await within(await screen.findByRole('article')).findByRole('heading', { name: 'Water Supply' });
         fireEvent.click(within(list).getAllByRole('button')[1]);
+        await waitFor(() => expect(within(list).getAllByRole('button')[1]).toHaveAttribute('aria-current', 'true'));
         const detail = await screen.findByRole('article');
         await within(detail).findByRole('heading', { name: 'Roads' });
         expect(within(detail).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Overview']);
         expect(within(detail).queryByRole('region', { name: 'Needle analysis' })).toBeNull();
         expect(within(detail).getByText(/No staff or system activity has been logged/)).toBeInTheDocument();
         expect(within(detail).getByText('Unassigned')).toBeInTheDocument();
+    });
+
+    it('keeps a case the user picks before the desktop default opens (race regression)', async () => {
+        routeApi();
+        const { container } = render(<CaseIntelligencePage />);
+        // Click the second row the instant the list is committed — before
+        // React flushes the passive effect that opens the first case. This is
+        // the window CI hit: the stale default used to overwrite the click.
+        let clicked = false;
+        const observer = new MutationObserver(() => {
+            const rows = container.querySelectorAll('.nx-cx-list .nx-cx-row');
+            if (!clicked && rows.length === 2) {
+                clicked = true;
+                fireEvent.click(rows[1]);
+            }
+        });
+        observer.observe(container, { childList: true, subtree: true });
+        try {
+            await waitFor(() => expect(clicked).toBe(true));
+        } finally {
+            observer.disconnect();
+        }
+        const list = screen.getByRole('list', { name: 'Cases' });
+        const detail = await screen.findByRole('article');
+        await within(detail).findByRole('heading', { name: 'Roads' });
+        expect(within(list).getAllByRole('button')[1]).toHaveAttribute('aria-current', 'true');
+        expect(within(list).getAllByRole('button')[0]).not.toHaveAttribute('aria-current');
+        expect(apiGetMock).toHaveBeenCalledWith('/api/admin/cases/1041');
+        await waitFor(() => expect(replaceMock).toHaveBeenLastCalledWith('/dashboard/cases-intelligence/explorer?case=1041', { scroll: false }));
+    });
+
+    it('opens the case named in a ?case= deep link instead of the default', async () => {
+        searchRef.current = 'case=1041';
+        routeApi();
+        render(<CaseIntelligencePage />);
+        const list = await screen.findByRole('list', { name: 'Cases' });
+        const detail = await screen.findByRole('article');
+        await within(detail).findByRole('heading', { name: 'Roads' });
+        expect(within(list).getAllByRole('button')[1]).toHaveAttribute('aria-current', 'true');
+        expect(apiGetMock).not.toHaveBeenCalledWith('/api/admin/cases/1042');
     });
 
     it('sends real filters to the explorer endpoint and honours tenant deep links', async () => {
