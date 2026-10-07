@@ -134,3 +134,19 @@ export function SplitView({ master, detail, detailLabel = 'Details', detailOpen 
 export function TextLink({ href, children }) {
     return <Link href={href} className="nx-link">{children}</Link>;
 }
+
+/**
+ * On phones, secondary sections collapse behind a tap-to-open summary so the
+ * page leads with what needs action. On wider screens children render as-is.
+ */
+export function MobileDisclosure({ compact, title, hint, children }) {
+    if (!compact) return children;
+    return (
+        <details className="nx-disclosure">
+            <summary>
+                <span><strong>{title}</strong>{hint && <small>{hint}</small>}</span>
+            </summary>
+            <div className="nx-disclosure-body">{children}</div>
+        </details>
+    );
+}

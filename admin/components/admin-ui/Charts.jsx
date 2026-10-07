@@ -31,10 +31,11 @@ export function Sparkline({ values = [], tone = 'forest', label, width = 120, he
  * Multi-series line chart with gridlines and x labels.
  * series = [{ label, values, tone }]; labels = x-axis labels (same length).
  */
-export function LineChart({ series = [], labels = [], height = 200, ariaLabel, yTicks = 4, zeroBased = false }) {
+export function LineChart({ series = [], labels = [], height = 200, ariaLabel, yTicks = 4, zeroBased = false, viewWidth = 640 }) {
     const all = series.flatMap((s) => s.values).map(Number).filter(Number.isFinite);
     if (!all.length || labels.length < 2) return null;
-    const width = 640;
+    // viewWidth ≈ the rendered width keeps axis text at its intended size.
+    const width = viewWidth;
     const left = 36;
     const bottom = 22;
     const top = 10;

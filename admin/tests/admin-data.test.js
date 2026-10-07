@@ -229,3 +229,73 @@ describe('case analytics derivations', () => {
         expect(formatDuration(null)).toBeNull();
     });
 });
+
+import { accountCondition, accountIdentity, decisionSummary, readinessColumns } from '@/lib/admin-data';
+
+describe('Account 360 derivations', () => {
+    const detail = {
+        tenant_id: 9, seat_type: 'mp', account_stage: 'elected', last_login: 'Never',
+        profile: { mp_name: 'Avichal Dubey', constituency: 'Udaipur', state: 'Rajasthan', house: 'Lok Sabha', party: 'X', whatsapp_number: '+91900', phone_number_id: '123', key_facts: ['a'] },
+        staff: [{ is_active: true }, { is_active: false }],
+        onboarding_state: { test_sent: true },
+    };
+    const geography = { assemblies: { 'Udaipur Rural': ['A', 'B'] } };
+    const healthy = { meta_token: { status: 'green' }, routing: { status: 'green', tenant_issues: [] }, outbound: { status: 'green' }, webhook: { status: 'green' } };
+
+    it('builds identity from real profile fields only', () => {
+        const id = accountIdentity(detail, '9');
+        expect(id).toMatchObject({ name: 'Avichal Dubey', roleLabel: 'MP · Lok Sabha', stageLabel: 'Elected', seatKey: 'mp:Udaipur', lastLogin: null });
+        expect(Object.keys(id)).not.toContain('owner');
+        expect(accountIdentity({ profile: { constituency: 'India' } }, 3)).toMatchObject({ constituency: null, seatKey: null, name: null });
+    });
+
+    it('never turns a platform-wide token failure into this account condition', () => {
+        const condition = accountCondition({ tenantId: 9, whatsapp: { ...healthy, meta_token: { status: 'red', configured: true } }, outboundItems: [], alerts: [] });
+        expect(condition.severity).toBe('ok');
+        expect(condition.platformIncidents.map((i) => i.kind)).toEqual(['meta_token_invalid']);
+    });
+
+    it('counts tenant routing gaps, its own delivery failures and its own alerts', () => {
+        const condition = accountCondition({
+            tenantId: 9,
+            whatsapp: { ...healthy, routing: { status: 'amber', tenant_issues: [{ tenant_id: 9, issue: 'missing Meta phone number ID' }, { tenant_id: 4, issue: 'x' }] } },
+            outboundItems: [{ tenant_id: 9, status: 'failed', last_error: 'boom' }, { tenant_id: 4, status: 'failed' }],
+            alerts: [{ tenant_id: 9, severity: 'info', type: 'setup_incomplete', title: 'setup' }],
+        });
+        expect(condition.severity).toBe('warning');
+        expect(condition.reasons.map((r) => r.source)).toEqual(['whatsapp_routing', 'whatsapp_delivery', 'setup_incomplete']);
+        expect(condition.failures).toMatchObject({ failed: 1, lastError: 'boom' });
+    });
+
+    it('derives six readiness columns without inventing values', () => {
+        const columns = readinessColumns({
+            tenantId: 9, detail, geography, whatsapp: healthy, outboundItems: [],
+            parliament: { tenants: [{ tenant_id: 9, parliament_sync_status: 'needs_review', parliament_sync_enabled: true }] },
+            cases: { open_now: 12, ageing: [{ min_days: 0, count: 10 }, { min_days: 15, count: 2 }] },
+        });
+        expect(columns.map((c) => [c.key, c.tone, c.status])).toEqual([
+            ['whatsapp', 'ok', 'Configured'],
+            ['onboarding', 'review', 'Ready to enable'],
+            ['staff', 'ok', '1 active'],
+            ['geography', 'ok', 'Configured'],
+            ['intelligence', 'review', 'Needs review'],
+            ['cases', 'neutral', '12 open'],
+        ]);
+        expect(columns.find((c) => c.key === 'cases').detail).toBe('2 older than 14 days');
+        const partial = readinessColumns({ tenantId: 9, detail: { ...detail, onboarding_state: {} }, geography, whatsapp: healthy, outboundItems: [], parliament: null, cases: null });
+        expect(partial.find((c) => c.key === 'onboarding')).toMatchObject({ status: '5 of 6 checks', detail: 'Next: Live Smoke Test Completed' });
+        expect(JSON.stringify(columns)).not.toMatch(/SLA|village/i);
+    });
+
+    it('marks unavailable sources as unavailable, not healthy', () => {
+        const columns = readinessColumns({ tenantId: 9, detail, geography: null, whatsapp: null, outboundItems: null, parliament: null, cases: null });
+        expect(columns.find((c) => c.key === 'geography').status).toBe('Unavailable');
+        expect(columns.find((c) => c.key === 'intelligence').status).toBe('Unavailable');
+        expect(columns.find((c) => c.key === 'cases').status).toBe('Unavailable');
+    });
+
+    it('summarises geography decisions', () => {
+        expect(decisionSummary([{ needs_review: true }, { resolved: true }, { resolved: false }])).toMatchObject({ total: 3, review: 1, resolved: 1, unresolved: 1 });
+        expect(decisionSummary(null)).toBeNull();
+    });
+});

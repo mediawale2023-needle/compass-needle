@@ -5,3 +5,4 @@ export * from './Controls';
 export * from './Table';
 export * from './Charts';
 export * from './States';
+export * from './useMediaQuery';

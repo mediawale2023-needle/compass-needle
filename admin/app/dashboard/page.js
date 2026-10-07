@@ -16,7 +16,7 @@ import {
 import {
     AccountIdentity, Avatar, Badge, BarList, Card, ChartLegend, DataState, DataTable, LineChart, ListRow,
     Metric, MetricGroup, PageHeader, ProgressBar, SegmentBar, SegmentedControl, SeverityBadge, SeverityTile,
-    Sparkline, StatusText, Unavailable,
+    Sparkline, StatusText, Unavailable, MobileDisclosure,
 } from '@/components/admin-ui';
 import { useMediaQuery } from '@/components/admin-ui/useMediaQuery';
 import '@/app/styles/admin-command-centre.css';
@@ -543,20 +543,6 @@ function RecentActivity({ entries, loading, error, onRetry }) {
     );
 }
 
-// On phones the Command Centre leads with what needs action; analysis and
-// reference sections stay one tap away instead of a very long scroll.
-function Secondary({ compact, title, hint, children }) {
-    if (!compact) return children;
-    return (
-        <details className="nx-cc-more">
-            <summary>
-                <span><strong>{title}</strong>{hint && <small>{hint}</small>}</span>
-            </summary>
-            <div className="nx-cc-more-body">{children}</div>
-        </details>
-    );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function CommandCentre() {
@@ -652,23 +638,23 @@ export default function CommandCentre() {
                 <OperationalPulse inbound={data.inbound} health={data.health} jobs={data.jobs} status={status} />
             </div>
 
-            <Secondary compact={compact} title="Case analytics" hint={data.cases ? `${formatCount(data.cases.open_now)} open · intake, resolution and ageing` : 'Intake, resolution and ageing'}>
+            <MobileDisclosure compact={compact} title="Case analytics" hint={data.cases ? `${formatCount(data.cases.open_now)} open · intake, resolution and ageing` : 'Intake, resolution and ageing'}>
                 <div className="nx-split-grid nx-cc-analytics" data-align="stretch">
                     <CaseFlow cases={data.cases} loading={status.cases === 'loading'} error={errors.cases} onRetry={() => load('cases')} />
                     <CaseAgeing cases={data.cases} loading={status.cases === 'loading'} error={errors.cases} onRetry={() => load('cases')} />
                 </div>
-            </Secondary>
+            </MobileDisclosure>
 
             <div className="nx-split-grid">
                 <AccountHealthTable rows={accountRows} loading={status.accounts === 'loading'} error={errors.accounts} onRetry={() => load('accounts')} compact={compact} />
-                <Secondary compact={compact} title="Platform health" hint="WhatsApp, AI providers, Parliament sync and jobs">
+                <MobileDisclosure compact={compact} title="Platform health" hint="WhatsApp, AI providers, Parliament sync and jobs">
                     <PlatformHealth health={data.health} parliament={data.parliament} jobs={data.jobs} status={status} />
-                </Secondary>
+                </MobileDisclosure>
             </div>
 
-            <Secondary compact={compact} title="Recent activity" hint="Administrator actions · last 7 days">
+            <MobileDisclosure compact={compact} title="Recent activity" hint="Administrator actions · last 7 days">
                 <RecentActivity entries={data.audit?.entries || []} loading={status.audit === 'loading'} error={errors.audit} onRetry={() => load('audit')} />
-            </Secondary>
+            </MobileDisclosure>
 
             {compact && (
                 <nav className="nx-cc-quick" aria-label="Quick links">

@@ -1,0 +1,113 @@
+/* Account 360 (/dashboard/mps/[tenant_id]) */
+.nx-a3 { max-width: var(--nx-content-max); display: flex; flex-direction: column; gap: var(--nx-gap); }
+.nx-a3 > .nx-split-grid { margin-bottom: 0; }
+.nx-a3 .nx-incident { margin-bottom: 0; }
+.nx-a3-stack { display: flex; flex-direction: column; gap: var(--nx-gap); }
+.nx-a3-pad { padding: 0 20px 20px; }
+.nx-a3-pad-x { padding: 0 20px; }
+.nx-a3-note { margin: 12px 0 0; font-size: 12.5px; color: var(--nx-faint); }
+.nx-a3-subtitle { margin: 16px 0 10px; font-size: 13px; font-weight: 600; color: var(--nx-ink); }
+.nx-a3-linkbtn { border: 0; background: none; padding: 0; font: inherit; font-size: 13px; cursor: pointer; }
+
+/* Identity band: white strip under the top bar, like the approved reference */
+.nx-a3-band { margin: -28px calc(-1 * var(--nx-gutter)) 0; padding: 22px var(--nx-gutter) 0; background: var(--nx-surface); border-bottom: 1px solid var(--nx-line); }
+.nx-a3-identity { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 18px; }
+.nx-a3-identity .nx-avatar-lg { box-shadow: 0 0 0 4px var(--nx-sage-2); }
+.nx-a3-identity-copy { flex: 1 1 420px; min-width: 0; }
+.nx-a3-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.nx-a3-title-row h1 { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 650; letter-spacing: -.025em; }
+.nx-a3-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; margin: 6px 0 0; font-size: 13.5px; color: var(--nx-muted); }
+.nx-a3-meta-item { display: inline-flex; align-items: center; gap: 6px; }
+.nx-a3-meta-item + .nx-a3-meta-item::before { content: '·'; margin: 0 10px; color: #C4C9C5; }
+.nx-a3-actions { display: flex; align-items: center; gap: 10px; }
+.nx-a3-tabs { margin-top: 18px; border-bottom: 0; }
+.nx-a3-tabs .nx-dot { width: 7px; height: 7px; }
+
+/* Cases */
+.nx-a3-cases-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 24px; margin-top: 16px; }
+.nx-a3-chart .nx-legend { margin: 0 0 6px; }
+.nx-a3-categories .nx-a3-subtitle { margin-top: 0; }
+.nx-a3-ageing { margin-top: 8px; max-width: 520px; }
+
+/* Forms */
+.nx-a3-form { display: flex; flex-direction: column; gap: 14px; padding: 0 20px 20px; }
+.nx-a3-form-tinted { margin: 0 20px 16px; padding: 16px; border-radius: var(--nx-r-block); background: var(--nx-sage-2); border: 1px solid var(--nx-sage-line); }
+.nx-a3-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.nx-a3-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.nx-a3-inline-note { font-size: 12.5px; }
+
+/* Lists */
+.nx-a3-list { list-style: none; margin: 0; padding: 0; }
+.nx-a3-list li { display: flex; align-items: flex-start; gap: 12px; padding: 11px 20px; border-top: 1px solid var(--nx-line-3); }
+.nx-a3-list-main { flex: 1; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.nx-a3-list-main small { display: block; margin-top: 2px; font-size: 12px; color: var(--nx-muted); }
+.nx-a3-list-time { font-size: 12px; white-space: nowrap; }
+.nx-a3-review-list .nx-a3-list li { padding-left: 0; padding-right: 0; }
+.nx-a3-services { list-style: none; margin: 0; padding: 0; }
+.nx-a3-services li { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--nx-line-3); }
+.nx-a3-service-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.nx-a3-service-copy strong { font-size: 13.5px; font-weight: 600; }
+.nx-a3-service-copy small { font-size: 12px; color: var(--nx-muted-2); }
+.nx-a3-facts { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; list-style: disc; }
+
+/* Geography */
+.nx-a3-geo-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--nx-line-2); border-radius: var(--nx-r-block); overflow: hidden; }
+.nx-a3-geo-stats > div { padding: 12px 14px; border-left: 1px solid var(--nx-line-2); display: flex; flex-direction: column; }
+.nx-a3-geo-stats > div:first-child { border-left: 0; }
+.nx-a3-geo-stats strong { font-size: 20px; font-weight: 650; }
+.nx-a3-geo-stats span { font-size: 12px; color: var(--nx-muted-2); }
+.nx-a3-squares { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px; border-radius: var(--nx-r-block); background: var(--nx-surface-3); border: 1px solid var(--nx-line-2); }
+.nx-a3-squares span { width: 14px; height: 14px; border-radius: 3px; background: var(--nx-forest-4); }
+.nx-a3-squares span[data-tone="warning"] { background: var(--nx-warning-solid); }
+.nx-a3-squares span[data-tone="critical"] { background: var(--nx-critical-solid); box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 3.5px var(--nx-critical-solid); }
+.nx-a3-squares span[data-tone="ok"] { background: var(--nx-forest-3); }
+.nx-a3-decisions .nx-legend i[data-tone="ok"] { background: var(--nx-forest-3); }
+.nx-a3-assemblies { list-style: none; margin: 0 0 16px; padding: 0; border: 1px solid var(--nx-line-2); border-radius: var(--nx-r-block); }
+.nx-a3-assemblies li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--nx-line-3); font-size: 13.5px; }
+.nx-a3-assemblies li:first-child { border-top: 0; }
+
+/* Notes & support */
+.nx-a3-note-form { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 14px; }
+.nx-a3-note-form textarea { flex: 1; min-height: 64px; }
+.nx-a3-notes { list-style: none; margin: 0; padding: 0; }
+.nx-a3-notes li { padding: 10px 0; border-top: 1px solid var(--nx-line-3); }
+.nx-a3-notes p { margin: 0; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; }
+.nx-a3-notes small { font-size: 12px; color: var(--nx-faint); }
+.nx-a3-support-form { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: 12px; align-items: end; margin-bottom: 16px; }
+.nx-a3-support-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.nx-a3-support-list li { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; padding: 12px 14px; border: 1px solid var(--nx-line-2); border-radius: var(--nx-r-block); background: var(--nx-surface-2); }
+.nx-a3-support-list li[data-tone="ok"] { background: var(--nx-ok-wash); border-color: var(--nx-ok-line); }
+.nx-a3-support-copy { flex: 1 1 280px; min-width: 0; }
+.nx-a3-support-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; }
+.nx-a3-support-copy p { margin: 6px 0 4px; font-size: 13.5px; }
+.nx-a3-support-copy small { font-size: 12px; color: var(--nx-faint); }
+.nx-a3-support-actions { display: flex; gap: 8px; align-items: flex-start; }
+
+/* Toast */
+.nx-toast { position: fixed; z-index: 90; right: 24px; bottom: 24px; max-width: min(420px, calc(100vw - 32px)); padding: 12px 16px; border-radius: 10px; background: var(--nx-ink); color: #FFFFFF; font-size: 13.5px; box-shadow: var(--nx-shadow-pop); }
+.nx-toast[data-tone="critical"] { background: var(--nx-critical); }
+
+@media (max-width: 1100px) {
+  .nx-a3-cases-body { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .nx-a3 { gap: 16px; }
+  .nx-a3-band { margin-top: -20px; padding-top: 18px; }
+  .nx-a3-title-row h1 { font-size: 21px; }
+  .nx-a3-identity-copy { flex-basis: 200px; }
+  .nx-a3 .nx-incident > .nx-tile { display: none; }
+  .nx-a3 .nx-incident-actions { width: 100%; }
+  .nx-a3 .nx-incident-actions .nx-btn { flex: 1; height: 40px; }
+  .nx-a3-identity .nx-avatar-lg { width: 44px; height: 44px; font-size: 15px; }
+  .nx-a3-meta-item + .nx-a3-meta-item::before { margin: 0 6px; }
+  .nx-a3-actions { width: 100%; }
+  .nx-a3-actions .nx-btn { flex: 1; height: 40px; }
+  .nx-a3-tabs { margin-top: 14px; mask-image: linear-gradient(90deg, #000 85%, transparent); }
+  .nx-a3-pad { padding: 0 16px 16px; }
+  .nx-a3-pad-x { padding: 0 16px; }
+  .nx-a3-grid, .nx-a3-support-form { grid-template-columns: minmax(0, 1fr); }
+  .nx-a3-geo-stats strong { font-size: 17px; }
+  .nx-a3-list li, .nx-a3-services li { padding-left: 16px; padding-right: 16px; }
+  .nx-a3-note-form { flex-direction: column; align-items: stretch; }
+  .nx-toast { left: 16px; right: 16px; bottom: 16px; }
+}
