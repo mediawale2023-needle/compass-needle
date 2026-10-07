@@ -3111,15 +3111,24 @@ def case_aggregates(
     return result
 
 
+CASE_PRIORITIES = ("critical", "high", "standard", "low")
+
+
 @router.get("/cases/explorer")
 def case_explorer(
     mp_id: Optional[int] = None,
     period: Optional[str] = None,
     category: Optional[str] = None,
     status: Optional[str] = None,
+    priority: Optional[str] = None,
+    assignment: Optional[str] = None,
     _=Depends(get_admin_user),
 ):
-    """Case Explorer with filters."""
+    """Case Explorer with filters (read-only).
+
+    priority filters on the staff-set cases.priority column (critical | high |
+    standard | low); assignment is 'assigned' or 'unassigned' on
+    cases.assigned_to. Both columns already exist; nothing is written."""
     conditions = ["1=1"]
     params = {}
 
@@ -3142,6 +3151,19 @@ def case_explorer(
         conditions.append("c.status = :st")
         params["st"] = status
 
+    if priority:
+        if priority not in CASE_PRIORITIES:
+            raise HTTPException(400, "Unknown priority")
+        conditions.append("LOWER(COALESCE(c.priority, 'standard')) = :prio")
+        params["prio"] = priority
+
+    if assignment == "unassigned":
+        conditions.append("(c.assigned_to IS NULL OR TRIM(c.assigned_to) = '')")
+    elif assignment == "assigned":
+        conditions.append("(c.assigned_to IS NOT NULL AND TRIM(c.assigned_to) <> '')")
+    elif assignment:
+        raise HTTPException(400, "assignment must be 'assigned' or 'unassigned'")
+
     where = " AND ".join(conditions)
 
     count_row = _q_one(f"SELECT COUNT(*) AS cnt FROM cases c WHERE {where}", params) or {"cnt": 0}  # nosec B608
@@ -3151,7 +3173,8 @@ def case_explorer(
         f"""SELECT c.id, c.tenant_id, t.name AS mp_name, t.constituency,
                c.user_phone, c.category, c.status, c.raw_message,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
-               c.response_to_citizen, c.notes_for_staff
+               c.response_to_citizen, c.notes_for_staff,
+               c.case_ref, c.priority, c.assigned_to, c.is_deleted
         FROM cases c JOIN tenants t ON c.tenant_id = t.id
         WHERE {where} ORDER BY c.created_at DESC LIMIT 200
     """, params)
@@ -3172,6 +3195,15 @@ def case_explorer(
             "message": (c.get("raw_message") or "-")[:80],
             "created": created_str,
             "critical": c.get("is_critical", False),
+            # Additive, read-only fields for the master/detail explorer.
+            "tenant_id": c.get("tenant_id"),
+            "constituency": c.get("constituency") or "",
+            "case_ref": c.get("case_ref") or None,
+            "priority": (c.get("priority") or "standard").lower(),
+            "assigned_to": (c.get("assigned_to") or "").strip() or None,
+            "created_at": _iso_or_none(created),
+            "needs_geography_review": bool(meta.get("needs_geography_review")),
+            "is_deleted": bool(c.get("is_deleted")),
         })
 
     # Get filter options
@@ -3186,6 +3218,7 @@ def case_explorer(
             "categories": [c["category"] for c in categories if c["category"]],
             "statuses": [s["status"] for s in statuses if s["status"]],
             "mps": [{"id": t["id"], "name": t["name"], "constituency": t["constituency"]} for t in tenants],
+            "priorities": list(CASE_PRIORITIES),
         },
     }
 
@@ -3225,6 +3258,164 @@ def case_detail(case_id: int, _=Depends(get_admin_user)):
         "created_at": fmt_dt(detail.get("created_at")),
         "updated_at": fmt_dt(detail.get("updated_at")),
         "resolved_at": fmt_dt(detail.get("resolved_at")),
+        **_case_investigation_context(detail, meta),
+    }
+
+
+# Read-only investigation context for Admin. Exposes only columns and
+# metadata that already exist; nothing here writes. Privacy: the citizen is
+# identified by the phone number Admin already sees — contact display names
+# and the AI-extracted `person` field are deliberately NOT exposed, and raw
+# webhook payloads / geography diagnostics are omitted.
+_CASE_ACTIVITY_LIMIT = 100
+_CASE_MESSAGES_LIMIT = 50
+
+
+def _case_investigation_context(detail: dict, meta: dict) -> dict:
+    case_id = detail["id"]
+    tenant_id = detail.get("tenant_id")
+    scope = {"cid": case_id, "tid": tenant_id}
+
+    def _safe_rows(label, query, params):
+        # A missing/unmigrated ledger table marks that section unavailable
+        # (None) rather than failing the whole case detail.
+        try:
+            return _q(query, params)
+        except Exception:
+            logger.warning("case detail: %s lookup failed for case %s", label, case_id, exc_info=True)
+            return None
+
+    portal = None
+    if detail.get("govt_portal_id"):
+        portal_rows = _safe_rows(
+            "portal",
+            "SELECT portal_name, state, portal_type FROM govt_portals WHERE id = :pid",
+            {"pid": detail.get("govt_portal_id")},
+        )
+        portal_row = portal_rows[0] if portal_rows else None
+        if portal_row:
+            portal = {"name": portal_row.get("portal_name"), "state": portal_row.get("state"), "type": portal_row.get("portal_type")}
+
+    # Tenant-scoped: rows must belong to this case AND this case's tenant.
+    activity = _safe_rows(
+        "activity",
+        """
+        SELECT username, action, old_value, new_value, details, created_at
+        FROM case_activity_log
+        WHERE case_id = :cid AND tenant_id = :tid
+        ORDER BY created_at ASC, id ASC
+        LIMIT :lim
+        """,
+        {**scope, "lim": _CASE_ACTIVITY_LIMIT},
+    )
+    outbound = _safe_rows(
+        "outbound",
+        """
+        SELECT id, status, message_body, template_key, last_error, created_at, last_attempt_at, sent_at
+        FROM wa_outbound_messages
+        WHERE case_id = :cid AND tenant_id = :tid
+        ORDER BY created_at ASC, id ASC
+        LIMIT :lim
+        """,
+        {**scope, "lim": _CASE_MESSAGES_LIMIT},
+    )
+    inbound = _safe_rows(
+        "inbound",
+        """
+        SELECT id, status, message_type, created_at, processed_at
+        FROM wa_inbound_messages
+        WHERE case_id = :cid AND tenant_id = :tid
+        ORDER BY created_at ASC, id ASC
+        LIMIT :lim
+        """,
+        {**scope, "lim": _CASE_MESSAGES_LIMIT},
+    )
+
+    translation = meta.get("english_translation")
+    if translation and meta.get("english_translation_source") != detail.get("raw_message"):
+        translation = None  # stale: generated for an earlier version of the message
+
+    def _text(value, limit=2000):
+        value = (value or "").strip() if isinstance(value, str) else value
+        return value[:limit] if isinstance(value, str) else value
+
+    return {
+        "tenant_id": tenant_id,
+        "case_ref": detail.get("case_ref") or None,
+        "priority": (detail.get("priority") or "standard").lower(),
+        "assigned_to": (detail.get("assigned_to") or "").strip() or None,
+        "is_deleted": bool(detail.get("is_deleted")),
+        "problem_domain": detail.get("problem_domain") or None,
+        "problem_subdomain": detail.get("problem_subdomain") or None,
+        "timestamps": {
+            "created_at": _iso_or_none(detail.get("created_at")),
+            "updated_at": _iso_or_none(detail.get("updated_at")),
+            "status_changed_at": _iso_or_none(detail.get("status_changed_at")),
+            "resolved_at": _iso_or_none(detail.get("resolved_at")),
+        },
+        "government": {
+            "status": detail.get("govt_status") or None,
+            "department": detail.get("govt_department") or None,
+            "reference_number": detail.get("govt_reference_number") or None,
+            "status_updated_at": _iso_or_none(detail.get("govt_status_updated_at")),
+            "last_forwarded_to_citizen_at": _iso_or_none(detail.get("govt_last_forwarded_to_citizen_at")),
+            "portal": portal,
+        },
+        # AI-derived: produced by Needle's classifier / pipeline, not by staff.
+        "analysis": {
+            "summary": _text(meta.get("summary"), 500) or None,
+            "ai_category": meta.get("ai_category") or None,
+            "ai_subcategory": meta.get("ai_subcategory") or None,
+            "ai_confidence": meta.get("ai_confidence"),
+            "category_decided_by": meta.get("category_decided_by") or None,
+            "needs_review": bool(meta.get("needs_review")),
+            "classification_mode": meta.get("classification_mode") or None,
+            "language": meta.get("detected_language") or meta.get("language") or None,
+            "english_translation": _text(translation, 2000) or None,
+            "department_mentioned": meta.get("department") or None,
+            "scheme_mentioned": meta.get("scheme") or None,
+            "geography": {
+                "confidence": meta.get("geography_confidence") or None,
+                "source": meta.get("geography_source") or None,
+                "needs_review": bool(meta.get("needs_geography_review")),
+                "review_reason": meta.get("geography_review_reason") or None,
+            },
+        },
+        "activity": None if activity is None else [
+            {
+                "username": row.get("username") or None,
+                "action": row.get("action") or None,
+                "old_value": row.get("old_value"),
+                "new_value": row.get("new_value"),
+                "details": _text(row.get("details"), 500),
+                "created_at": _iso_or_none(row.get("created_at")),
+            }
+            for row in activity
+        ],
+        "messages": {
+            "inbound": None if inbound is None else [
+                {
+                    "id": row.get("id"),
+                    "status": row.get("status"),
+                    "message_type": row.get("message_type"),
+                    "created_at": _iso_or_none(row.get("created_at")),
+                    "processed_at": _iso_or_none(row.get("processed_at")),
+                }
+                for row in inbound
+            ],
+            "outbound": None if outbound is None else [
+                {
+                    "id": row.get("id"),
+                    "status": row.get("status"),
+                    "body": _text(row.get("message_body"), 1000),
+                    "template_key": row.get("template_key"),
+                    "last_error": _text(row.get("last_error"), 300),
+                    "created_at": _iso_or_none(row.get("created_at")),
+                    "sent_at": _iso_or_none(row.get("sent_at")),
+                }
+                for row in outbound
+            ],
+        },
     }
 
 
