@@ -23,6 +23,13 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 import DashboardLayout from '@/app/dashboard/layout';
+import { useAdminSignals } from '@/lib/admin-signals';
+
+function Reporter({ counts }) {
+    const { reportAttention } = useAdminSignals();
+    React.useEffect(() => { reportAttention(counts); return () => reportAttention(null); }, [counts, reportAttention]);
+    return null;
+}
 
 const ALERTS = [
     { type: 'whatsapp_health', severity: 'critical', title: 'WhatsApp is degraded', description: 'Meta access token is invalid or missing.' },
@@ -116,5 +123,12 @@ describe('Admin shell', () => {
         const tray = screen.getByRole('dialog', { name: 'Alerts' });
         expect(within(tray).getByRole('link', { name: /WhatsApp is degraded/ })).toHaveAttribute('href', '/dashboard/system/whatsapp');
         expect(within(tray).getByRole('link', { name: /Belgaum — setup incomplete/ })).toHaveAttribute('href', '/dashboard/mps/3/setup');
+    });
+
+    it('uses the Command Centre attention counts for the sidebar when reported', async () => {
+        const counts = { critical: 1, warning: 3, review: 1, total: 5 };
+        render(<DashboardLayout><Reporter counts={counts} /></DashboardLayout>);
+        const nav = screen.getByRole('navigation', { name: 'Primary' });
+        await waitFor(() => expect(within(nav).getByRole('link', { name: 'Command Centre, 4 critical' })).toBeInTheDocument());
     });
 });

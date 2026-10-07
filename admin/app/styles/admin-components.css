@@ -259,6 +259,12 @@ button.nx-row { cursor: pointer; }
 .nx-row-aside { flex: none; font-size: 13px; text-align: right; }
 .nx-row-actions { flex: none; display: flex; gap: 8px; }
 
+/* Columns that yield first on narrower layouts */
+@media (max-width: 1366px) { .nx-table [data-hide-below="xl"] { display: none; } }
+@media (max-width: 1024px) { .nx-table [data-hide-below="lg"] { display: none; } }
+@media (max-width: 900px) { .nx-table [data-hide-below="md"] { display: none; } }
+@media (max-width: 760px) { .nx-table [data-hide-below="sm"] { display: none; } }
+
 /* ── Charts ─────────────────────────────────────────────────────────── */
 .nx-spark { display: block; overflow: visible; }
 .nx-spark-line { fill: none; stroke: var(--tone-solid, var(--nx-forest)); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
@@ -306,12 +312,15 @@ button.nx-row { cursor: pointer; }
   .nx-rail-cell { border-left: 0; border-top: 1px solid var(--nx-line-2); }
   .nx-rail-cell:first-child { border-top: 0; }
   .nx-row { flex-wrap: wrap; }
+  .nx-row-main { flex: 1 1 calc(100% - 60px); }
+  .nx-row-meta { white-space: normal; }
   .nx-row-aside, .nx-row-actions { margin-left: 50px; text-align: left; }
   /* Stacked table rows: each cell becomes a labelled line. */
   .nx-table[data-stack="true"] thead { display: none; }
   .nx-table[data-stack="true"], .nx-table[data-stack="true"] tbody, .nx-table[data-stack="true"] tr, .nx-table[data-stack="true"] td { display: block; width: 100%; }
   .nx-table[data-stack="true"] tr { padding: 10px 16px; border-bottom: 1px solid var(--nx-line-2); }
   .nx-table[data-stack="true"] td { padding: 4px 0; border: 0; text-align: left !important; display: flex; justify-content: space-between; gap: 12px; }
+  .nx-table[data-stack="true"] td[data-hide-below="xl"], .nx-table[data-stack="true"] td[data-hide-below="lg"], .nx-table[data-stack="true"] td[data-hide-below="md"], .nx-table[data-stack="true"] td[data-hide-below="sm"] { display: none; }
   .nx-table[data-stack="true"] td[data-label]::before { content: attr(data-label); font-size: 12px; color: var(--nx-muted-2); flex: none; }
   .nx-table[data-stack="true"] td:first-child::before { content: none; }
   .nx-table[data-stack="true"] tr[data-selected="true"] td:first-child { box-shadow: none; }

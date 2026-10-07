@@ -28,14 +28,17 @@ export function launchReadiness(onboardingState = {}) {
  * @param {Array} [input.alerts]           /api/admin/alerts items
  * @param {Array} [input.whatsappIncidents] deriveWhatsAppIncidents() output
  * @param {Array} [input.deliveryFailures]  accountDeliveryFailures() output
+ * @param {boolean} [input.includePlatform] also count platform-wide incidents.
+ *   Off by default: a platform problem is not an account's own health issue,
+ *   and listing it on every account hides the accounts that really differ.
  */
-export function accountHealth({ tenantId, alerts = [], whatsappIncidents = [], deliveryFailures = [] }) {
+export function accountHealth({ tenantId, alerts = [], whatsappIncidents = [], deliveryFailures = [], includePlatform = false }) {
     const id = String(tenantId);
     const reasons = [];
 
     for (const incident of whatsappIncidents) {
         if (incident.scope === 'platform') {
-            reasons.push({ severity: incident.severity, label: incident.title, source: 'whatsapp_platform' });
+            if (includePlatform) reasons.push({ severity: incident.severity, label: incident.title, source: 'whatsapp_platform' });
         } else if (String(incident.tenantId) === id) {
             reasons.push({ severity: incident.severity, label: incident.title, detail: incident.detail, source: 'whatsapp_routing' });
         }

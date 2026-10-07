@@ -85,6 +85,12 @@ describe('outbound failures', () => {
 });
 
 describe('account health & readiness', () => {
+    it('keeps platform-wide incidents off individual accounts unless asked', () => {
+        const incidents = deriveWhatsAppIncidents({ ...healthy, outbound: { status: 'amber', failed_outbound_24h: 3 } });
+        expect(accountHealth({ tenantId: 1, whatsappIncidents: incidents })).toEqual({ severity: 'ok', reasons: [] });
+        expect(accountHealth({ tenantId: 1, whatsappIncidents: incidents, includePlatform: true }).severity).toBe('warning');
+    });
+
     it('combines routing, delivery and alert evidence with reasons', () => {
         const incidents = deriveWhatsAppIncidents({ ...healthy, routing: { ...healthy.routing, tenant_issues: [{ tenant_id: 4, issue: 'missing tenant WhatsApp number' }] } });
         const health = accountHealth({
@@ -152,5 +158,74 @@ describe('formatting', () => {
         expect(maskPhone('+91 98290 41730')).toBe('+91 ••• 730');
         expect(maskPhone('12')).toBeNull();
         expect(initialsFor('Avichal Dubey')).toBe('AD');
+    });
+});
+
+import { buildAttentionItems, caseTrend, countAttention, formatDuration, openOverDays } from '@/lib/admin-data';
+
+describe('needs-attention queue', () => {
+    const health = {
+        meta_token: { configured: true, status: 'red', detail: 'Error validating access token' },
+        routing: { status: 'amber', active_tenants: 3, configured_tenants: 2, tenant_issues: [{ tenant_id: 5, name: 'X', issue: 'missing Meta phone number ID' }] },
+        outbound: { status: 'green' },
+        webhook: { status: 'green' },
+    };
+    const alerts = [
+        { type: 'setup_incomplete', severity: 'info', tenant_id: 3, title: 'B — setup incomplete' },
+        { type: 'whatsapp_health', severity: 'critical', title: 'WhatsApp is degraded' },
+        { type: 'job_failed', severity: 'warning', title: 'job failed' },
+        { type: 'tenant_inactive', severity: 'warning', tenant_id: 9, title: 'Z has gone stale' },
+    ];
+
+    it('returns null when alerts are unavailable', () => {
+        expect(buildAttentionItems({ alerts: null })).toBeNull();
+    });
+
+    it('replaces the generic WhatsApp alert with precise incidents and ranks deterministically', () => {
+        const items = buildAttentionItems({ alerts, whatsapp: health, accounts: { 5: { name: 'Priya', detail: 'Thrissur' } } });
+        expect(items.map((item) => item.kind)).toEqual(['meta_token_invalid', 'job_failed', 'routing_config', 'tenant_inactive', 'setup_incomplete']);
+        expect(items[0]).toMatchObject({ scope: 'platform', tenantId: null, account: null, action: { label: 'Open Messaging' } });
+        expect(items.find((item) => item.kind === 'routing_config').account).toEqual({ name: 'Priya', detail: 'Thrissur' });
+        expect(items.find((item) => item.kind === 'tenant_inactive').account.name).toBe('Account #9');
+        expect(items.some((item) => item.kind === 'whatsapp_health')).toBe(false);
+        expect(countAttention(items)).toMatchObject({ critical: 1, warning: 3, review: 1, total: 5 });
+    });
+
+    it('keeps the backend WhatsApp alert when health is unavailable', () => {
+        const items = buildAttentionItems({ alerts, whatsapp: null });
+        expect(items[0]).toMatchObject({ kind: 'whatsapp_health', severity: 'critical', action: { label: 'Open Messaging', href: '/dashboard/system/whatsapp' } });
+    });
+
+    it('routes every action to a real Admin destination', () => {
+        const items = buildAttentionItems({ alerts, whatsapp: health });
+        for (const item of items) expect(item.action.href).toMatch(/^\/dashboard\//);
+    });
+});
+
+describe('case analytics derivations', () => {
+    const aggregates = {
+        open_now: 9,
+        weekly: [
+            { week_start: '2026-09-21', new: 5, resolved: 3, open_at_end: 6 },
+            { week_start: '2026-09-28', new: 4, resolved: 2, open_at_end: 8 },
+            { week_start: '2026-10-05', new: 1, resolved: 0, open_at_end: 9 },
+        ],
+        ageing: [{ min_days: 0, count: 4 }, { min_days: 8, count: 2 }, { min_days: 15, count: 2 }, { min_days: 31, count: 1 }],
+    };
+    it('charts completed weeks only and reports the current week separately', () => {
+        const trend = caseTrend(aggregates);
+        expect(trend.labels).toEqual(['21 Sep', '28 Sep']);
+        expect(trend.newCases).toEqual([5, 4]);
+        expect(trend.thisWeek).toMatchObject({ new: 1, resolved: 0 });
+        expect(trend.openAtEnd).toEqual([6, 8, 9]);
+        expect(trend.openChange).toBe(1);
+        expect(caseTrend({ weekly: [] })).toBeNull();
+    });
+    it('sums ageing bands above a threshold and formats durations', () => {
+        expect(openOverDays(aggregates, 14)).toBe(3);
+        expect(openOverDays(null)).toBeNull();
+        expect(formatDuration(60)).toBe('2.5 days');
+        expect(formatDuration(5)).toBe('5 hours');
+        expect(formatDuration(null)).toBeNull();
     });
 });

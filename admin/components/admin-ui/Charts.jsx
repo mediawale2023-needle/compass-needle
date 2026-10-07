@@ -31,7 +31,7 @@ export function Sparkline({ values = [], tone = 'forest', label, width = 120, he
  * Multi-series line chart with gridlines and x labels.
  * series = [{ label, values, tone }]; labels = x-axis labels (same length).
  */
-export function LineChart({ series = [], labels = [], height = 200, ariaLabel, yTicks = 4 }) {
+export function LineChart({ series = [], labels = [], height = 200, ariaLabel, yTicks = 4, zeroBased = false }) {
     const all = series.flatMap((s) => s.values).map(Number).filter(Number.isFinite);
     if (!all.length || labels.length < 2) return null;
     const width = 640;
@@ -39,8 +39,14 @@ export function LineChart({ series = [], labels = [], height = 200, ariaLabel, y
     const bottom = 22;
     const top = 10;
     const plotH = height - bottom - top;
-    const min = Math.min(0, ...all);
-    const max = Math.max(...all) || 1;
+    // Lines read movement, so the axis fits the data unless zeroBased is set;
+    // tick labels always state the real range.
+    const lo = Math.min(...all);
+    const hi = Math.max(...all);
+    const pad = Math.max(1, (hi - lo) * 0.15);
+    const step = Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(hi - lo, 1)))));
+    const min = zeroBased ? Math.min(0, lo) : Math.max(0, Math.floor((lo - pad) / step) * step);
+    const max = Math.ceil((hi + pad) / step) * step || 1;
     const span = max - min || 1;
     const x = (i) => left + ((width - left - 8) * i) / (labels.length - 1);
     const y = (v) => top + plotH * (1 - (Number(v) - min) / span);
@@ -55,7 +61,7 @@ export function LineChart({ series = [], labels = [], height = 200, ariaLabel, y
                 </g>
             ))}
             {labels.map((label, i) => (i % labelEvery === 0 || i === labels.length - 1) && (
-                <text key={label} x={x(i)} y={height - 4} textAnchor="middle" className="nx-axis">{label}</text>
+                <text key={label} x={x(i)} y={height - 4} textAnchor={i === labels.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'} className="nx-axis">{label}</text>
             ))}
             {series.map((s) => (
                 <path key={s.label} d={s.values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')} className="nx-series" data-tone={s.tone || 'forest'} />

@@ -21,7 +21,7 @@ export function EmptyState({ title, description, action }) {
 export function ErrorState({ title = 'Data unavailable', message, onRetry }) {
     return (
         <div className="nx-callout" data-tone="critical" role="alert">
-            <div className="nx-callout-body"><strong>{title}. </strong>{message}</div>
+            <div className="nx-callout-body"><strong>{title}</strong>{message ? <span className="nx-callout-message"> {message}</span> : null}</div>
             {onRetry && <div className="nx-callout-action"><button type="button" className="nx-btn nx-btn-sm" onClick={onRetry}>Try again</button></div>}
         </div>
     );
