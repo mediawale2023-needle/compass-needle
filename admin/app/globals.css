@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 /* ─── Design Tokens ───────────────────────────────────────────────────────
  * Briefcase Gen 2. These values are the MP Briefcase's canonical tokens
@@ -1437,97 +1436,6 @@ select.form-input {
  * of paper. Removed, leaving a single token source. Its sidebar chrome values
  * were folded into the canonical block, so the rail is unchanged. */
 body { background: var(--paper); color: var(--ink); }
-.admin-shell { background: var(--paper); }
-.admin-main { margin-left: 220px; }
-
-/* Thin persistent top bar. Briefcase has no top bar at all — each page owns
- * its header — so Admin keeps only what a control plane genuinely needs
- * that the page header cannot carry: environment, notifications and the
- * mobile nav trigger. The page title lives in the page, not here. */
-.admin-header {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--paper);
-  padding: 0 24px;
-  min-height: 44px;
-  border-bottom: 1px solid var(--line);
-}
-.admin-header-spacer { flex: 1; }
-.admin-env {
-  font-family: var(--font-mono); font-size: 9px; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--ink-4);
-  border: 1px solid var(--line); border-radius: 0; padding: 3px 8px;
-  background: var(--surface);
-}
-/* Fallback title for pages not yet migrated to AdminPageHeader. Hidden
- * automatically when the page supplies its own header, which is what
- * fixed the duplicate "Command Centre" heading. Removed entirely once
- * every page owns its header. */
-.admin-shell-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.2; }
-.admin-main:has(.admin-page-header) .admin-shell-title { display: none; }
-
-.admin-content { padding: 12px 22px 28px; max-width: 1600px; margin: 0 auto; }
-/* ─── Sidebar ─────────────────────────────────────────────────────────────
- * Briefcase navigation language: compact single-line rows, mono uppercase
- * domain headings, a 2px green left rail for the active item over a very
- * subtle tint. No rounded pills, no gradients, no sublabels, no badges.
- * The rail should read as quiet. 220px matches the Briefcase rail.
- * ------------------------------------------------------------------------ */
-.admin-sidebar {
-  position: fixed; inset: 0 auto 0 0; z-index: 50; width: 220px;
-  display: flex; flex-direction: column; color: var(--chrome-text);
-  background: var(--chrome);
-  border-right: 1px solid var(--chrome-line);
-}
-.admin-sidebar-brand { padding:14px 18px 15px; border-bottom:1px solid var(--chrome-line); }
-.admin-sidebar-brand img { width:60px; height:auto; display:block; }
-.admin-brand-name {
-  margin-top:8px; font-family:var(--font-display); font-size:23px; font-weight:600;
-  color:var(--chrome-hi); line-height:.92; letter-spacing:-.03em;
-}
-.admin-brand-label,.admin-nav-heading { font-family:var(--font-mono); text-transform:uppercase; }
-.admin-brand-label { margin-top:8px; font-size:9px; letter-spacing:.18em; color:var(--chrome-muted); }
-.admin-sidebar-nav { flex:1; overflow-y:auto; padding:8px 0 18px; }
-.admin-nav-group { margin-bottom:2px; }
-.admin-nav-heading { padding:12px 18px 4px; font-size:9px; letter-spacing:.14em; color:var(--chrome-muted); }
-
-/* Single-line row. Selection is a 2px rail, never a pill. */
-.admin-nav-item {
-  display:flex; gap:12px; align-items:center; padding:7px 18px;
-  color:var(--chrome-text); text-decoration:none; font-size:12.5px; font-weight:500;
-  line-height:1.2; opacity:.8; border-left:2px solid transparent; margin-left:-1px;
-  border-radius:0; transition:background .15s ease, color .15s ease, opacity .15s ease;
-}
-.admin-nav-item:hover { background:var(--chrome-active); color:var(--chrome-hi); opacity:1; }
-.admin-nav-item.active {
-  background:var(--chrome-active);
-  border-left-color:var(--chrome-accent);
-  color:var(--chrome-hi);
-  font-weight:600;
-  opacity:1;
-}
-.admin-nav-item:focus-visible { outline:2px solid var(--chrome-accent); outline-offset:-2px; }
-.admin-nav-icon { width:14px; height:14px; display:grid; place-items:center; flex:none; color:var(--chrome-muted); }
-.admin-nav-item.active .admin-nav-icon { color:var(--chrome-hi); }
-.admin-nav-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-/* Footer is just the signed-in operator and a way out. */
-.admin-sidebar-footer { border-top:1px solid var(--chrome-line); }
-.admin-user { display:flex; align-items:center; gap:12px; padding:11px 18px; }
-.admin-user-avatar {
-  width:30px; height:30px; border-radius:50%; display:grid; place-items:center; flex:none;
-  background:rgba(255,253,247,.10); color:var(--chrome-hi);
-  font:600 12px var(--font-display);
-}
-.admin-user-copy { min-width:0; display:flex; flex-direction:column; flex:1; }
-.admin-user-copy strong { color:var(--chrome-hi); font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.admin-user-copy small { color:var(--chrome-muted); font:9.5px var(--font-mono); letter-spacing:.08em; margin-top:2px; }
-.admin-signout {
-  flex:none; display:grid; place-items:center; width:28px; height:28px;
-  border:0; border-radius:0; padding:0; background:transparent;
-  color:var(--chrome-text); opacity:.4; cursor:pointer; transition:opacity .15s ease;
-}
-.admin-signout:hover { opacity:.85; }
-.admin-signout:focus-visible { outline:2px solid var(--chrome-accent); outline-offset:2px; opacity:.85; }
 .glass-panel,.stat-card,.mp-card,.admin-domain-card { background:var(--surface); border-color:var(--line); box-shadow:var(--shadow-sm); }
 .btn-primary { background:var(--sansad-green); }
 .form-input { background:var(--surface); border-color:var(--line-2); }
@@ -1544,23 +1452,6 @@ body { background: var(--paper); color: var(--ink); }
 .badge-blue,
 .badge-slate,
 .badge-purple { background:var(--neutral-soft); color:var(--ink-2); }
-.admin-mobile-nav-button {
-  display: none; width: 34px; height: 34px;
-  border: 1px solid var(--line-2); border-radius: 0;
-  background: var(--surface); color: var(--ink); cursor: pointer;
-  place-items: center;
-}
-.admin-sidebar-backdrop { display: none; }
-@media (max-width:1024px) {
-  .admin-main{margin-left:0;}
-  .admin-header { padding: 0 16px; }
-  .admin-content { padding: 14px 16px 32px; }
-  .admin-mobile-nav-button { display: inline-grid; place-items: center; flex: 0 0 auto; }
-  .admin-sidebar { display:flex; transform:translateX(-102%); transition:transform .18s ease; box-shadow:var(--shadow-lg); }
-  .admin-sidebar[data-open="true"] { transform:translateX(0); }
-  .admin-sidebar-backdrop { display:block; position:fixed; inset:0; z-index:49; border:0; background:rgba(26,24,18,.42); }
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
  * BRIEFCASE GEN 2 — component layer
  * ---------------------------------------------------------------------------

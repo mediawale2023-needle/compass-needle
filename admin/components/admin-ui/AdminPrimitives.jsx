@@ -16,14 +16,15 @@ export function AdminPageHeader({ title, description, actions, context }) {
     );
 }
 
+// Legacy API kept for existing pages; renders the shared local-tab style.
 export function AdminSectionNav({ label, items }) {
     const pathname = usePathname();
     return (
-        <nav className="admin-section-nav" aria-label={label}>
+        <nav className="nx-tabs nx-tabs-inline" aria-label={label}>
             {items.map((item) => {
                 const active = pathname === item.href || (item.matchChildren && pathname.startsWith(`${item.href}/`));
                 return (
-                    <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined}>
+                    <Link key={item.href} href={item.href} className="nx-tab" aria-current={active ? 'page' : undefined}>
                         {item.label}
                     </Link>
                 );
