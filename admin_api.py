@@ -3010,6 +3010,7 @@ def compute_case_aggregates(rows, now: datetime, weeks: int):
     open_now = 0
     resolution_hours = []
     by_tenant = {}
+    by_category = {}
 
     def week_index(moment):
         if moment is None or moment < window_start or moment >= ends[-1]:
@@ -3040,6 +3041,8 @@ def compute_case_aggregates(rows, now: datetime, weeks: int):
         if is_open:
             open_now += 1
             age_days = max(0, (now - created).days)
+            category = str(row.get("category") or "").strip() or "Uncategorised"
+            by_category[category] = by_category.get(category, 0) + 1
             tid = row.get("tenant_id")
             if tid is not None:
                 entry = by_tenant.setdefault(str(tid), {"open": 0, "open_over_14_days": 0})
@@ -3072,6 +3075,10 @@ def compute_case_aggregates(rows, now: datetime, weeks: int):
         },
         "open_now": open_now,
         "open_by_tenant": by_tenant,
+        "open_by_category": [
+            {"category": name, "count": count}
+            for name, count in sorted(by_category.items(), key=lambda item: (-item[1], item[0]))
+        ],
         "ageing": ageing,
         "weekly": weekly,
         "resolution": {
@@ -3087,8 +3094,8 @@ def case_aggregates(
     tenant_id: Optional[int] = None,
     _=Depends(get_admin_user),
 ):
-    """Read-only case analytics: open count, ageing bands, weekly new vs
-    resolved, and the open-case trend. Optional tenant_id scopes to one
+    """Read-only case analytics: open count (overall, by account and by
+    category), ageing bands, weekly new vs resolved, and the open-case trend. Optional tenant_id scopes to one
     account (admin-only endpoint, same access as /cases/explorer)."""
     conditions = ["(c.is_deleted IS NULL OR c.is_deleted = :not_deleted)"]
     params = {"not_deleted": False}
@@ -3096,7 +3103,7 @@ def case_aggregates(
         conditions.append("c.tenant_id = :tid")
         params["tid"] = tenant_id
     rows = _q(
-        f"SELECT c.tenant_id, c.status, c.created_at, c.resolved_at FROM cases c WHERE {' AND '.join(conditions)}",  # nosec B608 — fixed clauses, bound params
+        f"SELECT c.tenant_id, c.status, c.category, c.created_at, c.resolved_at FROM cases c WHERE {' AND '.join(conditions)}",  # nosec B608 — fixed clauses, bound params
         params,
     )
     result = compute_case_aggregates(rows, datetime.utcnow(), weeks)

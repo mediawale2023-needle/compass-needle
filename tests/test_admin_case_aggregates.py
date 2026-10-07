@@ -79,8 +79,8 @@ def _seed(cases):
         )
         for case in cases:
             conn.execute(
-                text("INSERT INTO cases (tenant_id, user_phone, raw_message, status, created_at, resolved_at, is_deleted) VALUES (:tid, '+910000000000', 'm', :status, :created, :resolved, :deleted)"),
-                {"tid": case.get("tenant_id", 2), "status": case["status"], "created": case["created_at"], "resolved": case.get("resolved_at"), "deleted": case.get("deleted", False)},
+                text("INSERT INTO cases (tenant_id, user_phone, raw_message, status, category, created_at, resolved_at, is_deleted) VALUES (:tid, '+910000000000', 'm', :status, :category, :created, :resolved, :deleted)"),
+                {"tid": case.get("tenant_id", 2), "status": case["status"], "category": case.get("category"), "created": case["created_at"], "resolved": case.get("resolved_at"), "deleted": case.get("deleted", False)},
             )
 
 
@@ -144,8 +144,8 @@ def test_endpoint_requires_admin():
 def test_endpoint_is_read_only_and_tenant_scoped():
     now = datetime.utcnow()
     _seed([
-        {"tenant_id": 2, "status": "new", "created_at": now - timedelta(days=2)},
-        {"tenant_id": 2, "status": "in_progress", "created_at": now - timedelta(days=40)},
+        {"tenant_id": 2, "status": "new", "category": "Water Supply", "created_at": now - timedelta(days=2)},
+        {"tenant_id": 2, "status": "in_progress", "category": "Roads", "created_at": now - timedelta(days=40)},
         {"tenant_id": 3, "status": "new", "created_at": now - timedelta(days=1)},
         {"tenant_id": 3, "status": "new", "created_at": now - timedelta(days=1), "deleted": True},
         {"tenant_id": 2, "status": "resolved", "created_at": now - timedelta(days=6), "resolved_at": now - timedelta(days=1)},
@@ -160,6 +160,10 @@ def test_endpoint_is_read_only_and_tenant_scoped():
     assert body["tenant_id"] is None
     assert len(body["weekly"]) == 8
     assert body["open_by_tenant"] == {"2": {"open": 2, "open_over_14_days": 1}, "3": {"open": 1, "open_over_14_days": 0}}
+
+    assert body["open_by_category"] == [{"category": "Roads", "count": 1}, {"category": "Uncategorised", "count": 1}, {"category": "Water Supply", "count": 1}]
+    tenant2 = client.get("/api/admin/cases/aggregates?weeks=8&tenant_id=2", headers=_admin_headers()).json()
+    assert [c["category"] for c in tenant2["open_by_category"]] == ["Roads", "Water Supply"]
 
     scoped = client.get("/api/admin/cases/aggregates?weeks=8&tenant_id=3", headers=_admin_headers()).json()
     assert scoped["open_now"] == 1 and scoped["tenant_id"] == 3
