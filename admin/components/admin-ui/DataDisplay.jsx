@@ -105,23 +105,41 @@ export function AccountIdentity({ name, detail, size = 'md' }) {
     );
 }
 
-/** Horizontal stepper. steps = [{ label, detail, state: 'done' | 'current' | 'todo' }]. */
-export function Stepper({ steps = [], label = 'Progress' }) {
+/**
+ * Horizontal stepper. steps = [{ label, detail, state: 'done' | 'current' | 'todo' }].
+ * Pass onSelect(index) to let completed steps be revisited.
+ */
+export function Stepper({ steps = [], label = 'Progress', onSelect }) {
     const current = steps.findIndex((step) => step.state === 'current');
     return (
         <nav className="nx-stepper" aria-label={label}>
-            <p className="nx-stepper-compact">Step {current + 1} of {steps.length} · {steps[current]?.label}</p>
+            <p className="nx-stepper-compact">
+                <span>Step {current + 1} of {steps.length}</span> · <strong>{steps[current]?.label}</strong>
+            </p>
+            <div className="nx-stepper-compact-bar" aria-hidden="true">
+                {steps.map((step) => <span key={step.label} data-state={step.state} />)}
+            </div>
             <ol>
-                {steps.map((step, index) => (
-                    <li key={step.label} className="nx-step" data-state={step.state} aria-current={step.state === 'current' ? 'step' : undefined}>
-                        <span className="nx-step-n">{step.state === 'done' ? <Check size={14} strokeWidth={2.6} aria-hidden="true" /> : index + 1}</span>
-                        <span>
-                            <span className="nx-step-label">{step.label}</span>
-                            {step.detail && <span className="nx-step-detail">{step.detail}</span>}
-                        </span>
-                        {index < steps.length - 1 && <span className="nx-step-line" aria-hidden="true" />}
-                    </li>
-                ))}
+                {steps.map((step, index) => {
+                    const clickable = onSelect && step.state === 'done';
+                    const body = (
+                        <>
+                            <span className="nx-step-n">{step.state === 'done' ? <Check size={14} strokeWidth={2.6} aria-hidden="true" /> : index + 1}</span>
+                            <span>
+                                <span className="nx-step-label">{step.label}</span>
+                                {step.detail && <span className="nx-step-detail">{step.detail}</span>}
+                            </span>
+                        </>
+                    );
+                    return (
+                        <li key={step.label} className="nx-step" data-state={step.state} aria-current={step.state === 'current' ? 'step' : undefined}>
+                            {clickable
+                                ? <button type="button" className="nx-step-button" onClick={() => onSelect(index)} aria-label={`Back to ${step.label} (complete)`}>{body}</button>
+                                : <span className="nx-step-button">{body}</span>}
+                            {index < steps.length - 1 && <span className="nx-step-line" aria-hidden="true" />}
+                        </li>
+                    );
+                })}
             </ol>
         </nav>
     );

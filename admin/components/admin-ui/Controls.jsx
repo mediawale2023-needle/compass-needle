@@ -3,24 +3,33 @@
 import { useId } from 'react';
 import { ChevronDown, Search, X } from 'lucide-react';
 
-/** Segmented control. options = [{ value, label, count }]. */
-export function SegmentedControl({ label, options = [], value, onChange }) {
+/**
+ * Segmented control. options = [{ value, label, count, dot }].
+ * mode="tabs" (default) filters a view; mode="radio" is a form choice.
+ */
+export function SegmentedControl({ label, options = [], value, onChange, mode = 'tabs', fill = false }) {
+    const radio = mode === 'radio';
     return (
-        <div className="nx-seg" role="tablist" aria-label={label}>
-            {options.map((option) => (
-                <button
-                    key={option.value}
-                    type="button"
-                    role="tab"
-                    aria-selected={option.value === value}
-                    className="nx-seg-option"
-                    onClick={() => onChange?.(option.value)}
-                >
-                    {option.dot && <i data-tone={option.dot} aria-hidden="true" />}
-                    {option.label}
-                    {option.count !== undefined && option.count !== null && <span className="nx-seg-count">{option.count}</span>}
-                </button>
-            ))}
+        <div className="nx-seg" data-fill={fill ? 'true' : undefined} role={radio ? 'radiogroup' : 'tablist'} aria-label={label}>
+            {options.map((option) => {
+                const selected = option.value === value;
+                return (
+                    <button
+                        key={option.value}
+                        type="button"
+                        role={radio ? 'radio' : 'tab'}
+                        aria-selected={radio ? undefined : selected}
+                        aria-checked={radio ? selected : undefined}
+                        data-selected={selected ? 'true' : undefined}
+                        className="nx-seg-option"
+                        onClick={() => onChange?.(option.value)}
+                    >
+                        {option.dot && <i data-tone={option.dot} aria-hidden="true" />}
+                        {option.label}
+                        {option.count !== undefined && option.count !== null && <span className="nx-seg-count">{option.count}</span>}
+                    </button>
+                );
+            })}
         </div>
     );
 }
