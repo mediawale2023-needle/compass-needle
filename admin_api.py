@@ -2959,6 +2959,151 @@ def case_health(_=Depends(get_admin_user)):
     }
 
 
+# ── Case aggregates (read-only) ───────────────────────────────────────────
+# Real case analytics for the Admin Command Centre / Account 360. Definitions
+# follow the existing MP-workspace vocabulary; nothing here is an SLA:
+#   * open      = status in CASE_OPEN_STATUSES (api_router's active set)
+#   * resolved  = status in CASE_RESOLVED_STATUSES; resolved_at is stamped on
+#                 entry into that family and cleared on exit (_write_case_status)
+#   * deleted cases are excluded everywhere
+# The open trend is reconstructed per week end from created_at/resolved_at for
+# cases whose current status is open or resolved, so its final point equals
+# the current open count. Prior resolve/reopen cycles are not replayed.
+CASE_OPEN_STATUSES = ("new", "pending", "pending_review", "awaiting_location", "in_progress")
+CASE_RESOLVED_STATUSES = ("resolved", "completed")
+CASE_AGE_BUCKETS = (  # (label, min_days, max_days or None) — display bands, not targets
+    ("0–3 days", 0, 3),
+    ("4–7 days", 4, 7),
+    ("8–14 days", 8, 14),
+    ("15–30 days", 15, 30),
+    ("Over 30 days", 31, None),
+)
+
+
+def _agg_dt(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None) if value.tzinfo else value
+    text_value = str(value).strip().replace("Z", "")
+    for candidate in (text_value, text_value.replace(" ", "T")):
+        try:
+            parsed = datetime.fromisoformat(candidate)
+            return parsed.replace(tzinfo=None) if parsed.tzinfo else parsed
+        except ValueError:
+            continue
+    return None
+
+
+def compute_case_aggregates(rows, now: datetime, weeks: int):
+    """Pure aggregation over rows of {status, created_at, resolved_at}."""
+    weeks = max(1, min(int(weeks), 52))
+    today = datetime(now.year, now.month, now.day)
+    # Weeks start Monday 00:00 UTC; the last bucket is the current, partial week.
+    current_week_start = today - timedelta(days=today.weekday())
+    starts = [current_week_start - timedelta(weeks=weeks - 1 - i) for i in range(weeks)]
+    ends = [start + timedelta(weeks=1) for start in starts]
+    window_start = starts[0]
+
+    weekly = [{"week_start": start.date().isoformat(), "new": 0, "resolved": 0, "open_at_end": 0} for start in starts]
+    ageing = [{"label": label, "min_days": lo, "max_days": hi, "count": 0} for label, lo, hi in CASE_AGE_BUCKETS]
+    open_now = 0
+    resolution_hours = []
+    by_tenant = {}
+
+    def week_index(moment):
+        if moment is None or moment < window_start or moment >= ends[-1]:
+            return None
+        return min(int((moment - window_start).days // 7), weeks - 1)
+
+    for row in rows:
+        status = str(row.get("status") or "").strip().lower()
+        is_open = status in CASE_OPEN_STATUSES
+        is_resolved = status in CASE_RESOLVED_STATUSES
+        if not (is_open or is_resolved):
+            continue
+        created = _agg_dt(row.get("created_at"))
+        resolved_at = _agg_dt(row.get("resolved_at")) if is_resolved else None
+        if created is None:
+            continue
+
+        idx = week_index(created)
+        if idx is not None:
+            weekly[idx]["new"] += 1
+        if resolved_at is not None:
+            ridx = week_index(resolved_at)
+            if ridx is not None:
+                weekly[ridx]["resolved"] += 1
+                if resolved_at >= created:
+                    resolution_hours.append((resolved_at - created).total_seconds() / 3600)
+
+        if is_open:
+            open_now += 1
+            age_days = max(0, (now - created).days)
+            tid = row.get("tenant_id")
+            if tid is not None:
+                entry = by_tenant.setdefault(str(tid), {"open": 0, "open_over_14_days": 0})
+                entry["open"] += 1
+                if age_days > 14:
+                    entry["open_over_14_days"] += 1
+            for bucket in ageing:
+                if age_days >= bucket["min_days"] and (bucket["max_days"] is None or age_days <= bucket["max_days"]):
+                    bucket["count"] += 1
+                    break
+
+        for i, end in enumerate(ends):
+            boundary = min(end, now)
+            if created < boundary and (resolved_at is None or resolved_at >= boundary):
+                weekly[i]["open_at_end"] += 1
+
+    resolution_hours.sort()
+    median_hours = None
+    if resolution_hours:
+        mid = len(resolution_hours) // 2
+        median_hours = resolution_hours[mid] if len(resolution_hours) % 2 else (resolution_hours[mid - 1] + resolution_hours[mid]) / 2
+
+    return {
+        "generated_at": now.isoformat(),
+        "weeks": weeks,
+        "definitions": {
+            "open_statuses": list(CASE_OPEN_STATUSES),
+            "resolved_statuses": list(CASE_RESOLVED_STATUSES),
+            "week_starts": "Monday 00:00 UTC; the final week is in progress",
+        },
+        "open_now": open_now,
+        "open_by_tenant": by_tenant,
+        "ageing": ageing,
+        "weekly": weekly,
+        "resolution": {
+            "resolved_in_window": len(resolution_hours),
+            "median_hours": round(median_hours, 1) if median_hours is not None else None,
+        },
+    }
+
+
+@router.get("/cases/aggregates")
+def case_aggregates(
+    weeks: int = Query(12, ge=1, le=52),
+    tenant_id: Optional[int] = None,
+    _=Depends(get_admin_user),
+):
+    """Read-only case analytics: open count, ageing bands, weekly new vs
+    resolved, and the open-case trend. Optional tenant_id scopes to one
+    account (admin-only endpoint, same access as /cases/explorer)."""
+    conditions = ["(c.is_deleted IS NULL OR c.is_deleted = :not_deleted)"]
+    params = {"not_deleted": False}
+    if tenant_id is not None:
+        conditions.append("c.tenant_id = :tid")
+        params["tid"] = tenant_id
+    rows = _q(
+        f"SELECT c.tenant_id, c.status, c.created_at, c.resolved_at FROM cases c WHERE {' AND '.join(conditions)}",  # nosec B608 — fixed clauses, bound params
+        params,
+    )
+    result = compute_case_aggregates(rows, datetime.utcnow(), weeks)
+    result["tenant_id"] = tenant_id
+    return result
+
+
 @router.get("/cases/explorer")
 def case_explorer(
     mp_id: Optional[int] = None,
