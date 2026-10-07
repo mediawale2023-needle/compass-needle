@@ -51,6 +51,35 @@ export function FilterChip({ label, active = false, onClick, onClear, hasMenu = 
     );
 }
 
+/**
+ * Filter chip backed by a native <select> (keyboard and mobile friendly).
+ * options = [{ value, label }]; an empty value means "all". Active chips
+ * show the chosen value and a clear (×) control.
+ */
+export function FilterSelect({ label, value = '', options = [], onChange, allLabel = 'All' }) {
+    const active = value !== '' && value !== null && value !== undefined;
+    const current = options.find((option) => String(option.value) === String(value));
+    return (
+        <span className="nx-chip nx-chip-select" data-active={active ? 'true' : undefined}>
+            <span className="nx-chip-field">
+                <span className="nx-chip-main" aria-hidden="true">
+                    <span className="nx-chip-text">{active ? `${label}: ${current?.label ?? value}` : label}</span>
+                    {!active && <ChevronDown size={14} strokeWidth={2} />}
+                </span>
+                <select className="nx-chip-native" aria-label={label} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)}>
+                    <option value="">{`${allLabel} — ${label.toLowerCase()}`}</option>
+                    {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+            </span>
+            {active && (
+                <button type="button" className="nx-chip-clear" aria-label={`Clear ${label} filter`} onClick={() => onChange?.('')}>
+                    <X size={14} strokeWidth={2.2} aria-hidden="true" />
+                </button>
+            )}
+        </span>
+    );
+}
+
 export function SearchInput({ label, value, onChange, placeholder, width }) {
     return (
         <label className="nx-input-search" style={width ? { width } : undefined}>

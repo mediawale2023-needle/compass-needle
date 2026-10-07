@@ -215,6 +215,10 @@ button.nx-step-button:hover .nx-step-label { color: var(--nx-forest); text-decor
 .nx-chip-main svg { color: var(--nx-faint); }
 .nx-chip[data-active="true"] { background: var(--nx-sage); border-color: #CFE2D6; color: var(--nx-forest); }
 .nx-chip-clear { display: inline-flex; align-items: center; height: 100%; padding: 0 8px 0 2px; border: 0; background: transparent; color: var(--nx-forest); cursor: pointer; }
+.nx-chip-field { position: relative; display: inline-flex; height: 100%; max-width: 260px; }
+.nx-chip-field:focus-within { outline: 2px solid var(--nx-forest); outline-offset: -2px; border-radius: inherit; }
+.nx-chip-text { overflow: hidden; text-overflow: ellipsis; }
+.nx-chip-native { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; appearance: none; }
 
 .nx-input-search { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid #E1E4DF; border-radius: var(--nx-r-control); background: var(--nx-surface); color: var(--nx-faint); }
 .nx-input-search:focus-within { border-color: var(--nx-forest); box-shadow: var(--nx-focus); }

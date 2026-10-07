@@ -132,8 +132,12 @@ test('Case Explorer is the default workspace and Messaging has one local navigat
 
     await page.goto('/dashboard/cases-intelligence/explorer');
     await expect(page.getByRole('heading', { name: 'Case Explorer', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Case Explorer', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByRole('button', { name: 'Platform Health', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    // Phase 4: the explorer is primary; analytics and case health are a
+    // compact view toggle (renamed from Case Explorer / Platform Health).
+    const views = page.getByRole('group', { name: 'Case view' });
+    await expect(views.getByRole('button', { name: 'Cases', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(views.getByRole('button', { name: 'Case health', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('navigation', { name: 'Case Operations' }).getByRole('link', { name: 'Case Explorer' })).toHaveAttribute('aria-current', 'page');
 
     await page.goto('/dashboard/system/whatsapp');
     const messagingNav = page.getByRole('navigation', { name: 'Messaging operations' });

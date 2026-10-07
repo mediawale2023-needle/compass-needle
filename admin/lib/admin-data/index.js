@@ -8,3 +8,4 @@ export * from './attention';
 export * from './cases';
 export * from './onboarding';
 export * from './account360';
+export * from './caseExplorer';

@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { AdminSectionNav } from './AdminPrimitives';
 import { LocalTabs } from './Layout';
 
-const CASE_OPERATIONS_ITEMS = [
+export const CASE_OPERATIONS_ITEMS = [
     { label: 'Case Explorer', href: '/dashboard/cases-intelligence/explorer' },
     { label: 'Knowledge', href: '/dashboard/cases-intelligence/knowledge' },
     { label: 'Constituency Profiles', href: '/dashboard/constituency' },
@@ -37,7 +37,12 @@ const CONSTITUENCY_ITEMS = [
     { label: 'Seat Maps', href: '/dashboard/seat-maps' },
 ];
 
-export function CaseOperationsNav() { return <AdminSectionNav label="Case Operations" items={CASE_OPERATIONS_ITEMS} />; }
+export function CaseOperationsNav() {
+    const pathname = usePathname();
+    // The explorer carries these tabs in its own page band (approved Cases board).
+    if (pathname === '/dashboard/cases-intelligence/explorer') return null;
+    return <AdminSectionNav label="Case Operations" items={CASE_OPERATIONS_ITEMS} />;
+}
 export function PlatformOperationsNav() {
     const pathname = usePathname();
     if (pathname.startsWith('/dashboard/system/whatsapp')) return null;
