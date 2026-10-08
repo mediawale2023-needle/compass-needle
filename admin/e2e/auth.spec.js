@@ -96,23 +96,28 @@ test('Admin navigation remains available on a narrow viewport', async ({ page })
     await mockAdminApi(page);
     await page.goto('/dashboard');
 
-    const shell = page.locator('.admin-main');
+    // Shell landmarks by role (the Phase 1 shell renamed its classes).
+    const shell = page.getByRole('main');
+    // The closed drawer is visibility:hidden (out of the a11y tree), so locate it by label.
+    const sidebar = page.locator('aside[aria-label="Needle Admin"]');
     await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
-    await expect(page.locator('.admin-sidebar')).toHaveAttribute('data-open', 'false');
-    await expect.poll(async () => page.evaluate(() => ({
-        clientWidth: document.documentElement.clientWidth,
-        scrollWidth: document.documentElement.scrollWidth,
-        mainWidth: Math.round(document.querySelector('.admin-main').getBoundingClientRect().width),
-        mainLeft: Math.round(document.querySelector('.admin-main').getBoundingClientRect().left),
-    }))).toEqual({ clientWidth: 390, scrollWidth: 390, mainWidth: 390, mainLeft: 0 });
+    await expect(sidebar).toHaveAttribute('data-open', 'false');
+    await expect.poll(async () => page.evaluate(() => {
+        const main = document.getElementById('main-content').parentElement;
+        return {
+            clientWidth: document.documentElement.clientWidth,
+            scrollWidth: document.documentElement.scrollWidth,
+            mainWidth: Math.round(main.getBoundingClientRect().width),
+            mainLeft: Math.round(main.getBoundingClientRect().left),
+        };
+    })).toEqual({ clientWidth: 390, scrollWidth: 390, mainWidth: 390, mainLeft: 0 });
 
     await page.getByRole('button', { name: 'Open navigation' }).click();
-    const sidebar = page.locator('.admin-sidebar');
     await expect(sidebar).toHaveAttribute('data-open', 'true');
     await expect(sidebar.getByRole('link', { name: 'Messaging', exact: true })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'People & Access', exact: true })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Close navigation' }).click();
+    await sidebar.getByRole('button', { name: 'Close navigation' }).click();
     await expect(sidebar).toHaveAttribute('data-open', 'false');
     await expect(shell).toBeVisible();
     await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
@@ -127,8 +132,12 @@ test('Case Explorer is the default workspace and Messaging has one local navigat
 
     await page.goto('/dashboard/cases-intelligence/explorer');
     await expect(page.getByRole('heading', { name: 'Case Explorer', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Case Explorer', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByRole('button', { name: 'Platform Health', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    // Phase 4: the explorer is primary; analytics and case health are a
+    // compact view toggle (renamed from Case Explorer / Platform Health).
+    const views = page.getByRole('group', { name: 'Case view' });
+    await expect(views.getByRole('button', { name: 'Cases', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(views.getByRole('button', { name: 'Case health', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('navigation', { name: 'Case Operations' }).getByRole('link', { name: 'Case Explorer' })).toHaveAttribute('aria-current', 'page');
 
     await page.goto('/dashboard/system/whatsapp');
     const messagingNav = page.getByRole('navigation', { name: 'Messaging operations' });
