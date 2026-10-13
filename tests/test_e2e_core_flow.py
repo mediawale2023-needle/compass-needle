@@ -7,6 +7,7 @@ import hashlib
 from datetime import datetime, timedelta
 
 import jwt
+import time
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy import event
@@ -125,7 +126,7 @@ def _make_token(username: str, tenant_id: int, role: str = "mp") -> str:
         "sub": username,
         "tid": tenant_id,
         "role": role,
-        "exp": datetime.utcnow() + timedelta(hours=8),
+        "iat": time.time(), "exp": datetime.utcnow() + timedelta(hours=8),
     }
     return jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 

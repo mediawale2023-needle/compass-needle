@@ -2190,3 +2190,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Files touched: `admin/app/dashboard/mps/[tenant_id]/page.js`, `admin/app/globals.css`, `admin/components/admin-domains/cases-intelligence/CaseIntelligencePage.jsx`, `admin/components/admin-domains/system/WhatsAppInboundPage.jsx`, `admin/components/admin-domains/system/WhatsAppOperationsPage.jsx`, `admin/components/admin-ui/DomainNavs.jsx`, `admin/e2e/auth.spec.js`, `PROJECT_MEMORY.md`, and `TASK_LOG.md`.
 - No backend, API, authentication, authorization, tenant-isolation, database/schema, WhatsApp-processing, government-adapter, Parliament-sync, deployment, production configuration, MP frontend, or production-data changes were made.
 - Push record: pushed the final-polish implementation to `origin/admin-approved-visual-system` for PR #146 review. No merge, `main` push, production deployment, or production configuration change was performed.
+
+## 2026-10-13 — Aspirant pilot Phase 1: F02/F03 (pending PR review)
+
+- Fetched `origin/main` at `af9af8cc5bb6bd068512cb763a5fd6bf8ebf2916`; isolated branch `Codex/aspirant-auth-phase1` in `/private/tmp/needle-aspirant-phase1`, preserving original checkout edits. Revalidated F01–F20 and documented classifications, dependencies, scope and remaining acceptance gates in `ASPIRANT_PILOT_REMEDIATION.md`.
+- Added current-authority session checks, UTC/fail-closed revocation, atomic authority/password/deletion revocation, continuous WS checks, read-only/attributed support capabilities and atomic consumption. Only frontend change is support-banner wording. Updated historical test JWT fixtures to match the production login contract.
+- Added 34 synthetic session/security regressions and PostgreSQL 17/Python 3.11 CI. Local verification details and runtime limitations are in the remediation record; both dashboard unit/browser suites and production builds pass. No production data, merge or deployment; no Phase 2 work.

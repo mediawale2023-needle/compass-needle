@@ -358,7 +358,7 @@ def test_cookie_key_error_through_adapter_classified_auth_required(monkeypatch):
 
 
 def _auth_headers():
-    token = jwt.encode({"sub": "mp_tn", "tenant_id": 1, "iat": datetime.now(timezone.utc).timestamp()}, os.environ["JWT_SECRET"], algorithm="HS256")
+    token = jwt.encode({"sub": "mp_tn", "tid": 1, "role": "mp", "exp": datetime.now(timezone.utc).timestamp() + 3600, "iat": datetime.now(timezone.utc).timestamp()}, os.environ["JWT_SECRET"], algorithm="HS256")
     return {"Authorization": f"Bearer {token}"}
 
 

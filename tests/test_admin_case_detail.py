@@ -59,7 +59,7 @@ def _utcnow():
 
 def _headers(role="sysadmin", sub="sysadmin"):
     token = jwt.encode(
-        {"sub": sub, "tenant_id": 1, "role": role, "iat": _utcnow().timestamp(), "exp": _utcnow().timestamp() + 3600},
+        {"sub": sub, "tid": 1 if sub == "sysadmin" else 2, "role": role, "iat": _utcnow().timestamp(), "exp": _utcnow().timestamp() + 3600},
         TEST_JWT_SECRET,
         algorithm="HS256",
     )

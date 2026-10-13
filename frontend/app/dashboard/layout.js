@@ -467,7 +467,7 @@ export default function DashboardLayout({ children }) {
                                     Admin Support Session
                                 </div>
                                 <div style={{ marginTop: 4, color: '#5f4317', fontSize: '0.86rem', lineHeight: 1.5 }}>
-                                    Viewing this tenant with approved support access.
+                                    Read-only support access. Case investigation is available; changes and other tools are restricted.
                                     {user?.support_access_requested_by ? ` Requested by ${user.support_access_requested_by}.` : ''}
                                     {user?.support_access_expires_at ? ` Expires ${new Date(user.support_access_expires_at).toLocaleString('en-IN')}.` : ''}
                                 </div>

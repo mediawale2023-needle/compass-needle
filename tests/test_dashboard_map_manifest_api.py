@@ -6,6 +6,7 @@ import zipfile
 from datetime import datetime, timedelta
 
 import jwt
+import time
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
@@ -113,7 +114,7 @@ def _seed_database():
 
 def _auth_headers(username: str, tenant_id: int, role: str = "owner"):
     token = jwt.encode(
-        {"sub": username, "tid": tenant_id, "role": role, "exp": datetime.utcnow() + timedelta(hours=8)},
+        {"sub": username, "tid": tenant_id, "role": role, "iat": time.time(), "exp": datetime.utcnow() + timedelta(hours=8)},
         TEST_JWT_SECRET,
         algorithm="HS256",
     )

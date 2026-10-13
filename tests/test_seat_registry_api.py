@@ -154,7 +154,7 @@ def _admin_headers():
     # endpoint is rate-limited to 5/minute per key, and the whole backend test
     # suite runs in one pytest process, so every extra login here would push
     # other admin-API test files over the shared limiter window.
-    token = admin_api.create_admin_token({"sub": "sysadmin", "role": "sysadmin"})
+    token = admin_api.create_admin_token({"sub": "sysadmin", "tid": 1, "role": "sysadmin"})
     return {"Authorization": f"Bearer {token}"}
 
 

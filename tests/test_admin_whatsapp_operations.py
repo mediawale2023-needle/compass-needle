@@ -59,7 +59,7 @@ def _admin_headers():
         {
             # get_admin_user reads the standard "sub" claim for the username.
             "sub": "sysadmin",
-            "tenant_id": 1,
+            "tid": 1,
             "role": "sysadmin",
             "iat": _utcnow().timestamp(),
             "exp": _utcnow().timestamp() + 3600,
