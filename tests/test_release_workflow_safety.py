@@ -35,7 +35,10 @@ def test_target_revision_is_guarded_and_used_by_deployment():
     assert "merge-base --is-ancestor" in validation
     assert 'origin/main' in validation
     assert 'Backend, Frontend, Admin, And Browser Tests' in validation
-    assert 'conclusion == "success"' in validation
+    assert 'commits/${TARGET_SHA}/check-runs' in validation
+    assert '.status != "completed" or .conclusion != "success"' in validation
+    assert 'PRODUCT_TESTS_TOTAL' in validation
+    assert 'PRODUCT_TESTS_UNSUCCESSFUL' in validation
     assert deploy["needs"] == "prepare"
     assert deploy["environment"] == "production"
     assert 'git reset --hard "$TARGET_SHA"' in remote_deploy["with"]["script"]

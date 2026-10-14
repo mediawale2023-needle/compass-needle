@@ -52,14 +52,20 @@ jobs:
             exit 1
           fi
 
-          PASSED_PRODUCT_TESTS="$(
+          PRODUCT_TESTS_STATE="$(
             gh api \
               -H "Accept: application/vnd.github+json" \
               "/repos/${GITHUB_REPOSITORY}/commits/${TARGET_SHA}/check-runs" \
-              --jq '[.check_runs[] | select(.name == "Backend, Frontend, Admin, And Browser Tests" and .conclusion == "success")] | length'
+              --jq '[.check_runs[] | select(.name == "Backend, Frontend, Admin, And Browser Tests")] | {total: length, unsuccessful: map(select(.status != "completed" or .conclusion != "success")) | length}'
           )"
-          if [[ "$PASSED_PRODUCT_TESTS" -lt 1 ]]; then
-            echo "Refusing deployment: $TARGET_SHA has no successful Product Tests check." >&2
+          PRODUCT_TESTS_TOTAL="$(jq -r '.total' <<< "$PRODUCT_TESTS_STATE")"
+          PRODUCT_TESTS_UNSUCCESSFUL="$(jq -r '.unsuccessful' <<< "$PRODUCT_TESTS_STATE")"
+          if [[ "$PRODUCT_TESTS_TOTAL" -lt 1 ]]; then
+            echo "Refusing deployment: $TARGET_SHA has no Product Tests check." >&2
+            exit 1
+          fi
+          if [[ "$PRODUCT_TESTS_UNSUCCESSFUL" -ne 0 ]]; then
+            echo "Refusing deployment: $TARGET_SHA has failed, cancelled, or pending Product Tests checks." >&2
             exit 1
           fi
 
