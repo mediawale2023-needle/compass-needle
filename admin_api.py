@@ -14,7 +14,7 @@ import secrets
 import string
 import requests as http_requests
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 import uuid
 import threading
@@ -28,6 +28,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, TenantOverride, JobRun, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote, derive_account_stage, derive_seat_type, build_geography_key, parse_geography_key, get_all_geography_data, seat_label
 from core.db_helpers import _q, _q_one, _parse_meta
+from core.session_auth import (token_revoked, revoke_in_transaction, require_active_account, validate_session, credential_binding)
 from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
 from modules.seat_maps import list_all_seat_manifests, upsert_db_seat_manifest, get_db_seat_manifest, list_seat_map_workflows
@@ -170,39 +171,18 @@ def verify_password(password: str, stored_hash: str) -> bool:
     return False
 
 
-def create_admin_token(data: dict) -> str:
-    payload = {**data, "iat": datetime.utcnow().timestamp(), "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
+def create_admin_token(data: dict, *, credential_user: dict, issued_at: float | None = None) -> str:
+    payload = {**data, "credential_state": credential_binding(credential_user), "iat": issued_at if issued_at is not None else datetime.now(timezone.utc).timestamp(), "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
     return jwt.encode(payload, ADMIN_JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def _is_token_revoked(username: str, token_issued_at: float) -> bool:
-    """Check if a user's tokens were revoked after this token was issued."""
-    try:
-        row = _q_one(
-            "SELECT revoked_at FROM token_blocklist WHERE username = :u ORDER BY revoked_at DESC LIMIT 1",
-            {"u": username}
-        )
-        if row and row.get("revoked_at"):
-            revoked_at = row["revoked_at"]
-            if hasattr(revoked_at, 'timestamp'):
-                return token_issued_at < revoked_at.timestamp()
-    except Exception:
-        logger.error("Token revocation check failed — rejecting admin token for safety")
-        return True
-    return False
+    return token_revoked(_q_one, username, token_issued_at)
 
 
 def _revoke_user_tokens(username: str):
-    """Revoke all existing tokens for a user."""
-    try:
-        with engine.begin() as conn:
-            conn.execute(
-                text("INSERT INTO token_blocklist (username, revoked_at) VALUES (:u, :now)"),
-                {"u": username, "now": datetime.utcnow()}
-            )
-        logger.info(f"Revoked all tokens for user: {username}")
-    except Exception as e:
-        logger.error(f"Token revocation failed for {username}: {e}")
+    with engine.begin() as conn:
+        revoke_in_transaction(conn, username)
 
 
 def _record_failed_login(username: str) -> datetime | None:
@@ -254,19 +234,9 @@ def _clear_login_failures(username: str) -> None:
 def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verify JWT and ensure user has an admin role."""
     try:
-        payload = jwt.decode(credentials.credentials, ADMIN_JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        username = payload.get("sub")
-        role = payload.get("role", "")
-        if not username or role not in ADMIN_ROLES:
-            raise HTTPException(403, "Admin access required")
-        # Check blocklist
-        token_iat = payload.get("iat", 0)
-        if _is_token_revoked(username, token_iat):
-            raise HTTPException(401, "Token has been revoked. Please login again.")
-        user = _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
-        if not user or user.get("role") not in ADMIN_ROLES:
-            raise HTTPException(403, "Admin access required")
-        return user
+        payload = jwt.decode(credentials.credentials, ADMIN_JWT_SECRET, algorithms=[JWT_ALGORITHM],
+                             options={"require": ["sub", "tid", "role", "iat", "exp", "credential_state"]})
+        return validate_session(_q_one, payload, admin_roles=ADMIN_ROLES)
     except JWTError:
         raise HTTPException(401, "Invalid or expired token")
 
@@ -760,6 +730,7 @@ def _tenant_identity_dict(tenant: dict | Tenant | None, user: dict | User | None
 @router.post("/auth/login")
 @_limit_login
 def admin_login(req: AdminLoginRequest, request: Request):
+    auth_started_at = datetime.now(timezone.utc).timestamp()
     user = _q_one("SELECT * FROM users WHERE username = :u", {"u": req.username})
     if not user:
         raise HTTPException(401, "Invalid credentials")
@@ -775,19 +746,21 @@ def admin_login(req: AdminLoginRequest, request: Request):
         _record_failed_login(req.username)
         raise HTTPException(401, "Invalid credentials")
 
-    if user.get("is_active") is False:
-        raise HTTPException(403, "Account suspended. Contact your administrator.")
+    require_active_account(_q_one, user, require_tenant=False)
 
     _clear_login_failures(req.username)
 
     # Auto-upgrade plain text passwords to bcrypt
     stored_hash = user.get("password_hash", "")
+    credential_user = user
     if not (stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$")):
+        upgraded_hash = hash_password(req.password)
         with engine.begin() as conn:
             conn.execute(
                 text("UPDATE users SET password_hash = :h WHERE username = :u"),
-                {"h": hash_password(req.password), "u": req.username},
+                {"h": upgraded_hash, "u": req.username},
             )
+        credential_user = {**user, "password_hash": upgraded_hash}
 
     # Update last_login
     try:
@@ -804,7 +777,7 @@ def admin_login(req: AdminLoginRequest, request: Request):
         "sub": user["username"],
         "tid": admin_tid,
         "role": user.get("role", "admin"),
-    })
+    }, credential_user=credential_user, issued_at=auth_started_at)
 
     return {
         "token": token,
@@ -1027,6 +1000,9 @@ def delete_mp(tenant_id: int, _=Depends(get_admin_user)):
     ]
     try:
         with engine.begin() as conn:
+            conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+                SELECT username, :now FROM users WHERE tenant_id = :tid"""),
+                {"now": datetime.now(timezone.utc).replace(tzinfo=None), "tid": tenant_id})
             for table in _TENANT_TABLES_ORDERED:
                 conn.execute(
                     text(f"DELETE FROM {table} WHERE tenant_id = :tid"),  # nosec B608 — table names are hardcoded, not user input
@@ -1192,9 +1168,8 @@ def reset_mp_password(tenant_id: int, req: ResetPasswordRequest, _=Depends(get_a
         user.must_change_password = True
         user.password_reset_by_admin_at = datetime.utcnow()
         user.force_password_reason = "admin_reset"
+        revoke_in_transaction(db, user.username)
         db.commit()
-        # Revoke all existing tokens for this MP
-        _revoke_user_tokens(user.username)
         return {
             "success": True,
             "temporary_password": temporary_password,
@@ -2099,7 +2074,10 @@ def create_editor(req: CreateEditorRequest, _=Depends(get_admin_user)):
 def delete_editor(editor_id: int, _=Depends(get_admin_user)):
     db = SessionLocal()
     try:
-        db.query(User).filter(User.id == editor_id, User.role == "editor").delete()
+        editor = db.query(User).filter(User.id == editor_id, User.role == "editor").first()
+        if editor:
+            revoke_in_transaction(db, editor.username)
+            db.delete(editor)
         db.commit()
         return {"success": True}
     except Exception as e:
@@ -2126,9 +2104,8 @@ def reset_admin_password(req: AdminPasswordResetRequest, user=Depends(get_admin_
         u = db.query(User).filter(User.username == user["username"]).first()
         if u:
             u.password_hash = hash_password(req.new_password)
+            revoke_in_transaction(db, user["username"])
             db.commit()
-            # Revoke all existing tokens for this admin
-            _revoke_user_tokens(user["username"])
         return {"success": True}
     except Exception as e:
         db.rollback()
@@ -4103,6 +4080,10 @@ def edit_staff(staff_id: int, req: StaffEditRequest, _=Depends(get_admin_user)):
         raise HTTPException(400, "Nothing to update.")
     with engine.begin() as conn:
         result = conn.execute(text(f"UPDATE users SET {', '.join(updates)} WHERE id = :id AND role NOT IN ('admin','super_admin','sysadmin','owner','mp')"), params)
+        if req.role is not None and result.rowcount:
+            conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+                SELECT username, :now FROM users WHERE id = :id"""),
+                {"now": datetime.now(timezone.utc).replace(tzinfo=None), "id": staff_id})
     if result.rowcount == 0:
         raise HTTPException(404, "Staff member not found.")
     return {"success": True}
@@ -4119,6 +4100,10 @@ def toggle_staff_suspension(staff_id: int, _=Depends(get_admin_user)):
     new_state = not bool(row.get("is_active", True))
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET is_active = :s WHERE id = :id"), {"s": new_state, "id": staff_id})
+        conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+            SELECT username, :now FROM users WHERE id = :id
+              AND role NOT IN ('admin','super_admin','sysadmin','owner','mp')"""),
+            {"now": datetime.now(timezone.utc).replace(tzinfo=None), "id": staff_id})
     return {"success": True, "is_active": new_state}
 
 
@@ -4133,6 +4118,10 @@ def reassign_staff(staff_id: int, req: StaffReassignRequest, _=Depends(get_admin
             text("UPDATE users SET tenant_id = :t WHERE id = :id AND role NOT IN ('admin','super_admin','sysadmin','owner','mp')"),
             {"t": req.tenant_id, "id": staff_id},
         )
+        conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+            SELECT username, :now FROM users WHERE id = :id
+              AND role NOT IN ('admin','super_admin','sysadmin','owner','mp')"""),
+            {"now": datetime.now(timezone.utc).replace(tzinfo=None), "id": staff_id})
     if result.rowcount == 0:
         raise HTTPException(404, "Staff member not found or is a primary/admin account.")
     return {"success": True}
@@ -4170,6 +4159,10 @@ def update_onboarding(tenant_id: int, req: OnboardingUpdate, _=Depends(get_admin
         updates.append("is_active = false")
     with engine.begin() as conn:
         conn.execute(text(f"UPDATE tenants SET {', '.join(updates)} WHERE id = :t"), params)
+        if req.live is not None:
+            conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+                SELECT username, :now FROM users WHERE tenant_id = :tid"""),
+                {"now": datetime.now(timezone.utc).replace(tzinfo=None), "tid": tenant_id})
     return {"success": True, "onboarding_state": state}
 
 
@@ -5076,7 +5069,7 @@ def create_support_access_launch_token(request_key: str, admin_user=Depends(get_
     row = _q_one(
         """
         SELECT * FROM support_access_requests
-        WHERE request_key = :request_key
+        WHERE request_key = :request_key AND status = 'approved' AND launch_token_consumed_at IS NULL
         """,
         {"request_key": request_key},
     )
@@ -5092,7 +5085,7 @@ def create_support_access_launch_token(request_key: str, admin_user=Depends(get_
     launch_token = secrets.token_urlsafe(32)
     launch_expires = _support_access_now() + timedelta(minutes=15)
     with engine.begin() as conn:
-        conn.execute(
+        updated = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
@@ -5100,7 +5093,7 @@ def create_support_access_launch_token(request_key: str, admin_user=Depends(get_
                     launch_token_expires_at = :launch_expires,
                     launch_token_consumed_at = NULL,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status = 'approved' AND launch_token_consumed_at IS NULL
                 """
             ),
             {
@@ -5110,6 +5103,8 @@ def create_support_access_launch_token(request_key: str, admin_user=Depends(get_
                 "request_key": request_key,
             },
         )
+    if updated.rowcount != 1:
+        raise HTTPException(409, "Support request is no longer available")
     return {
         "success": True,
         "request_key": request_key,

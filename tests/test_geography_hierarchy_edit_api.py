@@ -92,7 +92,7 @@ def _seed_database():
 def _admin_headers():
     # Mint the token directly: /auth/login is rate-limited 5/minute per key
     # and the backend suite shares one limiter window across test files.
-    token = admin_api.create_admin_token({"sub": "sysadmin", "role": "sysadmin"})
+    token = admin_api.create_admin_token({"sub": "sysadmin", "tid": 1, "role": "sysadmin"}, credential_user=admin_api._q_one("SELECT * FROM users WHERE username = :u", {"u": "sysadmin"}))
     return {"Authorization": f"Bearer {token}"}
 
 

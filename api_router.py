@@ -13,6 +13,7 @@ import secrets
 import string
 import time
 import uuid
+import asyncio
 from datetime import datetime, timedelta, timezone, date
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, Response, Form, WebSocket, WebSocketDisconnect
@@ -38,6 +39,8 @@ from sansadx_backend.db import (
     validate_password,
 )
 from core.db_helpers import _q, _q_one, _parse_meta
+from core.session_auth import (token_revoked, revoke_in_transaction, require_active_account,
+                               validate_session, validate_support, utc_timestamp, credential_binding)
 from modules.ack_composer import compose_status_update
 from modules.ack_validator import ack_policy_mode, validate_citizen_message, violation_codes
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
@@ -226,9 +229,9 @@ def _require_feature_access(user: dict | None, feature: str) -> None:
 # ─────────────────────────────────────────
 # JWT HELPERS
 # ─────────────────────────────────────────
-def create_token(data: dict, expires_delta: timedelta | None = None) -> str:
+def create_token(data: dict, expires_delta: timedelta | None = None, *, credential_user: dict, issued_at: float | None = None) -> str:
     expiry = _utcnow() + (expires_delta or timedelta(hours=JWT_EXPIRE_HOURS))
-    payload = {**data, "iat": _utcnow().timestamp(), "exp": expiry}
+    payload = {**data, "credential_state": credential_binding(credential_user), "iat": issued_at if issued_at is not None else datetime.now(timezone.utc).timestamp(), "exp": expiry}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -343,49 +346,33 @@ def _clear_login_failures(username: str) -> None:
 
 
 def is_token_revoked(username: str, token_issued_at: float) -> bool:
-    """Check if a user's tokens were revoked after this token was issued."""
-    try:
-        row = _q_one(
-            "SELECT revoked_at FROM token_blocklist WHERE username = :u ORDER BY revoked_at DESC LIMIT 1",
-            {"u": username}
-        )
-        if row and row.get("revoked_at"):
-            revoked_at = row["revoked_at"]
-            if hasattr(revoked_at, 'timestamp'):
-                return token_issued_at < revoked_at.timestamp()
-    except Exception:
-        logger.error("Token revocation check failed — rejecting token for safety")
-        return True
-    return False
+    return token_revoked(_q_one, username, token_issued_at)
 
 
 def revoke_user_tokens(username: str):
-    """Revoke all existing tokens for a user (call on password change/logout)."""
-    try:
-        with engine.begin() as conn:
-            conn.execute(
-                text("INSERT INTO token_blocklist (username, revoked_at) VALUES (:u, :now)"),
-                {"u": username, "now": _utcnow()}
-            )
-        logger.info(f"Revoked all tokens for user: {username}")
-    except Exception as e:
-        logger.error(f"Token revocation failed for {username}: {e}")
+    """Fail closed: a failed revocation must never report successful logout."""
+    with engine.begin() as conn:
+        revoke_in_transaction(conn, username)
 
 
 def get_current_user(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM],
+                             options={"require": ["sub", "tid", "role", "iat", "exp", "credential_state"]})
         request.state.jwt_payload = payload
-        username = payload.get("sub")
-        if not username:
-            raise HTTPException(401, "Invalid token")
-        # Check if token was revoked (issued before last password change/logout)
-        token_iat = payload.get("iat", 0)
-        if is_token_revoked(username, token_iat):
-            raise HTTPException(401, "Token has been revoked. Please login again.")
-        user = _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
-        if not user:
-            raise HTTPException(401, "User not found")
+        user = validate_session(_q_one, payload)
+        if payload.get("support_access"):
+            from admin_api import ADMIN_ROLES
+            operator = validate_support(_q_one, payload, user, request.method, request.url.path, ADMIN_ROLES)
+            request.state.support_actor = operator
+            # Record the operator, never impersonate the owner in the audit trail.
+            with engine.begin() as conn:
+                conn.execute(text("""INSERT INTO admin_audit_log
+                    (admin_username, action, target_type, target_name, change_summary, created_at)
+                    VALUES (:actor, 'support_request', 'support_access', :key, :summary, :now)"""),
+                    {"actor": operator, "key": payload["support_access_request_key"],
+                     "summary": json.dumps({"tenant_id": user["tenant_id"], "method": request.method,
+                                            "path": request.url.path}), "now": _utcnow()})
         if user.get("must_change_password"):
             allowed_paths = {
                 "/api/auth/me",
@@ -443,6 +430,7 @@ class DashboardEngagementCreateRequest(BaseModel):
 @router.post("/auth/login")
 @_limit_login
 def login(req: LoginRequest, request: Request):
+    auth_started_at = datetime.now(timezone.utc).timestamp()
     user = _q_one("SELECT * FROM users WHERE username = :u", {"u": req.username})
     if not user:
         if log_security_event:
@@ -473,8 +461,7 @@ def login(req: LoginRequest, request: Request):
             raise HTTPException(423, f"Too many failed attempts. Try again after {newly_locked_until.isoformat()}")
         raise HTTPException(401, "Invalid credentials")
 
-    if user.get("is_active") is False:
-        raise HTTPException(403, "Account suspended. Contact your administrator.")
+    require_active_account(_q_one, user)
 
     _clear_login_failures(req.username)
 
@@ -489,7 +476,7 @@ def login(req: LoginRequest, request: Request):
 
     tid = get_tenant_or_fail(user)
     tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
-    token = create_token({"sub": user["username"], "tid": tid, "role": user.get("role", "user")})
+    token = create_token({"sub": user["username"], "tid": tid, "role": user.get("role", "user")}, credential_user=user, issued_at=auth_started_at)
 
     return {
         "token": token,
@@ -554,7 +541,7 @@ def change_password(req: ChangePasswordRequest, user=Depends(get_current_user)):
             },
         )
 
-    revoke_user_tokens(user["username"])
+        revoke_in_transaction(conn, user["username"])
     return {"success": True, "message": "Password changed. Please sign in again."}
 
 
@@ -593,11 +580,12 @@ def complete_forced_password_reset(req: CompleteForcedPasswordResetRequest, user
                 },
             )
 
-        revoke_user_tokens(user["username"])
+            revoke_in_transaction(conn, user["username"])
         refreshed_user = _q_one("SELECT * FROM users WHERE username = :u", {"u": user["username"]})
         tid = get_tenant_or_fail(refreshed_user)
         tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
-        token = create_token({"sub": refreshed_user["username"], "tid": tid, "role": refreshed_user.get("role", "user")})
+        token = create_token({"sub": refreshed_user["username"], "tid": tid, "role": refreshed_user.get("role", "user")},
+                             credential_user={**user, "password_hash": new_hash})
         return {
             "success": True,
             "token": token,
@@ -677,7 +665,7 @@ def approve_support_access(request_key: str, user=Depends(get_current_user)):
     launch_token = secrets.token_urlsafe(32)
     launch_expires = now + timedelta(minutes=15)
     with engine.begin() as conn:
-        conn.execute(
+        updated = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
@@ -687,7 +675,7 @@ def approve_support_access(request_key: str, user=Depends(get_current_user)):
                     launch_token = :launch_token,
                     launch_token_expires_at = :launch_expires,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status = 'pending'
                 """
             ),
             {
@@ -699,6 +687,8 @@ def approve_support_access(request_key: str, user=Depends(get_current_user)):
                 "request_key": request_key,
             },
         )
+    if updated.rowcount != 1:
+        raise HTTPException(409, "Support request changed; please reload")
     _append_admin_audit_log(
         user.get("username", "unknown"),
         "approved",
@@ -737,7 +727,7 @@ def reject_support_access(request_key: str, user=Depends(get_current_user)):
 
     now = _utcnow()
     with engine.begin() as conn:
-        conn.execute(
+        updated = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
@@ -745,7 +735,7 @@ def reject_support_access(request_key: str, user=Depends(get_current_user)):
                     approved_by_username = :approved_by,
                     rejected_at = :rejected_at,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status = 'pending'
                 """
             ),
             {
@@ -755,6 +745,8 @@ def reject_support_access(request_key: str, user=Depends(get_current_user)):
                 "request_key": request_key,
             },
         )
+    if updated.rowcount != 1:
+        raise HTTPException(409, "Support request changed; please reload")
     _append_admin_audit_log(
         user.get("username", "unknown"),
         "rejected",
@@ -784,7 +776,7 @@ def revoke_support_access(request_key: str, user=Depends(get_current_user)):
         raise HTTPException(400, "Support access request cannot be revoked in its current state")
     now = _utcnow()
     with engine.begin() as conn:
-        conn.execute(
+        updated = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
@@ -792,11 +784,13 @@ def revoke_support_access(request_key: str, user=Depends(get_current_user)):
                     revoked_at = :revoked_at,
                     session_ended_at = CASE WHEN status = 'active' THEN :revoked_at ELSE session_ended_at END,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status IN ('approved', 'active')
                 """
             ),
             {"revoked_at": now, "updated_at": now, "request_key": request_key},
         )
+    if updated.rowcount != 1:
+        raise HTTPException(409, "Support request changed; please reload")
     _append_admin_audit_log(
         user.get("username", "unknown"),
         "revoked",
@@ -825,7 +819,7 @@ def consume_support_access(req: SupportAccessConsumeRequest):
         raise HTTPException(401, "Invalid support launch token")
     if row.get("launch_token_consumed_at"):
         raise HTTPException(400, "Support launch token has already been used")
-    if row.get("launch_token_expires_at") and row["launch_token_expires_at"] < _utcnow():
+    if not row.get("launch_token_expires_at") or utc_timestamp(row["launch_token_expires_at"]) <= datetime.now(timezone.utc).timestamp():
         raise HTTPException(400, "Support launch token has expired")
 
     target_user = _q_one("SELECT * FROM users WHERE username = :u", {"u": row.get("target_username")})
@@ -835,10 +829,27 @@ def consume_support_access(req: SupportAccessConsumeRequest):
     if not tenant:
         raise HTTPException(404, "Tenant not found")
 
+    require_active_account(_q_one, target_user)
+    from admin_api import ADMIN_ROLES
+    operator = _q_one("SELECT * FROM users WHERE username = :u", {"u": row.get("requested_by_admin_username")})
+    require_active_account(_q_one, operator, require_tenant=False)
+    if (target_user.get("tenant_id") != row.get("tenant_id")
+            or not _is_primary_workspace_user(target_user)
+            or target_user.get("must_change_password")
+            or row.get("approved_by_username") != target_user.get("username")
+            or row.get("scope") != "full_view"
+            or operator.get("role") not in ADMIN_ROLES):
+        raise HTTPException(401, "Support access is unavailable")
+    # A revoked operator or owner must obtain a fresh approval; the launch
+    # credential is not a way to bypass session revocation.
+    for subject in (target_user["username"], operator["username"]):
+        if token_revoked(_q_one, subject, utc_timestamp(row["requested_at"])):
+            raise HTTPException(401, "Support approval must be renewed")
+
     now = _utcnow()
     session_expires_at = now + timedelta(minutes=int(row.get("duration_minutes") or 30))
     with engine.begin() as conn:
-        conn.execute(
+        claimed = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
@@ -847,11 +858,15 @@ def consume_support_access(req: SupportAccessConsumeRequest):
                     session_started_at = :started_at,
                     session_expires_at = :session_expires_at,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status = 'approved'
+                  AND launch_token = :launch_token AND launch_token_consumed_at IS NULL
+                  AND launch_token_expires_at > :consumed_at
+                  AND revoked_at IS NULL AND session_ended_at IS NULL
                 """
             ),
             {
                 "consumed_at": now,
+                "launch_token": req.launch_token,
                 "started_at": now,
                 "session_expires_at": session_expires_at,
                 "updated_at": now,
@@ -859,8 +874,13 @@ def consume_support_access(req: SupportAccessConsumeRequest):
             },
         )
 
+    if claimed.rowcount != 1:
+        raise HTTPException(409, "Support launch token is no longer available")
+
     support_context = {
         "support_access": True,
+        "support_operator_credential_state": credential_binding(operator),
+        "is_support_access_session": True,
         "support_access_request_key": req.request_key,
         "support_access_requested_by": row.get("requested_by_admin_username"),
         "support_access_approved_by": row.get("approved_by_username"),
@@ -875,6 +895,7 @@ def consume_support_access(req: SupportAccessConsumeRequest):
             "role": target_user.get("role", "user"),
             **support_context,
         },
+        credential_user=target_user,
         expires_delta=timedelta(minutes=int(row.get("duration_minutes") or 30)),
     )
     _append_admin_audit_log(
@@ -908,18 +929,20 @@ def end_support_access(request: Request, user=Depends(get_current_user)):
         return {"success": True}
     now = _utcnow()
     with engine.begin() as conn:
-        conn.execute(
+        updated = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
                 SET status = 'ended',
                     session_ended_at = :ended_at,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status = 'active'
                 """
             ),
             {"ended_at": now, "updated_at": now, "request_key": request_key},
         )
+    if updated.rowcount != 1:
+        raise HTTPException(409, "Support request changed; please reload")
     _append_admin_audit_log(
         claims.get("support_access_requested_by") or user.get("username") or "unknown",
         "session_ended",
@@ -4486,15 +4509,15 @@ def _get_ws_user(token: str) -> dict | None:
     if not token:
         return None
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        username = payload.get("sub")
-        if not username:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM],
+                             options={"require": ["sub", "tid", "role", "iat", "exp", "credential_state"]})
+        user = validate_session(_q_one, payload)
+        # A live browser supports input and cannot enforce the support read scope.
+        if payload.get("support_access") or user.get("must_change_password"):
             return None
-        if is_token_revoked(username, payload.get("iat", 0)):
-            return None
-        return _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
-    except JWTError:
-        return None
+        return user
+    except Exception:
+        return None  # DB outages also terminate access.
 
 
 @router.post("/cases/{case_id}/govt/session/start")
@@ -4631,12 +4654,24 @@ async def govt_live_session_stream(websocket: WebSocket, session_id: str, token:
     await websocket.send_json({"type": "ready", **meta})
 
     async def _send(payload: dict):
+        if not _get_ws_user(token):
+            await websocket.close(code=4401)
+            return
         await websocket.send_json(payload)
 
     await attach_stream(session_id, websocket, _send)
     try:
         while True:
-            msg = await websocket.receive_json()
+            if not _get_ws_user(token):
+                await websocket.close(code=4401)
+                break
+            try:
+                msg = await asyncio.wait_for(websocket.receive_json(), timeout=1.0)
+            except asyncio.TimeoutError:
+                continue
+            if not _get_ws_user(token):
+                await websocket.close(code=4401)
+                break
             if msg.get("type") == "input":
                 await relay_input(session_id, msg.get("event") or {})
     except WebSocketDisconnect:
@@ -5466,11 +5501,9 @@ def delete_team_member(member_id: int, user=Depends(get_current_user)):
             text("UPDATE users SET is_active = false WHERE id = :mid AND tenant_id = :tid"),
             {"mid": member_id, "tid": tid},
         )
-
-    # Revoke all active tokens for the removed user so they're logged out immediately
-    revoke_user_tokens(
-        _q_one("SELECT username FROM users WHERE id = :mid", {"mid": member_id}).get("username", "")
-    )
+        conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+            SELECT username, :now FROM users WHERE id = :mid AND tenant_id = :tid"""),
+            {"now": _utcnow(), "mid": member_id, "tid": tid})
 
     logger.info("Team member deactivated: id=%s tenant=%s by=%s", member_id, tid, user.get("username"))
     return {"success": True}

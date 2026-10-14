@@ -7,6 +7,8 @@ import hashlib
 from datetime import datetime, timedelta
 
 import jwt
+from tests.auth_token_claims import credential_claims
+import time
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy import event
@@ -121,11 +123,11 @@ def _seed_database():
 
 
 def _make_token(username: str, tenant_id: int, role: str = "mp") -> str:
-    payload = {
+    payload = {**credential_claims(test_engine, username),
         "sub": username,
         "tid": tenant_id,
         "role": role,
-        "exp": datetime.utcnow() + timedelta(hours=8),
+        "iat": time.time(), "exp": datetime.utcnow() + timedelta(hours=8),
     }
     return jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
