@@ -4,7 +4,7 @@ import uuid
 import sys
 import types
 import jwt
-from threading import Barrier
+from threading import Barrier, Event
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
@@ -62,11 +62,11 @@ def env(tmp_path, monkeypatch):
 
 
 def headers(name="staff", tid=1, role="staff", **claims):
-    return {"Authorization": "Bearer " + mp.create_token({"sub":name,"tid":tid,"role":role,**claims})}
+    return {"Authorization": "Bearer " + mp.create_token({"sub":name,"tid":tid,"role":role,**claims}, credential_user=mp._q_one("SELECT * FROM users WHERE username = :u", {"u":name}))}
 
 
 def admin_headers():
-    return {"Authorization": "Bearer " + admin.create_admin_token({"sub":"operator","tid":0,"role":"sysadmin"})}
+    return {"Authorization": "Bearer " + admin.create_admin_token({"sub":"operator","tid":0,"role":"sysadmin"}, credential_user=admin._q_one("SELECT * FROM users WHERE username = :u", {"u":"operator"}))}
 
 
 def sql(engine, statement, **params):
@@ -257,12 +257,13 @@ def test_disabled_tenant_cannot_login(env):
     assert response.status_code == 401
 
 
-@pytest.mark.parametrize("missing", ["tid", "role", "iat", "exp"])
+@pytest.mark.parametrize("missing", ["tid", "role", "iat", "exp", "credential_state"])
 def test_incomplete_tokens_are_rejected(env, missing):
     _,client=env
     payload={"sub":"staff","tid":1,"role":"staff",
              "iat":datetime.now(timezone.utc).timestamp(),
              "exp":datetime.now(timezone.utc).timestamp()+3600}
+    payload["credential_state"] = mp.credential_binding(mp._q_one("SELECT * FROM users WHERE username = :u", {"u":"staff"}))
     del payload[missing]
     token=jwt.encode(payload,mp.JWT_SECRET,algorithm=mp.JWT_ALGORITHM)
     assert client.get("/api/auth/me",headers={"Authorization":"Bearer "+token}).status_code == 401
@@ -335,3 +336,127 @@ def test_deleted_username_reuse_does_not_resurrect_token(env):
         VALUES (2, 'staff', 1, 'editor', true, :password_hash)""",
         password_hash=hash_password("DifferentSafe9!"))
     assert client.get("/api/auth/me", headers=auth).status_code == 401
+
+
+@pytest.mark.parametrize("is_admin", [False, True], ids=["aspirant", "admin"])
+@pytest.mark.parametrize("login_count", [1, 3], ids=["one-login", "multiple-logins"])
+def test_postgres_login_during_uncommitted_password_change(env, monkeypatch, is_admin, login_count):
+    engine, client = env
+    if engine.dialect.name != "postgresql":
+        pytest.skip("Requires PostgreSQL MVCC; covered by PostgreSQL 17 CI")
+    module = admin if is_admin else mp
+    username = "operator" if is_admin else "staff"
+    login_path = "/api/admin/auth/login" if is_admin else "/api/auth/login"
+    original_auth = admin_headers() if is_admin else headers()
+    inserted, release = Event(), Event()
+    verified = Barrier(login_count + 1)
+    original_revoke, original_clear = module.revoke_in_transaction, module._clear_login_failures
+
+    def hold_before_commit(conn, subject):
+        original_revoke(conn, subject)
+        inserted.set()
+        assert release.wait(30), "Controller did not release password transaction"
+
+    def after_old_credentials_verified(subject):
+        # Real login has already verified the committed old hash. Its next write
+        # may wait for the password transaction; no credential verification mock.
+        verified.wait(timeout=30)
+        original_clear(subject)
+
+    monkeypatch.setattr(module, "revoke_in_transaction", hold_before_commit)
+    monkeypatch.setattr(module, "_clear_login_failures", after_old_credentials_verified)
+    change_path = "/api/admin/settings/password" if is_admin else "/api/auth/change-password"
+    change_method = client.patch if is_admin else client.post
+    with ThreadPoolExecutor(max_workers=login_count + 1) as pool:
+        change = pool.submit(change_method, change_path, headers=original_auth,
+                             json={"current_password":"SafePassword9!", "new_password":"AnotherSafe9!"})
+        try:
+            assert inserted.wait(30), "Password transaction did not reach its cutoff"
+            logins = [pool.submit(client.post, login_path,
+                                  json={"username":username, "password":"SafePassword9!"})
+                      for _ in range(login_count)]
+            verified.wait(timeout=30)
+        finally:
+            release.set()
+        assert change.result(timeout=30).status_code == 200
+        responses = [future.result(timeout=30) for future in logins]
+    monkeypatch.setattr(module, "_clear_login_failures", original_clear)
+    monkeypatch.setattr(module, "revoke_in_transaction", original_revoke)
+
+    # A harmless read which exists in the minimal synthetic schema.
+    probe_path = "/api/admin/staff" if is_admin else "/api/auth/me"
+    assert client.get(probe_path, headers=original_auth).status_code == 401
+    for response in responses:
+        assert response.status_code == 200, response.text
+        stale = {"Authorization":"Bearer " + response.json()["token"]}
+        assert client.get(probe_path, headers=stale).status_code == 401
+        if not is_admin:
+            assert mp._get_ws_user(response.json()["token"]) is None
+    assert client.post(login_path, json={"username":username,"password":"SafePassword9!"}).status_code == 401
+    fresh = client.post(login_path, json={"username":username,"password":"AnotherSafe9!"})
+    assert fresh.status_code == 200, fresh.text
+    assert client.get(probe_path, headers={"Authorization":"Bearer " + fresh.json()["token"]}).status_code == 200
+
+
+@pytest.mark.parametrize("is_admin", [False, True], ids=["aspirant", "admin"])
+def test_password_transaction_rollback_preserves_credentials_and_sessions(env, monkeypatch, is_admin):
+    _, client = env
+    module = admin if is_admin else mp
+    auth = admin_headers() if is_admin else headers()
+    original_revoke = module.revoke_in_transaction
+
+    def rollback_after_revocation(conn, username):
+        original_revoke(conn, username)
+        raise RuntimeError("Simulated failure before commit")
+
+    monkeypatch.setattr(module, "revoke_in_transaction", rollback_after_revocation)
+    method, path = (client.patch, "/api/admin/settings/password") if is_admin else (client.post, "/api/auth/change-password")
+    assert method(path, headers=auth, json={"current_password":"SafePassword9!","new_password":"AnotherSafe9!"}).status_code == 500
+    probe_path = "/api/admin/staff" if is_admin else "/api/auth/me"
+    assert client.get(probe_path, headers=auth).status_code == 200
+    login_path = "/api/admin/auth/login" if is_admin else "/api/auth/login"
+    username = "operator" if is_admin else "staff"
+    assert client.post(login_path, json={"username":username,"password":"SafePassword9!"}).status_code == 200
+    assert client.post(login_path, json={"username":username,"password":"AnotherSafe9!"}).status_code == 401
+
+
+def test_open_websocket_stops_after_password_change(env, monkeypatch):
+    _, client = env
+    fake = types.ModuleType("modules.govt_sync.browser_session")
+    fake.get_session_meta = lambda _: {"tenant_id":1, "case_id":1}
+    async def noop(*args): pass
+    fake.attach_stream = fake.detach_stream = fake.relay_input = noop
+    monkeypatch.setitem(sys.modules, "modules.govt_sync.browser_session", fake)
+    auth = headers()
+    with client.websocket_connect('/api/govt/session/demo/stream?token=' + auth["Authorization"][7:]) as ws:
+        assert ws.receive_json()["type"] == "ready"
+        assert client.post("/api/auth/change-password", headers=auth,
+                           json={"current_password":"SafePassword9!","new_password":"AnotherSafe9!"}).status_code == 200
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_json()
+        assert exc.value.code == 4401
+
+
+def test_support_operator_credential_change_invalidates_capability_without_cutoff(env):
+    engine, client = env
+    seed_support(engine)
+    response = consume(client)
+    assert response.status_code == 200
+    auth = {"Authorization":"Bearer " + response.json()["token"]}
+    sql(engine, "UPDATE users SET password_hash=:password_hash WHERE username='operator'",
+        password_hash=hash_password("AnotherSafe9!"))
+    assert client.get("/api/auth/me", headers=auth).status_code == 401
+
+
+def test_unverifiable_credential_state_fails_closed(env, monkeypatch):
+    _, client = env
+    auth = headers()
+    original = mp._q_one
+    def missing_credential(query, params=None):
+        row = original(query, params)
+        if row and "SELECT * FROM users" in query:
+            row = {**row, "password_hash":None}
+        return row
+    monkeypatch.setattr(mp, "_q_one", missing_credential)
+    assert client.get("/api/auth/me", headers=auth).status_code == 401
+    assert mp._get_ws_user(auth["Authorization"][7:]) is None

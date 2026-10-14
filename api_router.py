@@ -40,7 +40,7 @@ from sansadx_backend.db import (
 )
 from core.db_helpers import _q, _q_one, _parse_meta
 from core.session_auth import (token_revoked, revoke_in_transaction, require_active_account,
-                               validate_session, validate_support, utc_timestamp)
+                               validate_session, validate_support, utc_timestamp, credential_binding)
 from modules.ack_composer import compose_status_update
 from modules.ack_validator import ack_policy_mode, validate_citizen_message, violation_codes
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
@@ -229,9 +229,9 @@ def _require_feature_access(user: dict | None, feature: str) -> None:
 # ─────────────────────────────────────────
 # JWT HELPERS
 # ─────────────────────────────────────────
-def create_token(data: dict, expires_delta: timedelta | None = None, *, issued_at: float | None = None) -> str:
+def create_token(data: dict, expires_delta: timedelta | None = None, *, credential_user: dict, issued_at: float | None = None) -> str:
     expiry = _utcnow() + (expires_delta or timedelta(hours=JWT_EXPIRE_HOURS))
-    payload = {**data, "iat": issued_at if issued_at is not None else datetime.now(timezone.utc).timestamp(), "exp": expiry}
+    payload = {**data, "credential_state": credential_binding(credential_user), "iat": issued_at if issued_at is not None else datetime.now(timezone.utc).timestamp(), "exp": expiry}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -358,7 +358,7 @@ def revoke_user_tokens(username: str):
 def get_current_user(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM],
-                             options={"require": ["sub", "tid", "role", "iat", "exp"]})
+                             options={"require": ["sub", "tid", "role", "iat", "exp", "credential_state"]})
         request.state.jwt_payload = payload
         user = validate_session(_q_one, payload)
         if payload.get("support_access"):
@@ -476,7 +476,7 @@ def login(req: LoginRequest, request: Request):
 
     tid = get_tenant_or_fail(user)
     tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
-    token = create_token({"sub": user["username"], "tid": tid, "role": user.get("role", "user")}, issued_at=auth_started_at)
+    token = create_token({"sub": user["username"], "tid": tid, "role": user.get("role", "user")}, credential_user=user, issued_at=auth_started_at)
 
     return {
         "token": token,
@@ -584,7 +584,8 @@ def complete_forced_password_reset(req: CompleteForcedPasswordResetRequest, user
         refreshed_user = _q_one("SELECT * FROM users WHERE username = :u", {"u": user["username"]})
         tid = get_tenant_or_fail(refreshed_user)
         tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
-        token = create_token({"sub": refreshed_user["username"], "tid": tid, "role": refreshed_user.get("role", "user")})
+        token = create_token({"sub": refreshed_user["username"], "tid": tid, "role": refreshed_user.get("role", "user")},
+                             credential_user={**user, "password_hash": new_hash})
         return {
             "success": True,
             "token": token,
@@ -878,6 +879,7 @@ def consume_support_access(req: SupportAccessConsumeRequest):
 
     support_context = {
         "support_access": True,
+        "support_operator_credential_state": credential_binding(operator),
         "is_support_access_session": True,
         "support_access_request_key": req.request_key,
         "support_access_requested_by": row.get("requested_by_admin_username"),
@@ -893,6 +895,7 @@ def consume_support_access(req: SupportAccessConsumeRequest):
             "role": target_user.get("role", "user"),
             **support_context,
         },
+        credential_user=target_user,
         expires_delta=timedelta(minutes=int(row.get("duration_minutes") or 30)),
     )
     _append_admin_audit_log(
@@ -4507,7 +4510,7 @@ def _get_ws_user(token: str) -> dict | None:
         return None
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM],
-                             options={"require": ["sub", "tid", "role", "iat", "exp"]})
+                             options={"require": ["sub", "tid", "role", "iat", "exp", "credential_state"]})
         user = validate_session(_q_one, payload)
         # A live browser supports input and cannot enforce the support read scope.
         if payload.get("support_access") or user.get("must_change_password"):

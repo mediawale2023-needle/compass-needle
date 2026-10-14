@@ -28,7 +28,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, TenantOverride, JobRun, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote, derive_account_stage, derive_seat_type, build_geography_key, parse_geography_key, get_all_geography_data, seat_label
 from core.db_helpers import _q, _q_one, _parse_meta
-from core.session_auth import (token_revoked, revoke_in_transaction, require_active_account, validate_session)
+from core.session_auth import (token_revoked, revoke_in_transaction, require_active_account, validate_session, credential_binding)
 from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
 from modules.seat_maps import list_all_seat_manifests, upsert_db_seat_manifest, get_db_seat_manifest, list_seat_map_workflows
@@ -171,8 +171,8 @@ def verify_password(password: str, stored_hash: str) -> bool:
     return False
 
 
-def create_admin_token(data: dict, *, issued_at: float | None = None) -> str:
-    payload = {**data, "iat": issued_at if issued_at is not None else datetime.now(timezone.utc).timestamp(), "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
+def create_admin_token(data: dict, *, credential_user: dict, issued_at: float | None = None) -> str:
+    payload = {**data, "credential_state": credential_binding(credential_user), "iat": issued_at if issued_at is not None else datetime.now(timezone.utc).timestamp(), "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
     return jwt.encode(payload, ADMIN_JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -235,7 +235,7 @@ def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)
     """Verify JWT and ensure user has an admin role."""
     try:
         payload = jwt.decode(credentials.credentials, ADMIN_JWT_SECRET, algorithms=[JWT_ALGORITHM],
-                             options={"require": ["sub", "tid", "role", "iat", "exp"]})
+                             options={"require": ["sub", "tid", "role", "iat", "exp", "credential_state"]})
         return validate_session(_q_one, payload, admin_roles=ADMIN_ROLES)
     except JWTError:
         raise HTTPException(401, "Invalid or expired token")
@@ -752,12 +752,15 @@ def admin_login(req: AdminLoginRequest, request: Request):
 
     # Auto-upgrade plain text passwords to bcrypt
     stored_hash = user.get("password_hash", "")
+    credential_user = user
     if not (stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$")):
+        upgraded_hash = hash_password(req.password)
         with engine.begin() as conn:
             conn.execute(
                 text("UPDATE users SET password_hash = :h WHERE username = :u"),
-                {"h": hash_password(req.password), "u": req.username},
+                {"h": upgraded_hash, "u": req.username},
             )
+        credential_user = {**user, "password_hash": upgraded_hash}
 
     # Update last_login
     try:
@@ -774,7 +777,7 @@ def admin_login(req: AdminLoginRequest, request: Request):
         "sub": user["username"],
         "tid": admin_tid,
         "role": user.get("role", "admin"),
-    }, issued_at=auth_started_at)
+    }, credential_user=credential_user, issued_at=auth_started_at)
 
     return {
         "token": token,

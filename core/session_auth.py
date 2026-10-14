@@ -1,10 +1,36 @@
 """Shared, database-backed session checks for HTTP and WebSocket access."""
+import hashlib
+import hmac
+import json
 import math
 import re
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
 from sqlalchemy import text
+
+
+def credential_binding(user):
+    """Opaque binding to the credential snapshot that authenticated this token.
+
+    Never publish the password hash itself. The stored bcrypt hash changes in
+    the password transaction, so commit invalidates old bindings and rollback
+    preserves them, independently of token/cutoff timestamps.
+    """
+    username, password_hash = user.get("username"), user.get("password_hash")
+    if not all(isinstance(value, str) and value for value in (username, password_hash)):
+        raise ValueError("Credential state unavailable")
+    message = json.dumps(["needle-credential-v1", username, password_hash], separators=(",", ":"))
+    # The enclosing JWT signature supplies authenticity. This digest only
+    # avoids disclosing the stored password hash in the token payload.
+    return hashlib.sha256(message.encode()).hexdigest()
+
+
+def credential_matches(user, binding):
+    try:
+        return isinstance(binding, str) and hmac.compare_digest(credential_binding(user), binding)
+    except (ValueError, TypeError, AttributeError):
+        return False
 
 
 def utc_timestamp(value):
@@ -58,6 +84,8 @@ def validate_session(query_one, payload, *, admin_roles=None):
         raise HTTPException(401, "Session invalid. Please sign in again.")
     user = query_one("SELECT * FROM users WHERE username = :u", {"u": username})
     require_active_account(query_one, user, require_tenant=admin_roles is None)
+    if not credential_matches(user, payload.get("credential_state")):
+        raise HTTPException(401, "Credentials changed. Please sign in again.")
     try:
         bound_tenant = int(payload["tid"] or 0) == int(user.get("tenant_id") or 0)
     except (KeyError, ValueError, TypeError):
@@ -101,7 +129,8 @@ def validate_support(query_one, payload, user, method, path, admin_roles):
     # Bind revocation to the approval request as well as the issued token: an
     # operator logout racing with consumption must not mint a fresh capability.
     authorized_at = utc_timestamp(row["requested_at"])
-    if (operator.get("role") not in admin_roles
+    if (not credential_matches(operator, payload.get("support_operator_credential_state"))
+            or operator.get("role") not in admin_roles
             or token_revoked(query_one, operator["username"], authorized_at)
             or token_revoked(query_one, user["username"], authorized_at)):
         raise HTTPException(401, "Support operator access is unavailable.")

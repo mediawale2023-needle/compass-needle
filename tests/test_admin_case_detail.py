@@ -11,6 +11,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 import jwt
+from tests.auth_token_claims import credential_claims
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
@@ -59,7 +60,7 @@ def _utcnow():
 
 def _headers(role="sysadmin", sub="sysadmin"):
     token = jwt.encode(
-        {"sub": sub, "tid": 1 if sub == "sysadmin" else 2, "role": role, "iat": _utcnow().timestamp(), "exp": _utcnow().timestamp() + 3600},
+        {**credential_claims(test_engine, sub), "sub": sub, "tid": 1 if sub == "sysadmin" else 2, "role": role, "iat": _utcnow().timestamp(), "exp": _utcnow().timestamp() + 3600},
         TEST_JWT_SECRET,
         algorithm="HS256",
     )

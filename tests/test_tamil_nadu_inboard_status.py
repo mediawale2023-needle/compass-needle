@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock, patch
 
 import jwt
+from tests.auth_token_claims import credential_claims
 import pytest
 import requests
 from cryptography.fernet import Fernet
@@ -358,7 +359,7 @@ def test_cookie_key_error_through_adapter_classified_auth_required(monkeypatch):
 
 
 def _auth_headers():
-    token = jwt.encode({"sub": "mp_tn", "tid": 1, "role": "mp", "exp": datetime.now(timezone.utc).timestamp() + 3600, "iat": datetime.now(timezone.utc).timestamp()}, os.environ["JWT_SECRET"], algorithm="HS256")
+    token = jwt.encode({**credential_claims(test_engine, "mp_tn"), "sub": "mp_tn", "tid": 1, "role": "mp", "exp": datetime.now(timezone.utc).timestamp() + 3600, "iat": datetime.now(timezone.utc).timestamp()}, os.environ["JWT_SECRET"], algorithm="HS256")
     return {"Authorization": f"Bearer {token}"}
 
 
