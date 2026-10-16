@@ -3283,7 +3283,10 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         };
     })();
 
-    const acceptSuggestion = async () => {
+    // Function declaration (hoisted): contextCallout above references this
+    // during render, so a `const` arrow here would throw a TDZ ReferenceError
+    // for every uncategorised case that carries an AI triage suggestion.
+    async function acceptSuggestion() {
         if (!suggestedTriage?.ai_category || acceptingSuggestion) return;
         setAcceptingSuggestion(true);
         try {
@@ -3322,7 +3325,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         } finally {
             setAcceptingSuggestion(false);
         }
-    };
+    }
 
     const handleStatusChange = async (newStatus, confirmed = false) => {
         if (newStatus === 'resolved' && !confirmed) { setResolveOpen(true); return; }
