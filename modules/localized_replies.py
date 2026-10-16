@@ -25,9 +25,16 @@ def _normalize_language(detected_language: str = "") -> str:
     return normalize_language_name(detected_language, "Hindi")
 
 
-def _pick_template(native_templates: dict[str, str], latin_templates: dict[str, str], detected_language: str = "", original_text: str = "") -> str:
+def _pick_template(
+    native_templates: dict[str, str],
+    latin_templates: dict[str, str],
+    detected_language: str = "",
+    original_text: str = "",
+    reply_script: str = "",
+) -> str:
     normalized = _normalize_language(detected_language)
-    if original_text and _mostly_ascii(original_text) and normalized in latin_templates:
+    use_latin = reply_script == "Latin" or (not reply_script and original_text and _mostly_ascii(original_text))
+    if use_latin and normalized in latin_templates:
         return latin_templates[normalized]
     return native_templates.get(normalized, native_templates.get("Hindi", ""))
 
@@ -537,7 +544,7 @@ _DEFAULT_DETAILS_REQUEST = _DETAILS_REQUEST["Hindi"]
 DETAILS_REQUEST_STATUSES = {"incomplete"}
 
 
-def get_details_request_reply(detected_language: str = "", original_text: str = "") -> str:
+def get_details_request_reply(detected_language: str = "", original_text: str = "", reply_script: str = "") -> str:
     """Return a localized follow-up message asking the citizen for their personal details.
 
     Sent as a second message after the grievance acknowledgment for valid cases
@@ -549,7 +556,7 @@ def get_details_request_reply(detected_language: str = "", original_text: str = 
     Returns:
         A formatted WhatsApp-ready string in the citizen's language.
     """
-    return ensure_ji_prefix(_pick_template(_DETAILS_REQUEST, {}, detected_language, original_text) or _DEFAULT_DETAILS_REQUEST)
+    return ensure_ji_prefix(_pick_template(_DETAILS_REQUEST, {}, detected_language, original_text, reply_script) or _DEFAULT_DETAILS_REQUEST)
 
 # Normalize incoming detected_language values to our keys
 _LANG_ALIASES: dict[str, str] = {
@@ -572,7 +579,7 @@ _LANG_ALIASES: dict[str, str] = {
 }
 
 
-def get_awaiting_location_reply(location: str, detected_language: str = "", original_text: str = "") -> str:
+def get_awaiting_location_reply(location: str, detected_language: str = "", original_text: str = "", reply_script: str = "") -> str:
     """Return a localized 'please clarify your location' message.
 
     Args:
@@ -582,7 +589,7 @@ def get_awaiting_location_reply(location: str, detected_language: str = "", orig
     Returns:
         A formatted WhatsApp-ready string in the citizen's language.
     """
-    template = _pick_template(_AWAITING_LOCATION, _AWAITING_LOCATION_LATIN, detected_language, original_text) or _DEFAULT_AWAITING_LOCATION
+    template = _pick_template(_AWAITING_LOCATION, _AWAITING_LOCATION_LATIN, detected_language, original_text, reply_script) or _DEFAULT_AWAITING_LOCATION
     # FIX P1: Use str.replace() instead of .format() to prevent Python format-string
     # injection attacks via crafted location strings (e.g. "{0.__class__.__mro__[1]}").
     # .replace() treats the substitution value as a literal string — no format parsing occurs.
@@ -629,25 +636,25 @@ _MISSING_LOCATION_LATIN: dict[str, str] = {
 }
 
 
-def get_missing_location_reply(detected_language: str = "", original_text: str = "") -> str:
-    return ensure_ji_prefix(_pick_template(_MISSING_LOCATION, _MISSING_LOCATION_LATIN, detected_language, original_text) or _MISSING_LOCATION["English"])
+def get_missing_location_reply(detected_language: str = "", original_text: str = "", reply_script: str = "") -> str:
+    return ensure_ji_prefix(_pick_template(_MISSING_LOCATION, _MISSING_LOCATION_LATIN, detected_language, original_text, reply_script) or _MISSING_LOCATION["English"])
 
 
-def get_generic_ack_reply(detected_language: str = "", original_text: str = "") -> str:
-    return ensure_ji_prefix(_pick_template(_GENERIC_ACK, _GENERIC_ACK_LATIN, detected_language, original_text) or _GENERIC_ACK["English"])
+def get_generic_ack_reply(detected_language: str = "", original_text: str = "", reply_script: str = "") -> str:
+    return ensure_ji_prefix(_pick_template(_GENERIC_ACK, _GENERIC_ACK_LATIN, detected_language, original_text, reply_script) or _GENERIC_ACK["English"])
 
 
-def get_greeting_reply(detected_language: str = "", original_text: str = "") -> str:
-    return ensure_ji_prefix(_pick_template(_GREETING_REPLY, _GREETING_REPLY_LATIN, detected_language, original_text) or _GREETING_REPLY["English"])
+def get_greeting_reply(detected_language: str = "", original_text: str = "", reply_script: str = "") -> str:
+    return ensure_ji_prefix(_pick_template(_GREETING_REPLY, _GREETING_REPLY_LATIN, detected_language, original_text, reply_script) or _GREETING_REPLY["English"])
 
 
-def get_review_ack_reply(detected_language: str = "", original_text: str = "") -> str:
-    return ensure_ji_prefix(_pick_template(_REVIEW_ACK, _REVIEW_ACK_LATIN, detected_language, original_text) or _REVIEW_ACK["English"])
+def get_review_ack_reply(detected_language: str = "", original_text: str = "", reply_script: str = "") -> str:
+    return ensure_ji_prefix(_pick_template(_REVIEW_ACK, _REVIEW_ACK_LATIN, detected_language, original_text, reply_script) or _REVIEW_ACK["English"])
 
 
-def get_personal_request_reply(detected_language: str = "", original_text: str = "") -> str:
+def get_personal_request_reply(detected_language: str = "", original_text: str = "", reply_script: str = "") -> str:
     return ensure_ji_prefix(
-        _pick_template(_PERSONAL_REQUEST_REPLY, _PERSONAL_REQUEST_REPLY_LATIN, detected_language, original_text)
+        _pick_template(_PERSONAL_REQUEST_REPLY, _PERSONAL_REQUEST_REPLY_LATIN, detected_language, original_text, reply_script)
         or _PERSONAL_REQUEST_REPLY["Hindi"]
     )
 
@@ -671,11 +678,11 @@ def get_location_update_reply(location: str, detected_language: str = "", origin
 # reference numbers anywhere — acknowledgments stay plain by policy.
 
 _ADDITIONAL_ISSUE_ACK: dict[str, str] = {
-    "Hindi": "Aapki baat note kar li gayi hai 🙏\\n\\nHum is par zaroor dhyan denge aur zarurat padne par aapse sampark karenge.",
-    "Hinglish": "Aapka message note kar liya hai 🙏\\n\\nHum is issue ko dekhenge aur zarurat padne par aapse contact karenge.",
-    "Marathi": "Tumchi takrar nondavli aahe 🙏\\n\\nAamhi ya vishayakade laksh deu ani garaj aslyas tumchyashi sampark karu.",
-    "Kannada": "ನಿಮ್ಮ ಸಮಸ್ಯೆಯನ್ನು ದಾಖಲಿಸಲಾಗಿದೆ 🙏\\n\\nನಾವು ಇದನ್ನು ಪರಿಶೀಲಿಸುತ್ತೇವೆ ಮತ್ತು ಅಗತ್ಯವಿದ್ದರೆ ನಿಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸುತ್ತೇವೆ.",
-    "English": "Thank you for letting us know 🙏\\n\\nWe have noted this concern and will follow up if we need any further information.",
+    "Hindi": "Aapki baat note kar li gayi hai 🙏\n\nHum is par zaroor dhyan denge aur zarurat padne par aapse sampark karenge.",
+    "Hinglish": "Aapka message note kar liya hai 🙏\n\nHum is issue ko dekhenge aur zarurat padne par aapse contact karenge.",
+    "Marathi": "Tumchi takrar nondavli aahe 🙏\n\nAamhi ya vishayakade laksh deu ani garaj aslyas tumchyashi sampark karu.",
+    "Kannada": "ನಿಮ್ಮ ಸಮಸ್ಯೆಯನ್ನು ದಾಖಲಿಸಲಾಗಿದೆ 🙏\n\nನಾವು ಇದನ್ನು ಪರಿಶೀಲಿಸುತ್ತೇವೆ ಮತ್ತು ಅಗತ್ಯವಿದ್ದರೆ ನಿಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸುತ್ತೇವೆ.",
+    "English": "Thank you for letting us know 🙏\n\nWe have noted this concern and will follow up if we need any further information.",
 }
 
 _ADDITIONAL_ISSUE_ACK_LATIN: dict[str, str] = {
@@ -687,7 +694,7 @@ _ADDITIONAL_ISSUE_ACK_LATIN: dict[str, str] = {
 }
 
 
-def get_additional_issue_ack_reply(count: int, detected_language: str = "", original_text: str = "") -> str:
+def get_additional_issue_ack_reply(count: int, detected_language: str = "", original_text: str = "", reply_script: str = "") -> str:
     """Natural acknowledgement for another distinct concern in an active thread.
 
     The count remains an internal routing signal. Citizen-facing text must not
@@ -700,6 +707,7 @@ def get_additional_issue_ack_reply(count: int, detected_language: str = "", orig
         _ADDITIONAL_ISSUE_ACK_LATIN,
         detected_language,
         original_text,
+        reply_script,
     ) or _ADDITIONAL_ISSUE_ACK["English"]
     return ensure_ji_prefix(template)
 
@@ -738,9 +746,9 @@ _THREAD_REASSURANCE_LATIN: dict[str, str] = {
 }
 
 
-def get_thread_reassurance_reply(detected_language: str = "", original_text: str = "") -> str:
+def get_thread_reassurance_reply(detected_language: str = "", original_text: str = "", reply_script: str = "") -> str:
     """One-per-thread 'still with us' reply for duplicate follow-ups and nudges."""
-    return ensure_ji_prefix(_pick_template(_THREAD_REASSURANCE, _THREAD_REASSURANCE_LATIN, detected_language, original_text) or _THREAD_REASSURANCE["Hindi"])
+    return ensure_ji_prefix(_pick_template(_THREAD_REASSURANCE, _THREAD_REASSURANCE_LATIN, detected_language, original_text, reply_script) or _THREAD_REASSURANCE["Hindi"])
 
 
 _HIGH_FREQUENCY_NOTICE: dict[str, str] = {
@@ -777,6 +785,6 @@ _HIGH_FREQUENCY_NOTICE_LATIN: dict[str, str] = {
 }
 
 
-def get_high_frequency_notice_reply(detected_language: str = "", original_text: str = "") -> str:
+def get_high_frequency_notice_reply(detected_language: str = "", original_text: str = "", reply_script: str = "") -> str:
     """One-per-thread boundary notice when the 6th distinct issue arrives."""
-    return ensure_ji_prefix(_pick_template(_HIGH_FREQUENCY_NOTICE, _HIGH_FREQUENCY_NOTICE_LATIN, detected_language, original_text) or _HIGH_FREQUENCY_NOTICE["Hindi"])
+    return ensure_ji_prefix(_pick_template(_HIGH_FREQUENCY_NOTICE, _HIGH_FREQUENCY_NOTICE_LATIN, detected_language, original_text, reply_script) or _HIGH_FREQUENCY_NOTICE["Hindi"])

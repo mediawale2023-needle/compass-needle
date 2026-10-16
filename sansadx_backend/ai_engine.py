@@ -538,6 +538,21 @@ def _split_context_and_message(raw_input: str) -> tuple[str, str]:
     return "", text
 
 
+def _authoritative_language_context(extra_context: str) -> tuple[str, str]:
+    """Read the system-generated conversation language decision, if present."""
+    match = re.search(
+        r"AUTHORITATIVE LANGUAGE CONTEXT \(system generated\):\s*"
+        r"language=([^;\n]+);\s*script=([^;\n]+)",
+        extra_context or "",
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return "", ""
+    language = normalize_language_name(match.group(1).strip(), "")
+    script = match.group(2).strip()
+    return language, script
+
+
 def _mostly_ascii(text: str) -> bool:
     stripped = [c for c in (text or "") if not c.isspace()]
     if not stripped:
@@ -784,6 +799,10 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     extra_context, primary_message = _split_context_and_message(user_message)
     effective_user_message = primary_message or (user_message or "")
     detected_lang, lang_confident = detect_input_language_confident(effective_user_message)
+    context_language, context_script = _authoritative_language_context(extra_context)
+    if context_language:
+        detected_lang = context_language
+        lang_confident = True
 
     # --- Inject MP Persona & Professional Constraints ---
     mp_identity = ""
@@ -804,7 +823,17 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     # Only force a specific language when our rule-based detector is confident.
     # When it isn't (e.g. romanized Kannada the markers missed), instruct GPT to
     # detect the citizen's actual language itself instead of forcing a guess.
-    if lang_confident:
+    if context_language:
+        language_rule = (
+            f"LANGUAGE: Conversation policy resolved the citizen's language as **{context_language}** "
+            f"and script as **{context_script or 'Unknown'}**. You MUST use that language and preserve "
+            "that script. The current message may be short, transliterated, or code-mixed; do not "
+            "reclassify it from one ambiguous token. "
+            f'Set detected_language to "{context_language}".'
+        )
+        reply_language_phrase = context_language
+        language_tag = f"{context_language}; script={context_script or 'Unknown'}; conversation-authoritative"
+    elif lang_confident:
         language_rule = (
             f"LANGUAGE: The citizen's message is in **{detected_lang}**. You MUST write your "
             f"political_response in **{detected_lang}** only. Do NOT switch to Hindi or any other "
@@ -926,7 +955,9 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             # keep GPT's own detection (it reads romanized/mixed Indian text far
             # better than a static marker list). Fall back to the rule guess only
             # if GPT returned nothing usable.
-            if lang_confident:
+            if context_language:
+                data["detected_language"] = context_language
+            elif lang_confident:
                 data["detected_language"] = detected_lang
             else:
                 gpt_lang = normalize_language_name(str(data.get("detected_language", "")), "")

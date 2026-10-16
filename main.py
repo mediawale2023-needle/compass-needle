@@ -71,7 +71,7 @@ def _get_meta_app_secret() -> str:
     """Read the current webhook signing secret from env at request time."""
     return os.getenv("META_APP_SECRET", "") or META_APP_SECRET
 
-from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_geo_overrides, get_tenant_phone_number_id, log_letterbox_activity
+from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_tenant_phone_number_id, log_letterbox_activity
 
 
 # ── Needle status write helpers ──────────────────────────────────────────
@@ -1979,7 +1979,13 @@ def _maybe_send_thread_reassurance(
             detected_language = meta.get("detected_language") or meta.get("language") or ""
             if detected_language:
                 break
-    reply = get_thread_reassurance_reply(detected_language, original_text)
+    decision = _resolve_citizen_language_decision(
+        original_text,
+        language_hint=detected_language,
+        history_rows=thread_rows,
+    )
+    reply = get_thread_reassurance_reply(decision.language, original_text, decision.script)
+    reply, _validation = validate_and_prepare_reply(reply, decision)
     try:
         send_whatsapp_message(sender, reply, wa_phone_id)
     except Exception as exc:
@@ -2007,11 +2013,23 @@ def _resolve_thread_ack_message(
     thread stays silent (spam suppression handles 10+ before this is called).
     No case reference numbers — acknowledgments stay plain by policy.
     """
+    decision = _resolve_citizen_language_decision(
+        original_text,
+        language_hint=detected_language,
+        history_rows=thread_rows,
+    )
     if projected_distinct_count >= _CONTACT_THREAD_HIGH_FREQUENCY_DISTINCT:
         if _thread_meta_flag(thread_rows, "contact_thread_boundary_notice_sent_at"):
             return "", False
-        return get_high_frequency_notice_reply(detected_language, original_text), True
-    return get_additional_issue_ack_reply(projected_distinct_count, detected_language, original_text), False
+        reply = get_high_frequency_notice_reply(decision.language, original_text, decision.script)
+        return validate_and_prepare_reply(reply, decision)[0], True
+    reply = get_additional_issue_ack_reply(
+        projected_distinct_count,
+        decision.language,
+        original_text,
+        decision.script,
+    )
+    return validate_and_prepare_reply(reply, decision)[0], False
 
 
 def _handle_low_info_or_case_comment(
@@ -2707,6 +2725,13 @@ from modules.briefcase_rules import apply_civic_rules
 from modules.staff_schedule_parser import parse_staff_schedule_message
 from modules.whatsapp_geography import finalize_geography_decision
 from modules.tenant_languages import resolve_tenant_languages
+from modules.citizen_language import (
+    LanguageDecision,
+    language_context_prompt,
+    previous_language_decision,
+    resolve_language_decision,
+    validate_and_prepare_reply,
+)
 from modules.case_comment_heuristics import detect_case_comment
 from modules.geography_policy import location_required_for_grievance
 from modules.classification_policy import classification_writes_enabled, get_classification_mode
@@ -4186,25 +4211,29 @@ def _get_tenant_daily_limit(tenant_id: int) -> int:
     return limit
 
 
-def _resolve_citizen_reply_language(message_body: str, ai_result: dict | None = None, language_hint: str = "") -> str:
-    # 1. An explicit per-number tenant language override always wins.
-    hinted_language = normalize_language_name(language_hint, "")
-    if hinted_language:
-        return hinted_language
-
-    # 2. Trust the rule-based detector ONLY when it is confident (real markers
-    #    matched). It is high-precision but cannot enumerate every way citizens
-    #    romanize their language, so a non-confident "English"/"Hindi" guess must
-    #    not override the LLM's far broader detection.
+def _resolve_citizen_language_decision(
+    message_body: str,
+    ai_result: dict | None = None,
+    language_hint: str = "",
+    *,
+    history_rows: list[dict] | None = None,
+    tenant_languages: list[str] | None = None,
+) -> LanguageDecision:
     rule_lang, rule_confident = detect_input_language_confident(message_body)
-    if rule_confident:
-        return rule_lang
+    return resolve_language_decision(
+        message=message_body,
+        rule_language=rule_lang,
+        rule_confident=rule_confident,
+        ai_language=(ai_result or {}).get("detected_language", ""),
+        language_hint=language_hint,
+        history_rows=history_rows or (),
+        tenant_languages=tenant_languages or (),
+    )
 
-    # 3. Defer to the language the AI engine resolved (GPT's own detection of the
-    #    citizen's romanized/mixed message). Fall back to the rule guess only if
-    #    no AI result is available (pre-AI / AI-failure paths).
-    ai_lang = normalize_language_name((ai_result or {}).get("detected_language", ""), "")
-    return ai_lang or rule_lang
+
+def _resolve_citizen_reply_language(message_body: str, ai_result: dict | None = None, language_hint: str = "") -> str:
+    """Backward-compatible wrapper for callers that only need the label."""
+    return _resolve_citizen_language_decision(message_body, ai_result, language_hint).language
 
 
 def _resolve_citizen_ack_message(
@@ -4214,6 +4243,7 @@ def _resolve_citizen_ack_message(
     detected_language: str,
     message_body: str,
     location_name: str | None = None,
+    reply_script: str = "",
 ) -> str:
     """
     Return the exact WhatsApp text citizens should receive for intake.
@@ -4230,13 +4260,13 @@ def _resolve_citizen_ack_message(
     # Checked before status-based branches so a greeting the AI marked
     # 'irrelevant' still gets the greeting reply, not the review acknowledgement.
     if str(category or "").lower().strip() in _GREETING_CATEGORIES:
-        return get_greeting_reply(detected_language, message_body)
+        return get_greeting_reply(detected_language, message_body, reply_script)
 
     if str(category or "").lower().strip() in _SILENT_LOG_CATEGORIES:
         return ""
 
     if normalized_status == "awaiting_location":
-        return get_generic_ack_reply(detected_language, message_body)
+        return get_generic_ack_reply(detected_language, message_body, reply_script)
 
     if normalized_status in DETAILS_REQUEST_STATUSES:
         # Immediate details-request is only for the contextless-media lane
@@ -4244,16 +4274,16 @@ def _resolve_citizen_ack_message(
         # "ack first, clarify later" policy: a warm generic ack now, with the
         # details ask arriving via the delayed clarification follow-up.
         if str(category or "").lower().strip() == "document / attachment only":
-            return get_details_request_reply(detected_language, message_body)
-        return get_generic_ack_reply(detected_language, message_body)
+            return get_details_request_reply(detected_language, message_body, reply_script)
+        return get_generic_ack_reply(detected_language, message_body, reply_script)
 
     if normalized_status == "irrelevant":
-        return get_review_ack_reply(detected_language, message_body)
+        return get_review_ack_reply(detected_language, message_body, reply_script)
 
     if str(category or "").lower().strip() == "personal request":
-        return get_personal_request_reply(detected_language, message_body)
+        return get_personal_request_reply(detected_language, message_body, reply_script)
 
-    return get_generic_ack_reply(detected_language, message_body)
+    return get_generic_ack_reply(detected_language, message_body, reply_script)
 
 
 _CLARIFICATION_DELAY_SECONDS = max(120, int(os.getenv("CITIZEN_CLARIFICATION_DELAY_SECONDS", "150") or "150"))
@@ -4307,14 +4337,23 @@ def _apply_clarification_metadata(
 
 
 def _build_clarification_follow_up_message(meta: dict, raw_message: str) -> str:
-    detected_language = normalize_language_name(meta.get("clarification_language", ""), "Hindi")
+    decision = previous_language_decision([{"case_metadata": meta, "raw_message": raw_message}])
+    if not decision:
+        decision = _resolve_citizen_language_decision(
+            raw_message,
+            language_hint=normalize_language_name(meta.get("clarification_language", ""), ""),
+        )
+    detected_language = decision.language
     follow_up_kind = str(meta.get("clarification_follow_up_kind") or "").strip().lower()
     if follow_up_kind == "missing_location":
         location_hint = str(meta.get("matched_value") or "").strip()
         if location_hint:
-            return get_awaiting_location_reply(location_hint, detected_language, raw_message)
-        return get_missing_location_reply(detected_language, raw_message)
-    return get_details_request_reply(detected_language, raw_message)
+            reply = get_awaiting_location_reply(location_hint, detected_language, raw_message, decision.script)
+        else:
+            reply = get_missing_location_reply(detected_language, raw_message, decision.script)
+    else:
+        reply = get_details_request_reply(detected_language, raw_message, decision.script)
+    return validate_and_prepare_reply(reply, decision)[0]
 
 
 def _cancel_case_clarification_follow_up(case_id: int | None) -> None:
@@ -4401,7 +4440,15 @@ def _run_citizen_case_enrichment(
     thread_context: str = "",
 ) -> dict:
     user_context = get_user_context(sender)
-    context_parts: list[str] = []
+    conversation_rows = _recent_contact_thread_cases(sender, current_tenant)
+    tenant_language_context = resolve_tenant_languages(current_tenant)
+    preliminary_language = _resolve_citizen_language_decision(
+        message_body,
+        language_hint=language_hint,
+        history_rows=conversation_rows,
+        tenant_languages=tenant_language_context,
+    )
+    context_parts: list[str] = [language_context_prompt(preliminary_language)]
     if user_context:
         context_parts.append(user_context)
     if thread_context:
@@ -4427,7 +4474,14 @@ def _run_citizen_case_enrichment(
 
     grievance = ai_result.get("grievance_data", {}) or {}
     status = str(ai_result.get("status", "new")).lower()
-    detected_language = _resolve_citizen_reply_language(message_body, ai_result, language_hint)
+    language_decision = _resolve_citizen_language_decision(
+        message_body,
+        ai_result,
+        language_hint,
+        history_rows=conversation_rows,
+        tenant_languages=tenant_language_context,
+    )
+    detected_language = language_decision.language
     problem_domain = grievance.get("problem_domain")
     problem_subdomain = grievance.get("problem_subdomain")
     convergence_program_type = grievance.get("convergence_program_type")
@@ -4563,7 +4617,7 @@ def _run_citizen_case_enrichment(
     # champion/challenger, same rollout pattern as ack policy/classification.
     try:
         _shadow_span = str(
-            grievance.get("location") or location_name or ""
+            grievance.get("location") or grievance.get("unresolved_location") or location_name or ""
         ).strip()
         if _shadow_span and not _non_grievance_lane:
             from modules.geo_resolver_v2 import shadow_compare
@@ -4583,6 +4637,11 @@ def _run_citizen_case_enrichment(
         detected_language=detected_language,
         message_body=message_body,
         location_name=location_name,
+        reply_script=language_decision.script,
+    )
+    citizen_ack_message, reply_validation = validate_and_prepare_reply(
+        citizen_ack_message,
+        language_decision,
     )
 
     # TEMP DIAGNOSTIC (grep: INTENT_DIAG) — remove once voice-note intent routing
@@ -4597,92 +4656,6 @@ def _run_citizen_case_enrichment(
         (citizen_ack_message or "")[:120],
         (message_body or "")[:240],
     )
-
-    if location_name and not final_constituency:
-        lookup_key = str(location_name).lower().strip()
-        combined_geo = {}
-        try:
-            geo_map = get_geo_overrides(current_tenant)
-            combined_geo.update(geo_map)
-        except Exception:
-            logger.warning("Geo override lookup failed for tenant %s", current_tenant)
-
-        try:
-            import glob as _glob
-            tenant_const = None
-            try:
-                from sansadx_backend.db import SessionLocal as _SL2, Tenant as _T2
-                _db2 = _SL2()
-                try:
-                    _t2 = _db2.query(_T2).filter(_T2.id == current_tenant).first()
-                    if _t2:
-                        tenant_const = _t2.constituency
-                finally:
-                    _db2.close()
-            except Exception:
-                pass
-
-            if tenant_const:
-                for base in ["data/geography", "/app/data/geography"]:
-                    const_dir = os.path.join(base, tenant_const)
-                    if not os.path.isdir(const_dir):
-                        if os.path.isdir(base):
-                            for d in os.listdir(base):
-                                if d.lower() == tenant_const.lower() and os.path.isdir(os.path.join(base, d)):
-                                    const_dir = os.path.join(base, d)
-                                    break
-                            else:
-                                continue
-                        else:
-                            continue
-
-                    for fpath in _glob.glob(os.path.join(const_dir, "*.json")):
-                        assembly_name = os.path.splitext(os.path.basename(fpath))[0]
-                        try:
-                            with open(fpath, "r") as gf:
-                                stations = json.load(gf)
-                            if isinstance(stations, list):
-                                for station in stations:
-                                    if isinstance(station, dict):
-                                        loc = station.get("locality", "").strip()
-                                        if loc and loc not in combined_geo:
-                                            combined_geo[loc] = assembly_name
-                        except Exception:
-                            pass
-                    break
-        except Exception as e:
-            logger.warning(f"Geography file scan failed in main.py: {e}")
-
-        combined_lower = {k.lower(): v for k, v in combined_geo.items()}
-        final_constituency = combined_lower.get(lookup_key)
-        if not final_constituency:
-            import re as _re
-            for geo_key, geo_val in combined_lower.items():
-                if len(geo_key) >= 4:
-                    word_pattern = r'\b' + _re.escape(geo_key) + r'\b'
-                    if _re.search(word_pattern, lookup_key):
-                        final_constituency = geo_val
-                        break
-        if not final_constituency:
-            best_match = None
-            best_match_len = 0
-            for geo_key, geo_val in combined_lower.items():
-                if len(geo_key) >= 5 and geo_key in lookup_key and len(geo_key) > best_match_len:
-                    best_match = geo_val
-                    best_match_len = len(geo_key)
-                    best_match_key = geo_key
-            if best_match:
-                final_constituency = best_match
-        if not final_constituency and len(lookup_key) >= 5:
-            import difflib
-            candidate_keys = [
-                k for k in combined_lower.keys()
-                if len(k) >= 5 and 0.7 <= len(k)/len(lookup_key) <= 1.3
-            ]
-            if candidate_keys:
-                matches = difflib.get_close_matches(lookup_key, candidate_keys, n=1, cutoff=0.85)
-                if matches:
-                    final_constituency = combined_lower[matches[0]]
 
     _classification_shadow = grievance.get("classification_shadow") or {}
     if not isinstance(_classification_shadow, dict):
@@ -4713,9 +4686,13 @@ def _run_citizen_case_enrichment(
     meta_data = {
         "detected_language": detected_language,
         "language": detected_language,
+        "language_decision": language_decision.to_metadata(),
+        "reply_validation": reply_validation,
         "user_intent": status,
-        "location_resolved": bool(location_name and final_constituency != "Unknown"),
-        "matched_value": location_name or "",
+        "location_resolved": bool(grievance.get("location_resolved")),
+        "matched_value": location_name if grievance.get("location_resolved") else "",
+        "unresolved_location": grievance.get("unresolved_location", ""),
+        "geography_candidate": grievance.get("geography_candidate"),
         "assembly_constituency": final_constituency,
         "geography_confidence": grievance.get("geography_confidence", "unknown"),
         "geography_source": grievance.get("geography_source", "unknown"),
@@ -4762,6 +4739,7 @@ def _run_citizen_case_enrichment(
         "grievance": grievance,
         "status": status,
         "detected_language": detected_language,
+        "language_decision": language_decision,
         "problem_domain": problem_domain,
         "problem_subdomain": problem_subdomain,
         "convergence_program_type": convergence_program_type,
@@ -4793,6 +4771,13 @@ def _save_case_enrichment_and_respond(
     category = enrichment["category"]
     detected_language = enrichment["detected_language"]
     reply_text = citizen_ack_override if citizen_ack_override is not None else enrichment["citizen_ack_message"]
+    language_decision = enrichment.get("language_decision")
+    if not isinstance(language_decision, LanguageDecision):
+        language_decision = _resolve_citizen_language_decision(message_body, enrichment.get("ai_result"), detected_language)
+    reply_text, reply_validation = validate_and_prepare_reply(reply_text, language_decision)
+    if not (citizen_ack_override if citizen_ack_override is not None else enrichment["citizen_ack_message"]):
+        reply_text = ""
+    enrichment["meta_data"]["reply_validation"] = reply_validation
     meta_data, clarification_needed = _apply_clarification_metadata(
         enrichment["meta_data"],
         status=status,

@@ -6,7 +6,6 @@ from modules.localized_replies import get_awaiting_location_reply, get_generic_a
 
 logger = logging.getLogger(__name__)
 
-_LOW_CONFIDENCE_LEVELS = {"fuzzy", "speech_phonetic"}
 _PROTECTED_STATUSES = {"emergency", "offensive", "irrelevant"}
 
 
@@ -73,6 +72,41 @@ def _normalize_confidence_level(resolution: dict[str, Any] | None) -> str:
     if confidence in {"db_alias_exact", "god_mode", "high"}:
         return "exact"
     return "unknown"
+
+
+def is_verified_geography_match(resolution: dict[str, Any] | None) -> bool:
+    """Only deterministic high-confidence matches may become case geography."""
+    if not resolution or not resolution.get("location_resolved"):
+        return False
+    if resolution.get("needs_confirmation"):
+        return False
+    return _normalize_confidence_level(resolution) in {"exact", "boundary", "manual"}
+
+
+def _preserve_unverified_candidate(
+    grievance: dict[str, Any],
+    resolution: dict[str, Any],
+    *,
+    source: str,
+) -> None:
+    candidate = _clean_location_candidate(resolution.get("matched_value"))
+    if candidate:
+        grievance["unresolved_location"] = candidate
+    grievance["geography_candidate"] = {
+        "matched_value": candidate or "",
+        "assembly_constituency": str(resolution.get("assembly_constituency") or "").strip(),
+        "confidence_level": _normalize_confidence_level(resolution),
+        "match_type": str(resolution.get("match_type") or "").strip(),
+        "source": source,
+        "verified": False,
+    }
+    grievance["location_resolved"] = False
+    grievance["needs_geography_review"] = True
+    grievance["geography_review_reason"] = "candidate_requires_confirmation"
+    grievance["geography_confidence"] = _normalize_confidence_level(resolution)
+    grievance["geography_source"] = source
+    grievance.pop("location", None)
+    grievance.pop("assembly_constituency", None)
 
 
 def _init_geography_diagnostics(
@@ -162,14 +196,13 @@ def _apply_resolved_geography(
     grievance["geography_confidence"] = confidence_level
     grievance["geography_source"] = source
     grievance["location_resolved"] = bool(location_name and final_constituency)
-    grievance["needs_geography_review"] = confidence_level in _LOW_CONFIDENCE_LEVELS
+    grievance["needs_geography_review"] = False
     grievance.pop("geography_review_reason", None)
-
-    if grievance["needs_geography_review"]:
-        grievance["geography_review_reason"] = "low_confidence_match"
+    grievance.pop("unresolved_location", None)
+    grievance.pop("geography_candidate", None)
 
     if status not in _PROTECTED_STATUSES:
-        status = "pending_review" if grievance["needs_geography_review"] else "new"
+        status = "new"
         political_reply = get_generic_ack_reply(detected_language, message_body)
 
     return location_name, final_constituency, status, political_reply
@@ -238,7 +271,7 @@ def finalize_geography_decision(
             resolution=raw_message_geo,
         )
 
-    if (not raw_message_geo.get("location_resolved")) and resolver_fallback_message_body:
+    if (not is_verified_geography_match(raw_message_geo)) and resolver_fallback_message_body:
         try:
             fallback_geo = resolve_location_fn(
                 resolver_fallback_message_body,
@@ -261,7 +294,7 @@ def finalize_geography_decision(
                 input_text=resolver_fallback_message_body,
                 resolution=fallback_geo,
             )
-            if fallback_geo.get("location_resolved"):
+            if is_verified_geography_match(fallback_geo):
                 location_name, final_constituency, status, political_reply = _apply_resolved_geography(
                     grievance=grievance,
                     resolution=fallback_geo,
@@ -272,8 +305,10 @@ def finalize_geography_decision(
                     detected_language=detected_language,
                     message_body=message_body,
                 )
+            elif fallback_geo.get("location_resolved"):
+                _preserve_unverified_candidate(grievance, fallback_geo, source="english_support")
 
-    if raw_message_geo.get("location_resolved"):
+    if is_verified_geography_match(raw_message_geo):
         location_name, final_constituency, status, political_reply = _apply_resolved_geography(
             grievance=grievance,
             resolution=raw_message_geo,
@@ -284,6 +319,9 @@ def finalize_geography_decision(
             detected_language=detected_language,
             message_body=message_body,
         )
+    elif raw_message_geo.get("location_resolved") and not final_constituency:
+        _preserve_unverified_candidate(grievance, raw_message_geo, source="raw_message")
+        location_name = None
 
     if not final_constituency:
         ai_constituency = (
@@ -337,7 +375,7 @@ def finalize_geography_decision(
                     resolution=location_hint_geo,
                 )
 
-            if location_hint_geo.get("location_resolved"):
+            if is_verified_geography_match(location_hint_geo):
                 location_name, final_constituency, status, political_reply = _apply_resolved_geography(
                     grievance=grievance,
                     resolution=location_hint_geo,
@@ -348,36 +386,31 @@ def finalize_geography_decision(
                     detected_language=detected_language,
                     message_body=message_body,
                 )
-            else:
-                _, resolved = resolve_constituency_fn(location_name, current_tenant)
-                final_constituency = resolved if resolved and resolved != "Unknown" else None
-                if final_constituency:
-                    grievance["assembly_constituency"] = final_constituency
-                    grievance["_match_confidence"] = "location_hint_boundary"
-                    grievance["geography_confidence"] = "boundary"
-                    grievance["geography_source"] = "location_hint"
-                    grievance["location_resolved"] = True
-                    grievance["needs_geography_review"] = False
-                    if status not in _PROTECTED_STATUSES:
-                        status = "new"
-                        political_reply = get_generic_ack_reply(detected_language, message_body)
-                else:
-                    diagnostics["fallback_constituency_lookup"] = {
-                        "input_excerpt": str(location_name or "")[:160],
-                        "resolved": False,
-                    }
+            elif location_hint_geo.get("location_resolved"):
+                _preserve_unverified_candidate(grievance, location_hint_geo, source="location_hint")
+                location_name = None
 
     if not final_constituency:
+        if location_name:
+            grievance.setdefault("unresolved_location", location_name)
+            grievance.pop("location", None)
+            location_name = None
         final_constituency = "Unknown"
         grievance["assembly_constituency"] = "Unknown"
-        grievance["geography_confidence"] = "unknown"
-        grievance["geography_source"] = grievance.get("geography_source") or "unknown"
+        if not grievance.get("geography_candidate"):
+            grievance["geography_confidence"] = "unknown"
+            grievance["geography_source"] = grievance.get("geography_source") or "unknown"
         grievance["location_resolved"] = False
         grievance["needs_geography_review"] = False
 
-    if final_constituency == "Unknown" and location_required and location_name and not is_emergency_complaint:
+    if grievance.get("geography_candidate"):
+        grievance["needs_geography_review"] = True
+        grievance["geography_review_reason"] = "candidate_requires_confirmation"
+
+    unresolved_hint = grievance.get("unresolved_location") or location_name
+    if final_constituency == "Unknown" and location_required and unresolved_hint and not is_emergency_complaint:
         status = "awaiting_location"
-        political_reply = get_awaiting_location_reply(location_name, detected_language, message_body)
+        political_reply = get_awaiting_location_reply(str(unresolved_hint), detected_language, message_body)
 
     _finalize_geography_diagnostics(
         grievance,

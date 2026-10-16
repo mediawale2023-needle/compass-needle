@@ -864,6 +864,162 @@ def test_thread_distinct_issue_links_each_inbound_ledger_row_to_its_case(monkeyp
     assert all("separate issue" not in message.lower() for _, message, _ in outbound_messages[1:])
 
 
+def test_whatsapp_path_preserves_roman_language_across_short_ambiguous_message(monkeypatch):
+    """Regression: a short Roman follow-up must use the established thread
+    language instead of being switched by a shared word such as ``nahi``."""
+    _seed_database()
+    outbound_messages = []
+    ai_prompts = []
+
+    def _fake_ai(prompt, tenant_id=None):
+        ai_prompts.append(prompt)
+        body = prompt.split("USER MESSAGE:", 1)[-1].strip()
+        first = "madhe" in body.lower()
+        return {
+            "status": "new",
+            "detected_language": "Marathi" if first else "Hinglish",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Whitefield" if first else "Mahatma Phule Road",
+                "summary": body[:120],
+            },
+        }
+
+    def _geo(text, **_kwargs):
+        if "Whitefield" in text:
+            return {
+                "location_resolved": True,
+                "matched_value": "Whitefield",
+                "assembly_constituency": "Mahadevapura",
+                "confidence_level": "exact",
+                "match_type": "db_alias_exact",
+            }
+        return {"location_resolved": False}
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(main, "resolve_location", _geo)
+    monkeypatch.setattr(main, "_schedule_case_clarification_follow_up", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919900001616"
+    main._process_incoming_message(sender, "Whitefield madhe paani nahi", receiver_number="+15551636821")
+    main._process_incoming_message(sender, "Mahatma Phule Road var paani nahi", receiver_number="+15551636821")
+
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 2
+    newest_meta = json.loads(rows[-1]["case_metadata"] or "{}")
+    assert newest_meta["language_decision"]["language"] == "Marathi"
+    assert newest_meta["language_decision"]["script"] == "Latin"
+    assert newest_meta["language_decision"]["used_conversation_history"] is True
+    assert "language=Marathi; script=Latin; source=conversation_history" in ai_prompts[-1]
+    assert "Tumchi" in outbound_messages[-1][1]
+    assert "Aapka" not in outbound_messages[-1][1]
+    assert "\\n" not in outbound_messages[-1][1]
+
+
+def test_whatsapp_path_keeps_fuzzy_geography_as_unresolved_candidate(monkeypatch):
+    _seed_database()
+    outbound_messages = []
+
+    monkeypatch.setattr(
+        main,
+        "ask_chatgpt_agent",
+        lambda prompt, tenant_id=None: {
+            "status": "new",
+            "detected_language": "Marathi",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Shahpur",
+                "summary": "Water supply issue",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "resolve_location",
+        lambda *_args, **_kwargs: {
+            "location_resolved": True,
+            "matched_value": "Sathpur",
+            "assembly_constituency": "Udaipur Rural",
+            "confidence_level": "fuzzy",
+            "match_type": "fuzzy_phrase",
+            "needs_confirmation": True,
+        },
+    )
+    monkeypatch.setattr(main, "_schedule_case_clarification_follow_up", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919900001617"
+    main._process_incoming_message(sender, "Shahpur madhe paani nahi", receiver_number="+15551636821")
+
+    row = _cases_for_phone(sender)[0]
+    meta = json.loads(row["case_metadata"] or "{}")
+    assert row["status"] == "awaiting_location"
+    assert meta["location_resolved"] is False
+    assert meta["matched_value"] == ""
+    assert meta["unresolved_location"] == "Sathpur"
+    assert meta["geography_candidate"]["verified"] is False
+    assert meta["geography_candidate"]["assembly_constituency"] == "Udaipur Rural"
+    assert outbound_messages
+
+
+def test_whatsapp_path_uses_neutral_non_registration_fallback_when_language_is_unresolved(monkeypatch):
+    _seed_database()
+    outbound_messages = []
+
+    monkeypatch.setattr(
+        main,
+        "ask_chatgpt_agent",
+        lambda prompt, tenant_id=None: {
+            "status": "incomplete",
+            "detected_language": "Unknown",
+            "political_response": "",
+            "grievance_data": {
+                "categories": [],
+                "problem_domain": None,
+                "problem_subdomain": None,
+                "convergence_program_type": None,
+                "location": "MG Road",
+                "summary": "MG Road 4",
+            },
+        },
+    )
+    monkeypatch.setattr(main, "resolve_location", lambda *_args, **_kwargs: {"location_resolved": False})
+    monkeypatch.setattr(main, "_schedule_case_clarification_follow_up", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919900001618"
+    main._process_incoming_message(sender, "MG Road 4", receiver_number="+15551636821")
+
+    row = _cases_for_phone(sender)[0]
+    meta = json.loads(row["case_metadata"] or "{}")
+    assert outbound_messages[-1][1] == "🙏"
+    assert "registered" not in outbound_messages[-1][1].lower()
+    assert meta["language_decision"]["resolved"] is False
+    assert meta["reply_validation"]["fallback_used"] is True
+    assert meta["reply_validation"]["reason"] == "language_or_script_unresolved"
+
+
 def test_low_information_nudge_gets_one_reassurance_then_silence(monkeypatch):
     _seed_database()
     outbound_messages = []
