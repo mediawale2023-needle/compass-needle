@@ -209,3 +209,36 @@ test('Complaint switching keeps drafts separate and a failed reply preserves tex
     await page.getByRole('button', { name: 'Reply to citizen', exact: true }).click();
     await expect(page.getByLabel('Message', { exact: true })).toHaveValue('Water complaint draft');
 });
+
+test('Uncategorised case with an AI triage suggestion opens without crashing', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await seedMpSession(page);
+    const uncategorised = {
+        id: 2600,
+        case_ref: 'NDL-2026-02600',
+        user_phone: '919650787758',
+        category: 'Uncategorised',
+        status: 'new',
+        raw_message: 'Streetlight broken near the bus stand',
+        location: 'Whitefield',
+        assembly: 'Mahadevapura',
+        created_at: '2026-05-08T02:08:00Z',
+        case_metadata: { ai_category: 'Infrastructure & Utilities', matched_value: 'Whitefield' },
+    };
+    await page.route('http://127.0.0.1:4010/**', async (route) => {
+        const url = new URL(route.request().url());
+        const ok = (body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+        if (url.pathname === '/api/auth/me') return ok({ username: 'mp_arun', role: 'mp', constituency: 'Bangalore North' });
+        if (url.pathname === '/api/cases') return ok({ cases: [uncategorised], total: 1, page: 1, pages: 1 });
+        if (url.pathname === '/api/cases/2600') return ok(uncategorised);
+        if (url.pathname === '/api/cases/2600/activity') return ok({ activities: [] });
+        return ok({});
+    });
+
+    await page.goto('/dashboard/sansadx');
+    await page.getByText('Streetlight broken near the bus stand', { exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Case NDL-2026-02600', exact: true, level: 1 })).toBeVisible();
+    await expect(page.getByText('Confirm category & assign').first()).toBeVisible();
+    expect(errors).toEqual([]);
+});
