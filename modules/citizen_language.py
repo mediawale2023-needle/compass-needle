@@ -201,16 +201,19 @@ def resolve_language_decision(
         and previous
         and rule != previous.language
     )
-    clear_roman_switch = bool(
-        script == "Latin"
-        and current_detectors_agree
+    clear_language_switch = bool(
+        current_detectors_agree
         and (
-            len(words) >= 12
+            # Native-script agreement is strong evidence even where two
+            # languages share a script. Roman text needs more content because
+            # short transliterations and code-mixed follow-ups are ambiguous.
+            (script not in {"Latin", "Unknown"} and len(words) >= 2)
+            or len(words) >= 12
             or (len(words) >= 3 and rule not in {"Hinglish"})
         )
     )
 
-    if same_script_context and not clear_roman_switch:
+    if same_script_context and not clear_language_switch:
         return LanguageDecision(
             language=previous.language,
             script=script if script != "Unknown" else previous.script,

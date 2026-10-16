@@ -4,6 +4,7 @@ from modules.citizen_language import (
     resolve_language_decision,
     validate_and_prepare_reply,
 )
+from modules.localized_replies import get_unsupported_message_reply
 
 
 def _history(language: str, script: str, raw_message: str = "") -> list[dict]:
@@ -78,6 +79,21 @@ def test_clear_roman_language_change_overrides_conversation_context():
     assert decision.used_conversation_history is False
 
 
+def test_clear_same_script_language_change_overrides_conversation_context():
+    # Same-script conversations can still change language; detector agreement
+    # on an informative current message outranks history without naming a
+    # specific source or destination language in the policy.
+    decision = resolve_language_decision(
+        message="आमच्या गावात पाणी नाही कृपया मदत करा",
+        rule_language="Marathi",
+        rule_confident=True,
+        ai_language="Marathi",
+        history_rows=_history("Hindi", "Devanagari"),
+    )
+    assert decision.language == "Marathi"
+    assert decision.used_conversation_history is False
+
+
 def test_code_mixed_script_is_recorded_without_forcing_tenant_default():
     decision = resolve_language_decision(
         message="water supply ಇಲ್ಲ please check",
@@ -113,3 +129,8 @@ def test_reply_validation_repairs_escaped_newlines_and_rejects_wrong_script():
     assert rejected == "🙏"
     assert validation["fallback_used"] is True
     assert validation["reason"] == "reply_script_mismatch"
+
+
+def test_localized_template_lookup_never_falls_back_to_another_language():
+    assert get_unsupported_message_reply("Tamil", "anuppunga", "Latin") == ""
+    assert get_unsupported_message_reply("", "", "Unknown") == ""

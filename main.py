@@ -2,7 +2,7 @@
 main.py — Needle Parliamentary Intelligence Platform
 Backend Entry Point (FastAPI)
 """
-from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language, detect_input_language_confident, get_offensive_warning_reply, segment_citizen_messages
+from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language_confident, get_offensive_warning_reply, segment_citizen_messages
 from sansadx_backend.unified_taxonomy import (
     build_taxonomy_fields,
     infer_personal_request_category,
@@ -1984,10 +1984,17 @@ def _maybe_send_thread_reassurance(
         language_hint=detected_language,
         history_rows=thread_rows,
     )
-    reply = get_thread_reassurance_reply(decision.language, original_text, decision.script)
-    reply, _validation = validate_and_prepare_reply(reply, decision)
     try:
-        send_whatsapp_message(sender, reply, wa_phone_id)
+        _send_automated_citizen_reply(
+            sender=sender,
+            tenant_id=int(thread_rows[0].get("tenant_id") or 0) if thread_rows else 0,
+            wa_phone_id=wa_phone_id,
+            message_body=original_text,
+            decision=decision,
+            reply_factory=lambda selected: get_thread_reassurance_reply(
+                selected.language, original_text, selected.script
+            ),
+        )
     except Exception as exc:
         logger.error("Failed to send thread reassurance to %s: %s", sender, exc)
         return False
@@ -2022,6 +2029,7 @@ def _resolve_thread_ack_message(
         if _thread_meta_flag(thread_rows, "contact_thread_boundary_notice_sent_at"):
             return "", False
         reply = get_high_frequency_notice_reply(decision.language, original_text, decision.script)
+        reply = reply or "🙏"
         return validate_and_prepare_reply(reply, decision)[0], True
     reply = get_additional_issue_ack_reply(
         projected_distinct_count,
@@ -2029,6 +2037,7 @@ def _resolve_thread_ack_message(
         original_text,
         decision.script,
     )
+    reply = reply or "🙏"
     return validate_and_prepare_reply(reply, decision)[0], False
 
 
@@ -3450,7 +3459,7 @@ def _sweep_pending_citizen_acks():
         with engine.connect() as _ack_scan_conn:
             pending_acks = _ack_scan_conn.execute(
                 text("""
-                    SELECT id, tenant_id, case_metadata
+                    SELECT id, tenant_id, raw_message, case_metadata
                     FROM cases
                     WHERE case_metadata::jsonb ->> 'citizen_ack_pending' = 'true'
                       AND created_at >= :cutoff
@@ -3467,7 +3476,7 @@ def _sweep_pending_citizen_acks():
 
     logger.info("ACK sweep: found %d cases with pending citizen acknowledgment", len(pending_acks))
     for _row in pending_acks:
-        _case_id, _tenant_id, _meta_raw = _row
+        _case_id, _tenant_id, _raw_message, _meta_raw = _row
         try:
             _meta = _meta_raw if isinstance(_meta_raw, dict) else json.loads(_meta_raw or "{}")
             _phone = _meta.get("citizen_phone", "")
@@ -3475,7 +3484,19 @@ def _sweep_pending_citizen_acks():
                 logger.warning("ACK sweep: case %s has citizen_ack_pending but no citizen_phone — skipping", _case_id)
                 continue
             _wa_pid = get_tenant_phone_number_id(_tenant_id)
-            send_whatsapp_message(_phone, _REVIEW_GENERIC_ACK, _wa_pid)
+            _decision = previous_language_decision([
+                {"case_metadata": _meta, "raw_message": _raw_message or ""}
+            ])
+            _send_automated_citizen_reply(
+                sender=_phone,
+                tenant_id=_tenant_id,
+                wa_phone_id=_wa_pid,
+                message_body=_raw_message or "",
+                decision=_decision,
+                reply_factory=lambda selected: get_review_ack_reply(
+                    selected.language, _raw_message or "", selected.script
+                ),
+            )
             # Clear the flag on success
             with engine.begin() as _clr_conn:
                 _clr_conn.execute(
@@ -3882,9 +3903,15 @@ def _handle_unsupported_message_type(sender: str, msg_type: str, receiver_number
     if current_tenant is None:
         return
     _wa_phone_id = get_tenant_phone_number_id(current_tenant)
-    reply = get_unsupported_message_reply("English")
     try:
-        send_whatsapp_message(sender, reply, _wa_phone_id)
+        _send_automated_citizen_reply(
+            sender=sender,
+            tenant_id=current_tenant,
+            wa_phone_id=_wa_phone_id,
+            reply_factory=lambda selected: get_unsupported_message_reply(
+                selected.language, "", selected.script
+            ),
+        )
         logger.info("Unsupported message type '%s' from %s — sent re-send prompt", msg_type, sender)
     except Exception as exc:
         logger.warning("Could not send unsupported-type reply to %s: %s", sender, exc)
@@ -3923,7 +3950,16 @@ def _process_citizen_media_complaint(
     except Exception as exc:
         logger.error("Citizen %s download failed for %s media %s: %s", sender, media_type, media_id, exc)
         try:
-            send_whatsapp_message(sender, get_unsupported_message_reply("English"), _wa_phone_id)
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=caption,
+                language_hint="",
+                reply_factory=lambda selected: get_unsupported_message_reply(
+                    selected.language, caption, selected.script
+                ),
+            )
         except Exception:
             pass
         return
@@ -4042,17 +4078,41 @@ def _process_citizen_media_complaint(
                         )
                 if inbound_ledger_id and case_id:
                     _set_inbound_ledger_case_id(inbound_ledger_id, case_id)
-                _fallback_lang = detect_input_language(fallback_text)
-                send_whatsapp_message(sender, get_details_request_reply(_fallback_lang, fallback_text), _wa_phone_id)
+                _decision_text = caption.strip()
+                _send_automated_citizen_reply(
+                    sender=sender,
+                    tenant_id=current_tenant,
+                    wa_phone_id=_wa_phone_id,
+                    message_body=_decision_text,
+                    reply_factory=lambda selected: get_details_request_reply(
+                        selected.language, _decision_text, selected.script
+                    ),
+                )
             except Exception as exc:
                 logger.error("Failed to save unreadable citizen media case: %s", exc)
                 try:
-                    send_whatsapp_message(sender, get_unsupported_message_reply("English"), _wa_phone_id)
+                    _send_automated_citizen_reply(
+                        sender=sender,
+                        tenant_id=current_tenant,
+                        wa_phone_id=_wa_phone_id,
+                        message_body=caption,
+                        reply_factory=lambda selected: get_unsupported_message_reply(
+                            selected.language, caption, selected.script
+                        ),
+                    )
                 except Exception:
                     pass
             return
         try:
-            send_whatsapp_message(sender, get_unsupported_message_reply("English"), _wa_phone_id)
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=caption,
+                reply_factory=lambda selected: get_unsupported_message_reply(
+                    selected.language, caption, selected.script
+                ),
+            )
         except Exception:
             pass
         return
@@ -4120,9 +4180,6 @@ def _process_citizen_media_complaint(
 # Stored lowercase — compared with category.lower().strip() so GPT variants like
 # "Law and Order", "EMERGENCY", or "law and order" all match correctly.
 _REVIEW_REQUIRED_CATEGORIES = {"law & order", "law and order", "emergency", "political", "legal"}
-_REVIEW_GENERIC_ACK = get_review_ack_reply("English")
-
-
 def _handle_pa_done_command(sender: str, receiver_number: str = ""):
     """
     PA typed DONE — immediately flush their pending batch without waiting for the timer.
@@ -4236,6 +4293,58 @@ def _resolve_citizen_reply_language(message_body: str, ai_result: dict | None = 
     return _resolve_citizen_language_decision(message_body, ai_result, language_hint).language
 
 
+def _send_automated_citizen_reply(
+    *,
+    sender: str,
+    tenant_id: int,
+    wa_phone_id: str,
+    message_body: str = "",
+    reply_text: str | None = None,
+    reply_factory=None,
+    decision: LanguageDecision | None = None,
+    ai_result: dict | None = None,
+    language_hint: str = "",
+    history_rows: list[dict] | None = None,
+) -> tuple[str, LanguageDecision, dict]:
+    """Single send boundary for automated citizen-facing WhatsApp replies.
+
+    Staff/PA workflows intentionally do not use this citizen policy. Every
+    automated citizen reply is rendered from one authoritative decision and
+    validated again immediately before the transport call.
+    """
+    if decision is None:
+        rows = history_rows if history_rows is not None else _recent_contact_thread_cases(sender, tenant_id)
+        decision = _resolve_citizen_language_decision(
+            message_body,
+            ai_result,
+            language_hint,
+            history_rows=rows,
+            tenant_languages=resolve_tenant_languages(tenant_id),
+        )
+    proposed = reply_factory(decision) if reply_factory is not None else str(reply_text or "")
+    template_missing = reply_factory is not None and not proposed
+    if template_missing:
+        proposed = "🙏"
+    if not proposed:
+        return "", decision, {
+            "valid": True,
+            "fallback_used": False,
+            "reason": "empty_reply_withheld",
+            "language": decision.language,
+            "script": decision.script,
+            "check": "deterministic_template_and_unicode_script",
+        }
+    prepared, validation = validate_and_prepare_reply(proposed, decision)
+    if template_missing and decision.is_resolved:
+        validation.update(
+            valid=False,
+            fallback_used=True,
+            reason="localized_template_unavailable",
+        )
+    send_whatsapp_message(sender, prepared, wa_phone_id)
+    return prepared, decision, validation
+
+
 def _resolve_citizen_ack_message(
     *,
     status: str,
@@ -4254,7 +4363,7 @@ def _resolve_citizen_ack_message(
     normalized_status = str(status or "").lower().strip()
 
     if normalized_status == "offensive":
-        return get_offensive_warning_reply(detected_language, message_body)
+        return get_offensive_warning_reply(detected_language, message_body, reply_script)
 
     # Greetings are non-grievance but get a warm reply inviting the concern.
     # Checked before status-based branches so a greeting the AI marked
@@ -4353,6 +4462,7 @@ def _build_clarification_follow_up_message(meta: dict, raw_message: str) -> str:
             reply = get_missing_location_reply(detected_language, raw_message, decision.script)
     else:
         reply = get_details_request_reply(detected_language, raw_message, decision.script)
+    reply = reply or "🙏"
     return validate_and_prepare_reply(reply, decision)[0]
 
 
@@ -4398,7 +4508,17 @@ def _send_due_case_clarification_followups(case_id: int | None = None) -> None:
             meta = _meta_raw if isinstance(_meta_raw, dict) else json.loads(_meta_raw or "{}")
             reply = _build_clarification_follow_up_message(meta, _raw_message or "")
             _wa_pid = get_tenant_phone_number_id(_tenant_id)
-            send_whatsapp_message(_phone, reply, _wa_pid)
+            decision = previous_language_decision([
+                {"case_metadata": meta, "raw_message": _raw_message or ""}
+            ])
+            _send_automated_citizen_reply(
+                sender=_phone,
+                tenant_id=_tenant_id,
+                wa_phone_id=_wa_pid,
+                message_body=_raw_message or "",
+                reply_text=reply,
+                decision=decision,
+            )
             meta["clarification_follow_up_sent"] = True
             meta["clarification_follow_up_sent_at"] = _utcnow().isoformat()
             with engine.begin() as conn:
@@ -4639,10 +4759,23 @@ def _run_citizen_case_enrichment(
         location_name=location_name,
         reply_script=language_decision.script,
     )
+    _ack_template_missing = bool(
+        not citizen_ack_message
+        and str(category or "").lower().strip() not in _SILENT_LOG_CATEGORIES
+        and not is_emergency_complaint
+    )
+    if _ack_template_missing:
+        citizen_ack_message = "🙏"
     citizen_ack_message, reply_validation = validate_and_prepare_reply(
         citizen_ack_message,
         language_decision,
     )
+    if _ack_template_missing and language_decision.is_resolved:
+        reply_validation.update(
+            valid=False,
+            fallback_used=True,
+            reason="localized_template_unavailable",
+        )
 
     # TEMP DIAGNOSTIC (grep: INTENT_DIAG) — remove once voice-note intent routing
     # is verified in production. Ties the message source to the final ack decision.
@@ -4889,7 +5022,14 @@ def _save_case_enrichment_and_respond(
 
         if reply_text:
             try:
-                send_whatsapp_message(sender, reply_text, wa_phone_id)
+                _send_automated_citizen_reply(
+                    sender=sender,
+                    tenant_id=current_tenant,
+                    wa_phone_id=wa_phone_id,
+                    message_body=message_body,
+                    reply_text=reply_text,
+                    decision=language_decision,
+                )
             except Exception as _rv_send_exc:
                 logger.error("Failed to send review ack to %s (case=%s): %s", sender, case_id, _rv_send_exc)
                 try:
@@ -4913,7 +5053,14 @@ def _save_case_enrichment_and_respond(
 
     try:
         if reply_text:
-            send_whatsapp_message(sender, reply_text, wa_phone_id)
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=wa_phone_id,
+                message_body=message_body,
+                reply_text=reply_text,
+                decision=language_decision,
+            )
     except Exception as send_exc:
         logger.error(
             "WHATSAPP_SEND_FAILED: could not reply to %s (case=%s) — %s. "
@@ -5160,12 +5307,6 @@ def _process_incoming_message(
         flag_type   = "abuse_keyword"    if is_abuse else "coordinated_flood"
         flag_reason = abuse_reason       if is_abuse else flood_reason
         spam_cat    = "Spam (Offensive)" if is_abuse else "Spam"
-        _detected_lang = detect_input_language(message_body)
-        _reply_text = (
-            get_offensive_warning_reply(_detected_lang, message_body)
-            if is_abuse
-            else get_review_ack_reply(_detected_lang, message_body)
-        )
         logger.warning(f"Spam flag [{flag_type}] from {sender}: {flag_reason}")
 
         try:
@@ -5194,10 +5335,14 @@ def _process_incoming_message(
 
         _save_spam_flag(current_tenant, sender, flag_type, flag_reason, message_body)
         if is_abuse:
-            send_whatsapp_message(
-                sender,
-                _reply_text,
-                _wa_phone_id,
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=message_body,
+                reply_factory=lambda selected: get_offensive_warning_reply(
+                    selected.language, message_body, selected.script
+                ),
             )
         return
 
@@ -5246,11 +5391,14 @@ def _process_incoming_message(
                         "now": datetime.utcnow(),
                     }
                 )
-            _detected_lang = detect_input_language(message_body)
-            send_whatsapp_message(
-                sender,
-                get_rate_limit_reply(_detected_lang, message_body),
-                _wa_phone_id,
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=message_body,
+                reply_factory=lambda selected: get_rate_limit_reply(
+                    selected.language, message_body, selected.script
+                ),
             )
             return
     except Exception as _rate_exc:
@@ -5297,7 +5445,8 @@ def _process_incoming_message(
                     enrichment["location_name"],
                     enrichment["detected_language"],
                     _followup_text,
-                )
+                    enrichment["language_decision"].script,
+                ) or "🙏"
 
             _save_case_enrichment_and_respond(
                 case_id=_pending["id"],
@@ -5716,9 +5865,17 @@ def _process_incoming_message(
             _link_inbound_to_case(case_id)
         except Exception as e:
             logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
-            # Even if DB fails, still try to acknowledge the citizen
-            _detected_lang = detect_input_language(message_body)
-            send_whatsapp_message(sender, get_generic_ack_reply(_detected_lang, message_body), _wa_phone_id)
+            # Do not imply registration when persistence failed. Ask the
+            # citizen to resend through the same validated language boundary.
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=message_body,
+                reply_factory=lambda selected: get_unsupported_message_reply(
+                    selected.language, message_body, selected.script
+                ),
+            )
             raise
 
     # ── STEP 2: AI classification (if this fails, the grievance is still saved) ──
@@ -5756,11 +5913,14 @@ def _process_incoming_message(
         # AI failed — grievance is still saved as pending/Uncategorised
         logger.error(f"AI processing failed for case {case_id}: {e}")
         try:
-            _detected_lang = detect_input_language(message_body)
-            send_whatsapp_message(
-                sender,
-                get_generic_ack_reply(_detected_lang, message_body),
-                _wa_phone_id,
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=message_body,
+                reply_factory=lambda selected: get_generic_ack_reply(
+                    selected.language, message_body, selected.script
+                ),
             )
         except Exception as send_exc:
             logger.error(
