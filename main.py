@@ -2,7 +2,7 @@
 main.py — Needle Parliamentary Intelligence Platform
 Backend Entry Point (FastAPI)
 """
-from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language, detect_input_language_confident, get_offensive_warning_reply, segment_citizen_messages
+from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language_confident, get_offensive_warning_reply, segment_citizen_messages
 from sansadx_backend.unified_taxonomy import (
     build_taxonomy_fields,
     infer_personal_request_category,
@@ -71,7 +71,7 @@ def _get_meta_app_secret() -> str:
     """Read the current webhook signing secret from env at request time."""
     return os.getenv("META_APP_SECRET", "") or META_APP_SECRET
 
-from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_geo_overrides, get_tenant_phone_number_id, log_letterbox_activity
+from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_tenant_phone_number_id, log_letterbox_activity
 
 
 # ── Needle status write helpers ──────────────────────────────────────────
@@ -1979,9 +1979,22 @@ def _maybe_send_thread_reassurance(
             detected_language = meta.get("detected_language") or meta.get("language") or ""
             if detected_language:
                 break
-    reply = get_thread_reassurance_reply(detected_language, original_text)
+    decision = _resolve_citizen_language_decision(
+        original_text,
+        language_hint=detected_language,
+        history_rows=thread_rows,
+    )
     try:
-        send_whatsapp_message(sender, reply, wa_phone_id)
+        _send_automated_citizen_reply(
+            sender=sender,
+            tenant_id=int(thread_rows[0].get("tenant_id") or 0) if thread_rows else 0,
+            wa_phone_id=wa_phone_id,
+            message_body=original_text,
+            decision=decision,
+            reply_factory=lambda selected: get_thread_reassurance_reply(
+                selected.language, original_text, selected.script
+            ),
+        )
     except Exception as exc:
         logger.error("Failed to send thread reassurance to %s: %s", sender, exc)
         return False
@@ -2007,11 +2020,25 @@ def _resolve_thread_ack_message(
     thread stays silent (spam suppression handles 10+ before this is called).
     No case reference numbers — acknowledgments stay plain by policy.
     """
+    decision = _resolve_citizen_language_decision(
+        original_text,
+        language_hint=detected_language,
+        history_rows=thread_rows,
+    )
     if projected_distinct_count >= _CONTACT_THREAD_HIGH_FREQUENCY_DISTINCT:
         if _thread_meta_flag(thread_rows, "contact_thread_boundary_notice_sent_at"):
             return "", False
-        return get_high_frequency_notice_reply(detected_language, original_text), True
-    return get_additional_issue_ack_reply(projected_distinct_count, detected_language, original_text), False
+        reply = get_high_frequency_notice_reply(decision.language, original_text, decision.script)
+        reply = reply or "🙏"
+        return validate_and_prepare_reply(reply, decision)[0], True
+    reply = get_additional_issue_ack_reply(
+        projected_distinct_count,
+        decision.language,
+        original_text,
+        decision.script,
+    )
+    reply = reply or "🙏"
+    return validate_and_prepare_reply(reply, decision)[0], False
 
 
 def _handle_low_info_or_case_comment(
@@ -2707,6 +2734,13 @@ from modules.briefcase_rules import apply_civic_rules
 from modules.staff_schedule_parser import parse_staff_schedule_message
 from modules.whatsapp_geography import finalize_geography_decision
 from modules.tenant_languages import resolve_tenant_languages
+from modules.citizen_language import (
+    LanguageDecision,
+    language_context_prompt,
+    previous_language_decision,
+    resolve_language_decision,
+    validate_and_prepare_reply,
+)
 from modules.case_comment_heuristics import detect_case_comment
 from modules.geography_policy import location_required_for_grievance
 from modules.classification_policy import classification_writes_enabled, get_classification_mode
@@ -3425,7 +3459,7 @@ def _sweep_pending_citizen_acks():
         with engine.connect() as _ack_scan_conn:
             pending_acks = _ack_scan_conn.execute(
                 text("""
-                    SELECT id, tenant_id, case_metadata
+                    SELECT id, tenant_id, raw_message, case_metadata
                     FROM cases
                     WHERE case_metadata::jsonb ->> 'citizen_ack_pending' = 'true'
                       AND created_at >= :cutoff
@@ -3442,7 +3476,7 @@ def _sweep_pending_citizen_acks():
 
     logger.info("ACK sweep: found %d cases with pending citizen acknowledgment", len(pending_acks))
     for _row in pending_acks:
-        _case_id, _tenant_id, _meta_raw = _row
+        _case_id, _tenant_id, _raw_message, _meta_raw = _row
         try:
             _meta = _meta_raw if isinstance(_meta_raw, dict) else json.loads(_meta_raw or "{}")
             _phone = _meta.get("citizen_phone", "")
@@ -3450,7 +3484,19 @@ def _sweep_pending_citizen_acks():
                 logger.warning("ACK sweep: case %s has citizen_ack_pending but no citizen_phone — skipping", _case_id)
                 continue
             _wa_pid = get_tenant_phone_number_id(_tenant_id)
-            send_whatsapp_message(_phone, _REVIEW_GENERIC_ACK, _wa_pid)
+            _decision = previous_language_decision([
+                {"case_metadata": _meta, "raw_message": _raw_message or ""}
+            ])
+            _send_automated_citizen_reply(
+                sender=_phone,
+                tenant_id=_tenant_id,
+                wa_phone_id=_wa_pid,
+                message_body=_raw_message or "",
+                decision=_decision,
+                reply_factory=lambda selected: get_review_ack_reply(
+                    selected.language, _raw_message or "", selected.script
+                ),
+            )
             # Clear the flag on success
             with engine.begin() as _clr_conn:
                 _clr_conn.execute(
@@ -3857,9 +3903,15 @@ def _handle_unsupported_message_type(sender: str, msg_type: str, receiver_number
     if current_tenant is None:
         return
     _wa_phone_id = get_tenant_phone_number_id(current_tenant)
-    reply = get_unsupported_message_reply("English")
     try:
-        send_whatsapp_message(sender, reply, _wa_phone_id)
+        _send_automated_citizen_reply(
+            sender=sender,
+            tenant_id=current_tenant,
+            wa_phone_id=_wa_phone_id,
+            reply_factory=lambda selected: get_unsupported_message_reply(
+                selected.language, "", selected.script
+            ),
+        )
         logger.info("Unsupported message type '%s' from %s — sent re-send prompt", msg_type, sender)
     except Exception as exc:
         logger.warning("Could not send unsupported-type reply to %s: %s", sender, exc)
@@ -3898,7 +3950,16 @@ def _process_citizen_media_complaint(
     except Exception as exc:
         logger.error("Citizen %s download failed for %s media %s: %s", sender, media_type, media_id, exc)
         try:
-            send_whatsapp_message(sender, get_unsupported_message_reply("English"), _wa_phone_id)
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=caption,
+                language_hint="",
+                reply_factory=lambda selected: get_unsupported_message_reply(
+                    selected.language, caption, selected.script
+                ),
+            )
         except Exception:
             pass
         return
@@ -4017,17 +4078,41 @@ def _process_citizen_media_complaint(
                         )
                 if inbound_ledger_id and case_id:
                     _set_inbound_ledger_case_id(inbound_ledger_id, case_id)
-                _fallback_lang = detect_input_language(fallback_text)
-                send_whatsapp_message(sender, get_details_request_reply(_fallback_lang, fallback_text), _wa_phone_id)
+                _decision_text = caption.strip()
+                _send_automated_citizen_reply(
+                    sender=sender,
+                    tenant_id=current_tenant,
+                    wa_phone_id=_wa_phone_id,
+                    message_body=_decision_text,
+                    reply_factory=lambda selected: get_details_request_reply(
+                        selected.language, _decision_text, selected.script
+                    ),
+                )
             except Exception as exc:
                 logger.error("Failed to save unreadable citizen media case: %s", exc)
                 try:
-                    send_whatsapp_message(sender, get_unsupported_message_reply("English"), _wa_phone_id)
+                    _send_automated_citizen_reply(
+                        sender=sender,
+                        tenant_id=current_tenant,
+                        wa_phone_id=_wa_phone_id,
+                        message_body=caption,
+                        reply_factory=lambda selected: get_unsupported_message_reply(
+                            selected.language, caption, selected.script
+                        ),
+                    )
                 except Exception:
                     pass
             return
         try:
-            send_whatsapp_message(sender, get_unsupported_message_reply("English"), _wa_phone_id)
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=caption,
+                reply_factory=lambda selected: get_unsupported_message_reply(
+                    selected.language, caption, selected.script
+                ),
+            )
         except Exception:
             pass
         return
@@ -4095,9 +4180,6 @@ def _process_citizen_media_complaint(
 # Stored lowercase — compared with category.lower().strip() so GPT variants like
 # "Law and Order", "EMERGENCY", or "law and order" all match correctly.
 _REVIEW_REQUIRED_CATEGORIES = {"law & order", "law and order", "emergency", "political", "legal"}
-_REVIEW_GENERIC_ACK = get_review_ack_reply("English")
-
-
 def _handle_pa_done_command(sender: str, receiver_number: str = ""):
     """
     PA typed DONE — immediately flush their pending batch without waiting for the timer.
@@ -4186,25 +4268,81 @@ def _get_tenant_daily_limit(tenant_id: int) -> int:
     return limit
 
 
-def _resolve_citizen_reply_language(message_body: str, ai_result: dict | None = None, language_hint: str = "") -> str:
-    # 1. An explicit per-number tenant language override always wins.
-    hinted_language = normalize_language_name(language_hint, "")
-    if hinted_language:
-        return hinted_language
-
-    # 2. Trust the rule-based detector ONLY when it is confident (real markers
-    #    matched). It is high-precision but cannot enumerate every way citizens
-    #    romanize their language, so a non-confident "English"/"Hindi" guess must
-    #    not override the LLM's far broader detection.
+def _resolve_citizen_language_decision(
+    message_body: str,
+    ai_result: dict | None = None,
+    language_hint: str = "",
+    *,
+    history_rows: list[dict] | None = None,
+    tenant_languages: list[str] | None = None,
+) -> LanguageDecision:
     rule_lang, rule_confident = detect_input_language_confident(message_body)
-    if rule_confident:
-        return rule_lang
+    return resolve_language_decision(
+        message=message_body,
+        rule_language=rule_lang,
+        rule_confident=rule_confident,
+        ai_language=(ai_result or {}).get("detected_language", ""),
+        language_hint=language_hint,
+        history_rows=history_rows or (),
+        tenant_languages=tenant_languages or (),
+    )
 
-    # 3. Defer to the language the AI engine resolved (GPT's own detection of the
-    #    citizen's romanized/mixed message). Fall back to the rule guess only if
-    #    no AI result is available (pre-AI / AI-failure paths).
-    ai_lang = normalize_language_name((ai_result or {}).get("detected_language", ""), "")
-    return ai_lang or rule_lang
+
+def _resolve_citizen_reply_language(message_body: str, ai_result: dict | None = None, language_hint: str = "") -> str:
+    """Backward-compatible wrapper for callers that only need the label."""
+    return _resolve_citizen_language_decision(message_body, ai_result, language_hint).language
+
+
+def _send_automated_citizen_reply(
+    *,
+    sender: str,
+    tenant_id: int,
+    wa_phone_id: str,
+    message_body: str = "",
+    reply_text: str | None = None,
+    reply_factory=None,
+    decision: LanguageDecision | None = None,
+    ai_result: dict | None = None,
+    language_hint: str = "",
+    history_rows: list[dict] | None = None,
+) -> tuple[str, LanguageDecision, dict]:
+    """Single send boundary for automated citizen-facing WhatsApp replies.
+
+    Staff/PA workflows intentionally do not use this citizen policy. Every
+    automated citizen reply is rendered from one authoritative decision and
+    validated again immediately before the transport call.
+    """
+    if decision is None:
+        rows = history_rows if history_rows is not None else _recent_contact_thread_cases(sender, tenant_id)
+        decision = _resolve_citizen_language_decision(
+            message_body,
+            ai_result,
+            language_hint,
+            history_rows=rows,
+            tenant_languages=resolve_tenant_languages(tenant_id),
+        )
+    proposed = reply_factory(decision) if reply_factory is not None else str(reply_text or "")
+    template_missing = reply_factory is not None and not proposed
+    if template_missing:
+        proposed = "🙏"
+    if not proposed:
+        return "", decision, {
+            "valid": True,
+            "fallback_used": False,
+            "reason": "empty_reply_withheld",
+            "language": decision.language,
+            "script": decision.script,
+            "check": "deterministic_template_and_unicode_script",
+        }
+    prepared, validation = validate_and_prepare_reply(proposed, decision)
+    if template_missing and decision.is_resolved:
+        validation.update(
+            valid=False,
+            fallback_used=True,
+            reason="localized_template_unavailable",
+        )
+    send_whatsapp_message(sender, prepared, wa_phone_id)
+    return prepared, decision, validation
 
 
 def _resolve_citizen_ack_message(
@@ -4214,6 +4352,7 @@ def _resolve_citizen_ack_message(
     detected_language: str,
     message_body: str,
     location_name: str | None = None,
+    reply_script: str = "",
 ) -> str:
     """
     Return the exact WhatsApp text citizens should receive for intake.
@@ -4224,19 +4363,19 @@ def _resolve_citizen_ack_message(
     normalized_status = str(status or "").lower().strip()
 
     if normalized_status == "offensive":
-        return get_offensive_warning_reply(detected_language, message_body)
+        return get_offensive_warning_reply(detected_language, message_body, reply_script)
 
     # Greetings are non-grievance but get a warm reply inviting the concern.
     # Checked before status-based branches so a greeting the AI marked
     # 'irrelevant' still gets the greeting reply, not the review acknowledgement.
     if str(category or "").lower().strip() in _GREETING_CATEGORIES:
-        return get_greeting_reply(detected_language, message_body)
+        return get_greeting_reply(detected_language, message_body, reply_script)
 
     if str(category or "").lower().strip() in _SILENT_LOG_CATEGORIES:
         return ""
 
     if normalized_status == "awaiting_location":
-        return get_generic_ack_reply(detected_language, message_body)
+        return get_generic_ack_reply(detected_language, message_body, reply_script)
 
     if normalized_status in DETAILS_REQUEST_STATUSES:
         # Immediate details-request is only for the contextless-media lane
@@ -4244,16 +4383,16 @@ def _resolve_citizen_ack_message(
         # "ack first, clarify later" policy: a warm generic ack now, with the
         # details ask arriving via the delayed clarification follow-up.
         if str(category or "").lower().strip() == "document / attachment only":
-            return get_details_request_reply(detected_language, message_body)
-        return get_generic_ack_reply(detected_language, message_body)
+            return get_details_request_reply(detected_language, message_body, reply_script)
+        return get_generic_ack_reply(detected_language, message_body, reply_script)
 
     if normalized_status == "irrelevant":
-        return get_review_ack_reply(detected_language, message_body)
+        return get_review_ack_reply(detected_language, message_body, reply_script)
 
     if str(category or "").lower().strip() == "personal request":
-        return get_personal_request_reply(detected_language, message_body)
+        return get_personal_request_reply(detected_language, message_body, reply_script)
 
-    return get_generic_ack_reply(detected_language, message_body)
+    return get_generic_ack_reply(detected_language, message_body, reply_script)
 
 
 _CLARIFICATION_DELAY_SECONDS = max(120, int(os.getenv("CITIZEN_CLARIFICATION_DELAY_SECONDS", "150") or "150"))
@@ -4307,14 +4446,24 @@ def _apply_clarification_metadata(
 
 
 def _build_clarification_follow_up_message(meta: dict, raw_message: str) -> str:
-    detected_language = normalize_language_name(meta.get("clarification_language", ""), "Hindi")
+    decision = previous_language_decision([{"case_metadata": meta, "raw_message": raw_message}])
+    if not decision:
+        decision = _resolve_citizen_language_decision(
+            raw_message,
+            language_hint=normalize_language_name(meta.get("clarification_language", ""), ""),
+        )
+    detected_language = decision.language
     follow_up_kind = str(meta.get("clarification_follow_up_kind") or "").strip().lower()
     if follow_up_kind == "missing_location":
         location_hint = str(meta.get("matched_value") or "").strip()
         if location_hint:
-            return get_awaiting_location_reply(location_hint, detected_language, raw_message)
-        return get_missing_location_reply(detected_language, raw_message)
-    return get_details_request_reply(detected_language, raw_message)
+            reply = get_awaiting_location_reply(location_hint, detected_language, raw_message, decision.script)
+        else:
+            reply = get_missing_location_reply(detected_language, raw_message, decision.script)
+    else:
+        reply = get_details_request_reply(detected_language, raw_message, decision.script)
+    reply = reply or "🙏"
+    return validate_and_prepare_reply(reply, decision)[0]
 
 
 def _cancel_case_clarification_follow_up(case_id: int | None) -> None:
@@ -4359,7 +4508,17 @@ def _send_due_case_clarification_followups(case_id: int | None = None) -> None:
             meta = _meta_raw if isinstance(_meta_raw, dict) else json.loads(_meta_raw or "{}")
             reply = _build_clarification_follow_up_message(meta, _raw_message or "")
             _wa_pid = get_tenant_phone_number_id(_tenant_id)
-            send_whatsapp_message(_phone, reply, _wa_pid)
+            decision = previous_language_decision([
+                {"case_metadata": meta, "raw_message": _raw_message or ""}
+            ])
+            _send_automated_citizen_reply(
+                sender=_phone,
+                tenant_id=_tenant_id,
+                wa_phone_id=_wa_pid,
+                message_body=_raw_message or "",
+                reply_text=reply,
+                decision=decision,
+            )
             meta["clarification_follow_up_sent"] = True
             meta["clarification_follow_up_sent_at"] = _utcnow().isoformat()
             with engine.begin() as conn:
@@ -4401,7 +4560,15 @@ def _run_citizen_case_enrichment(
     thread_context: str = "",
 ) -> dict:
     user_context = get_user_context(sender)
-    context_parts: list[str] = []
+    conversation_rows = _recent_contact_thread_cases(sender, current_tenant)
+    tenant_language_context = resolve_tenant_languages(current_tenant)
+    preliminary_language = _resolve_citizen_language_decision(
+        message_body,
+        language_hint=language_hint,
+        history_rows=conversation_rows,
+        tenant_languages=tenant_language_context,
+    )
+    context_parts: list[str] = [language_context_prompt(preliminary_language)]
     if user_context:
         context_parts.append(user_context)
     if thread_context:
@@ -4427,7 +4594,14 @@ def _run_citizen_case_enrichment(
 
     grievance = ai_result.get("grievance_data", {}) or {}
     status = str(ai_result.get("status", "new")).lower()
-    detected_language = _resolve_citizen_reply_language(message_body, ai_result, language_hint)
+    language_decision = _resolve_citizen_language_decision(
+        message_body,
+        ai_result,
+        language_hint,
+        history_rows=conversation_rows,
+        tenant_languages=tenant_language_context,
+    )
+    detected_language = language_decision.language
     problem_domain = grievance.get("problem_domain")
     problem_subdomain = grievance.get("problem_subdomain")
     convergence_program_type = grievance.get("convergence_program_type")
@@ -4563,7 +4737,7 @@ def _run_citizen_case_enrichment(
     # champion/challenger, same rollout pattern as ack policy/classification.
     try:
         _shadow_span = str(
-            grievance.get("location") or location_name or ""
+            grievance.get("location") or grievance.get("unresolved_location") or location_name or ""
         ).strip()
         if _shadow_span and not _non_grievance_lane:
             from modules.geo_resolver_v2 import shadow_compare
@@ -4583,7 +4757,25 @@ def _run_citizen_case_enrichment(
         detected_language=detected_language,
         message_body=message_body,
         location_name=location_name,
+        reply_script=language_decision.script,
     )
+    _ack_template_missing = bool(
+        not citizen_ack_message
+        and str(category or "").lower().strip() not in _SILENT_LOG_CATEGORIES
+        and not is_emergency_complaint
+    )
+    if _ack_template_missing:
+        citizen_ack_message = "🙏"
+    citizen_ack_message, reply_validation = validate_and_prepare_reply(
+        citizen_ack_message,
+        language_decision,
+    )
+    if _ack_template_missing and language_decision.is_resolved:
+        reply_validation.update(
+            valid=False,
+            fallback_used=True,
+            reason="localized_template_unavailable",
+        )
 
     # TEMP DIAGNOSTIC (grep: INTENT_DIAG) — remove once voice-note intent routing
     # is verified in production. Ties the message source to the final ack decision.
@@ -4597,92 +4789,6 @@ def _run_citizen_case_enrichment(
         (citizen_ack_message or "")[:120],
         (message_body or "")[:240],
     )
-
-    if location_name and not final_constituency:
-        lookup_key = str(location_name).lower().strip()
-        combined_geo = {}
-        try:
-            geo_map = get_geo_overrides(current_tenant)
-            combined_geo.update(geo_map)
-        except Exception:
-            logger.warning("Geo override lookup failed for tenant %s", current_tenant)
-
-        try:
-            import glob as _glob
-            tenant_const = None
-            try:
-                from sansadx_backend.db import SessionLocal as _SL2, Tenant as _T2
-                _db2 = _SL2()
-                try:
-                    _t2 = _db2.query(_T2).filter(_T2.id == current_tenant).first()
-                    if _t2:
-                        tenant_const = _t2.constituency
-                finally:
-                    _db2.close()
-            except Exception:
-                pass
-
-            if tenant_const:
-                for base in ["data/geography", "/app/data/geography"]:
-                    const_dir = os.path.join(base, tenant_const)
-                    if not os.path.isdir(const_dir):
-                        if os.path.isdir(base):
-                            for d in os.listdir(base):
-                                if d.lower() == tenant_const.lower() and os.path.isdir(os.path.join(base, d)):
-                                    const_dir = os.path.join(base, d)
-                                    break
-                            else:
-                                continue
-                        else:
-                            continue
-
-                    for fpath in _glob.glob(os.path.join(const_dir, "*.json")):
-                        assembly_name = os.path.splitext(os.path.basename(fpath))[0]
-                        try:
-                            with open(fpath, "r") as gf:
-                                stations = json.load(gf)
-                            if isinstance(stations, list):
-                                for station in stations:
-                                    if isinstance(station, dict):
-                                        loc = station.get("locality", "").strip()
-                                        if loc and loc not in combined_geo:
-                                            combined_geo[loc] = assembly_name
-                        except Exception:
-                            pass
-                    break
-        except Exception as e:
-            logger.warning(f"Geography file scan failed in main.py: {e}")
-
-        combined_lower = {k.lower(): v for k, v in combined_geo.items()}
-        final_constituency = combined_lower.get(lookup_key)
-        if not final_constituency:
-            import re as _re
-            for geo_key, geo_val in combined_lower.items():
-                if len(geo_key) >= 4:
-                    word_pattern = r'\b' + _re.escape(geo_key) + r'\b'
-                    if _re.search(word_pattern, lookup_key):
-                        final_constituency = geo_val
-                        break
-        if not final_constituency:
-            best_match = None
-            best_match_len = 0
-            for geo_key, geo_val in combined_lower.items():
-                if len(geo_key) >= 5 and geo_key in lookup_key and len(geo_key) > best_match_len:
-                    best_match = geo_val
-                    best_match_len = len(geo_key)
-                    best_match_key = geo_key
-            if best_match:
-                final_constituency = best_match
-        if not final_constituency and len(lookup_key) >= 5:
-            import difflib
-            candidate_keys = [
-                k for k in combined_lower.keys()
-                if len(k) >= 5 and 0.7 <= len(k)/len(lookup_key) <= 1.3
-            ]
-            if candidate_keys:
-                matches = difflib.get_close_matches(lookup_key, candidate_keys, n=1, cutoff=0.85)
-                if matches:
-                    final_constituency = combined_lower[matches[0]]
 
     _classification_shadow = grievance.get("classification_shadow") or {}
     if not isinstance(_classification_shadow, dict):
@@ -4713,9 +4819,13 @@ def _run_citizen_case_enrichment(
     meta_data = {
         "detected_language": detected_language,
         "language": detected_language,
+        "language_decision": language_decision.to_metadata(),
+        "reply_validation": reply_validation,
         "user_intent": status,
-        "location_resolved": bool(location_name and final_constituency != "Unknown"),
-        "matched_value": location_name or "",
+        "location_resolved": bool(grievance.get("location_resolved")),
+        "matched_value": location_name if grievance.get("location_resolved") else "",
+        "unresolved_location": grievance.get("unresolved_location", ""),
+        "geography_candidate": grievance.get("geography_candidate"),
         "assembly_constituency": final_constituency,
         "geography_confidence": grievance.get("geography_confidence", "unknown"),
         "geography_source": grievance.get("geography_source", "unknown"),
@@ -4762,6 +4872,7 @@ def _run_citizen_case_enrichment(
         "grievance": grievance,
         "status": status,
         "detected_language": detected_language,
+        "language_decision": language_decision,
         "problem_domain": problem_domain,
         "problem_subdomain": problem_subdomain,
         "convergence_program_type": convergence_program_type,
@@ -4793,6 +4904,13 @@ def _save_case_enrichment_and_respond(
     category = enrichment["category"]
     detected_language = enrichment["detected_language"]
     reply_text = citizen_ack_override if citizen_ack_override is not None else enrichment["citizen_ack_message"]
+    language_decision = enrichment.get("language_decision")
+    if not isinstance(language_decision, LanguageDecision):
+        language_decision = _resolve_citizen_language_decision(message_body, enrichment.get("ai_result"), detected_language)
+    reply_text, reply_validation = validate_and_prepare_reply(reply_text, language_decision)
+    if not (citizen_ack_override if citizen_ack_override is not None else enrichment["citizen_ack_message"]):
+        reply_text = ""
+    enrichment["meta_data"]["reply_validation"] = reply_validation
     meta_data, clarification_needed = _apply_clarification_metadata(
         enrichment["meta_data"],
         status=status,
@@ -4904,7 +5022,14 @@ def _save_case_enrichment_and_respond(
 
         if reply_text:
             try:
-                send_whatsapp_message(sender, reply_text, wa_phone_id)
+                _send_automated_citizen_reply(
+                    sender=sender,
+                    tenant_id=current_tenant,
+                    wa_phone_id=wa_phone_id,
+                    message_body=message_body,
+                    reply_text=reply_text,
+                    decision=language_decision,
+                )
             except Exception as _rv_send_exc:
                 logger.error("Failed to send review ack to %s (case=%s): %s", sender, case_id, _rv_send_exc)
                 try:
@@ -4928,7 +5053,14 @@ def _save_case_enrichment_and_respond(
 
     try:
         if reply_text:
-            send_whatsapp_message(sender, reply_text, wa_phone_id)
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=wa_phone_id,
+                message_body=message_body,
+                reply_text=reply_text,
+                decision=language_decision,
+            )
     except Exception as send_exc:
         logger.error(
             "WHATSAPP_SEND_FAILED: could not reply to %s (case=%s) — %s. "
@@ -5175,12 +5307,6 @@ def _process_incoming_message(
         flag_type   = "abuse_keyword"    if is_abuse else "coordinated_flood"
         flag_reason = abuse_reason       if is_abuse else flood_reason
         spam_cat    = "Spam (Offensive)" if is_abuse else "Spam"
-        _detected_lang = detect_input_language(message_body)
-        _reply_text = (
-            get_offensive_warning_reply(_detected_lang, message_body)
-            if is_abuse
-            else get_review_ack_reply(_detected_lang, message_body)
-        )
         logger.warning(f"Spam flag [{flag_type}] from {sender}: {flag_reason}")
 
         try:
@@ -5209,10 +5335,14 @@ def _process_incoming_message(
 
         _save_spam_flag(current_tenant, sender, flag_type, flag_reason, message_body)
         if is_abuse:
-            send_whatsapp_message(
-                sender,
-                _reply_text,
-                _wa_phone_id,
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=message_body,
+                reply_factory=lambda selected: get_offensive_warning_reply(
+                    selected.language, message_body, selected.script
+                ),
             )
         return
 
@@ -5261,11 +5391,14 @@ def _process_incoming_message(
                         "now": datetime.utcnow(),
                     }
                 )
-            _detected_lang = detect_input_language(message_body)
-            send_whatsapp_message(
-                sender,
-                get_rate_limit_reply(_detected_lang, message_body),
-                _wa_phone_id,
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=message_body,
+                reply_factory=lambda selected: get_rate_limit_reply(
+                    selected.language, message_body, selected.script
+                ),
             )
             return
     except Exception as _rate_exc:
@@ -5312,7 +5445,8 @@ def _process_incoming_message(
                     enrichment["location_name"],
                     enrichment["detected_language"],
                     _followup_text,
-                )
+                    enrichment["language_decision"].script,
+                ) or "🙏"
 
             _save_case_enrichment_and_respond(
                 case_id=_pending["id"],
@@ -5731,9 +5865,17 @@ def _process_incoming_message(
             _link_inbound_to_case(case_id)
         except Exception as e:
             logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
-            # Even if DB fails, still try to acknowledge the citizen
-            _detected_lang = detect_input_language(message_body)
-            send_whatsapp_message(sender, get_generic_ack_reply(_detected_lang, message_body), _wa_phone_id)
+            # Do not imply registration when persistence failed. Ask the
+            # citizen to resend through the same validated language boundary.
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=message_body,
+                reply_factory=lambda selected: get_unsupported_message_reply(
+                    selected.language, message_body, selected.script
+                ),
+            )
             raise
 
     # ── STEP 2: AI classification (if this fails, the grievance is still saved) ──
@@ -5771,11 +5913,14 @@ def _process_incoming_message(
         # AI failed — grievance is still saved as pending/Uncategorised
         logger.error(f"AI processing failed for case {case_id}: {e}")
         try:
-            _detected_lang = detect_input_language(message_body)
-            send_whatsapp_message(
-                sender,
-                get_generic_ack_reply(_detected_lang, message_body),
-                _wa_phone_id,
+            _send_automated_citizen_reply(
+                sender=sender,
+                tenant_id=current_tenant,
+                wa_phone_id=_wa_phone_id,
+                message_body=message_body,
+                reply_factory=lambda selected: get_generic_ack_reply(
+                    selected.language, message_body, selected.script
+                ),
             )
         except Exception as send_exc:
             logger.error(
