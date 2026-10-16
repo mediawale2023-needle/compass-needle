@@ -11,6 +11,7 @@ import requests as http_requests
 from datetime import datetime
 
 from sansadx_backend.db import SessionLocal, WAOutboundMessage
+from sansadx_backend.wa_routing import OUTBOUND_BLOCKED_PHONE_NUMBER_ID, outbound_number_conflict
 
 logger = logging.getLogger("needle.whatsapp")
 
@@ -142,6 +143,15 @@ def send_whatsapp_message(
     phone_number_id = phone_number_id or os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID")
     access_token = os.getenv("META_ACCESS_TOKEN")
 
+    # Never send a tenant's message from a number assigned to another tenant.
+    blocked_reason = None
+    if phone_number_id == OUTBOUND_BLOCKED_PHONE_NUMBER_ID:
+        blocked_reason = "no_authorised_number"
+    elif outbound_number_conflict(tenant_id, phone_number_id):
+        blocked_reason = "number_assigned_to_other_tenant"
+    if blocked_reason:
+        phone_number_id = None
+
     # Strip any whatsapp: prefix and leading + — Meta uses bare E.164 digits only
     to_number = to_number.replace("whatsapp:", "").strip()
     if to_number.startswith("+"):
@@ -169,6 +179,15 @@ def send_whatsapp_message(
         initiated_via=initiated_via,
         payload=payload,
     )
+    if blocked_reason:
+        _finalize_outbound_log(
+            log_id=log_id,
+            status="failed",
+            meta_response={"reason": blocked_reason},
+            last_error="No WhatsApp number authorised for this tenant",
+        )
+        logger.error("WhatsApp send refused for tenant=%s: %s", tenant_id, blocked_reason)
+        raise ValueError("No WhatsApp number authorised for this tenant")
     if not phone_number_id or not access_token:
         _finalize_outbound_log(
             log_id=log_id,

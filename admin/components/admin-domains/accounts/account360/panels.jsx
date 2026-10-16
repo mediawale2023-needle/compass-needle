@@ -8,7 +8,7 @@ import {
     caseTrend, decisionSummary, formatCount, formatDuration, formatRelative, openOverDays, parliamentForAccount,
 } from '@/lib/admin-data';
 import {
-    AccountIdentity, Badge, BarList, Card, ChartLegend, DataState, EmptyState, Field, KeyValueList, LineChart, Metric,
+    AccountIdentity, Badge, BarList, Callout, Card, ChartLegend, DataState, EmptyState, Field, KeyValueList, LineChart, Metric,
     MetricGroup, SeverityTile, StatusText, TextInput, Timeline, Unavailable,
 } from '@/components/admin-ui';
 
@@ -111,24 +111,40 @@ export function WhatsAppConfigPanel({ tenantId, identity, onSaved, notify, outbo
     const [number, setNumber] = useState(identity.whatsappNumber || '');
     const [phoneId, setPhoneId] = useState(identity.phoneNumberId || '');
     const [saving, setSaving] = useState(false);
+    const [transferPrompt, setTransferPrompt] = useState(null);
 
-    const save = async () => {
+    const save = async (transfer = false) => {
         if (!number.trim()) { notify('WhatsApp number is required', 'error'); return; }
         if (!number.startsWith('+')) { notify('Number must start with + (e.g. +919876543210)', 'error'); return; }
         setSaving(true);
         try {
-            await apiPatch(`/api/admin/mps/${tenantId}/whatsapp`, { whatsapp_number: number.trim(), phone_number_id: phoneId.trim() });
+            const result = await apiPatch(`/api/admin/mps/${tenantId}/whatsapp`, { whatsapp_number: number.trim(), phone_number_id: phoneId.trim(), transfer });
+            setTransferPrompt(null);
             const fresh = await apiGet(`/api/admin/mps/${tenantId}/detail`);
             onSaved(fresh);
             setNumber(fresh?.profile?.whatsapp_number || '');
             setPhoneId(fresh?.profile?.phone_number_id || '');
             setEditing(false);
-            notify('WhatsApp settings saved');
+            const effective = result?.effective_routing;
+            if (effective && !effective.routes_to_this_tenant) {
+                notify(`Saved, but messages to this number will not reach this account (${effective.reason || `routes to tenant ${effective.effective_tenant_id}`}).`, 'error');
+            } else {
+                const moved = result?.transferred_from_tenant_ids || [];
+                notify(moved.length ? `Number moved to this account from tenant ${moved.join(', ')}` : 'WhatsApp settings saved');
+            }
         } catch (error) {
-            notify(error.message || 'Failed to save WhatsApp settings', 'error');
+            const message = error.message || 'Failed to save WhatsApp settings';
+            if (!transfer && /currently assigned to/i.test(message)) setTransferPrompt(message);
+            else notify(message, 'error');
         }
         setSaving(false);
     };
+
+    const routing = identity.whatsappRouting;
+    const routingLabel = !routing ? null
+        : routing.routes_to_this_tenant ? `Routes to this account (via ${routing.source === 'phone_number_id' ? 'phone number ID' : routing.source === 'display_number' ? 'display number' : 'legacy mapping'})`
+            : routing.effective_tenant_id != null ? `Routes to tenant ${routing.effective_tenant_id}, not this account`
+                : `Not routing (${routing.reason || 'unassigned'})`;
 
     const recent = (outbound || []).slice(0, 8);
     return (
@@ -142,6 +158,7 @@ export function WhatsAppConfigPanel({ tenantId, identity, onSaved, notify, outbo
                     <KeyValueList items={[
                         { label: 'WhatsApp number', value: identity.whatsappNumber || <span className="nx-unavailable">Not set</span> },
                         { label: 'Meta phone number ID', value: identity.phoneNumberId || <span className="nx-unavailable">Not set</span> },
+                        ...(routingLabel ? [{ label: 'Effective routing', value: routingLabel, tone: routing.routes_to_this_tenant ? undefined : 'critical' }] : []),
                     ]} />
                 ) : (
                     <div className="nx-a3-form">
@@ -153,9 +170,16 @@ export function WhatsAppConfigPanel({ tenantId, identity, onSaved, notify, outbo
                                 {(props) => <TextInput {...props} placeholder="e.g. 089911394213487" value={phoneId} onChange={(e) => setPhoneId(e.target.value)} />}
                             </Field>
                         </div>
+                        {transferPrompt && (
+                            <Callout tone="warning" title="Number already assigned.">
+                                {transferPrompt} New messages will route to this account; existing cases stay with their current account.
+                            </Callout>
+                        )}
                         <div className="nx-a3-form-actions">
-                            <button type="button" className="nx-btn nx-btn-primary nx-btn-sm" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
-                            <button type="button" className="nx-btn nx-btn-sm" disabled={saving} onClick={() => { setNumber(identity.whatsappNumber || ''); setPhoneId(identity.phoneNumberId || ''); setEditing(false); }}>Cancel</button>
+                            {transferPrompt
+                                ? <button type="button" className="nx-btn nx-btn-primary nx-btn-sm" disabled={saving} onClick={() => save(true)}>{saving ? 'Moving…' : 'Move number to this account'}</button>
+                                : <button type="button" className="nx-btn nx-btn-primary nx-btn-sm" disabled={saving} onClick={() => save(false)}>{saving ? 'Saving…' : 'Save'}</button>}
+                            <button type="button" className="nx-btn nx-btn-sm" disabled={saving} onClick={() => { setNumber(identity.whatsappNumber || ''); setPhoneId(identity.phoneNumberId || ''); setTransferPrompt(null); setEditing(false); }}>Cancel</button>
                         </div>
                     </div>
                 )}

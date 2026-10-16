@@ -28,6 +28,12 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, TenantOverride, JobRun, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote, derive_account_stage, derive_seat_type, build_geography_key, parse_geography_key, get_all_geography_data, seat_label
 from core.db_helpers import _q, _q_one, _parse_meta
+from sansadx_backend.wa_routing import (
+    mask as wa_mask,
+    normalize_display_number,
+    normalize_phone_number_id,
+    resolve_whatsapp_tenant,
+)
 from core.session_auth import (token_revoked, revoke_in_transaction, require_active_account, validate_session, credential_binding)
 from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
@@ -1192,55 +1198,116 @@ def reset_mp_password(tenant_id: int, req: ResetPasswordRequest, _=Depends(get_a
 class UpdateWhatsappRequest(BaseModel):
     whatsapp_number: str          # e.g. "+919289372849"
     phone_number_id: str = ""     # Meta Phone Number ID e.g. "089911394213487"
+    # Explicit confirmation to move the number/ID away from the tenant that
+    # currently holds it. Without it a clash is a 409, never a silent steal.
+    transfer: bool = False
+
+
+def _whatsapp_effective_routing(tenant_id: int, whatsapp_number: str, phone_number_id: str, conn=None) -> dict:
+    """What inbound routing will ACTUALLY do for this tenant's identity right now."""
+    res = resolve_whatsapp_tenant(whatsapp_number or None, phone_number_id or None, conn=conn)
+    return {
+        "effective_tenant_id": res.tenant_id,
+        "source": res.source,
+        "reason": res.reason or None,
+        "routes_to_this_tenant": res.tenant_id == tenant_id,
+        "conflicting_tenant_ids": [t for t in res.candidates if t != tenant_id],
+    }
 
 
 @router.patch("/mps/{tenant_id}/whatsapp")
-def update_mp_whatsapp(tenant_id: int, req: UpdateWhatsappRequest, _=Depends(get_admin_user)):
-    """Update the WhatsApp display number (used for inbound routing) for an MP tenant.
+def update_mp_whatsapp(tenant_id: int, req: UpdateWhatsappRequest, admin_user=Depends(get_admin_user)):
+    """Assign a WhatsApp number (display number + Meta Phone Number ID) to a tenant.
 
-    Also stores the Meta Phone Number ID in tenant config so it can be
-    referenced if the system ever supports per-tenant outbound routing.
+    This writes the single authoritative mapping that inbound routing
+    (sansadx_backend/wa_routing.py) and outbound sends read. The change is
+    verified against the live resolver inside the transaction; if the number
+    would not route to this tenant afterwards, nothing is saved and a 409 is
+    returned instead of a false success.
 
-    The whatsapp_number must include the country code with + prefix,
-    e.g. '+919289372849'. It must be unique across all tenants.
+    Moving a number from another tenant requires ``transfer=true``: the previous
+    assignment is ended in the same transaction and audited. Historical cases and
+    messages keep their original tenant.
     """
-    if not req.whatsapp_number.startswith("+"):
+    number = normalize_display_number(req.whatsapp_number)
+    pnid = normalize_phone_number_id(req.phone_number_id)
+    if not req.whatsapp_number.strip().startswith("+") or not re.fullmatch(r"\+\d{8,15}", number):
         raise HTTPException(400, "whatsapp_number must start with '+' and include country code, e.g. '+919289372849'")
+    if req.phone_number_id.strip() and not re.fullmatch(r"\d{5,25}", req.phone_number_id.strip()):
+        raise HTTPException(400, "phone_number_id must contain digits only (Meta Business Suite → WhatsApp → Phone Numbers)")
 
     db = SessionLocal()
     try:
-        # Uniqueness check — prevent two tenants mapping to the same number
-        clash = db.query(Tenant).filter(
-            Tenant.whatsapp_number == req.whatsapp_number,
-            Tenant.id != tenant_id,
-        ).first()
-        if clash:
-            raise HTTPException(409, f"Number {req.whatsapp_number} is already assigned to another tenant (id={clash.id})")
-
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).with_for_update().first()
         if not tenant:
             raise HTTPException(404, "Tenant not found")
 
-        tenant.whatsapp_number = req.whatsapp_number
+        previous_number = tenant.whatsapp_number or ""
+        tenant_active = bool(tenant.is_active)
+        previous_pnid = str((tenant.config or {}).get("meta_phone_number_id") or "")
 
-        # Always write a fresh dict so SQLAlchemy detects the JSON mutation
+        # Every other tenant holding this number or Phone Number ID (any format).
+        holders = []
+        for other in db.query(Tenant).filter(Tenant.id != tenant_id).with_for_update().all():
+            holds_number = normalize_display_number(other.whatsapp_number) == number
+            other_pnid = normalize_phone_number_id((other.config or {}).get("meta_phone_number_id"))
+            holds_pnid = bool(pnid) and other_pnid == pnid
+            if holds_number or holds_pnid:
+                holders.append((other, holds_number, holds_pnid))
+
+        if holders and not req.transfer:
+            names = ", ".join(f"{o.name or 'tenant'} (id={o.id})" for o, _, _ in holders)
+            raise HTTPException(
+                409,
+                f"This WhatsApp number is currently assigned to {names}. "
+                "Confirm the transfer to move it to this account.",
+            )
+
+        ended = []
+        for other, holds_number, holds_pnid in holders:
+            if holds_number:
+                other.whatsapp_number = None
+            if holds_pnid:
+                cfg = dict(other.config or {})
+                cfg.pop("meta_phone_number_id", None)
+                other.config = cfg
+                flag_modified(other, "config")
+            ended.append(other.id)
+        if ended:
+            db.flush()  # release the unique number before assigning it below
+
+        tenant.whatsapp_number = number
         new_config = dict(tenant.config or {})
-        if req.phone_number_id:
-            new_config["meta_phone_number_id"] = req.phone_number_id
+        if pnid:
+            new_config["meta_phone_number_id"] = pnid
         else:
             new_config.pop("meta_phone_number_id", None)
         tenant.config = new_config
         flag_modified(tenant, "config")
 
+        # Legacy phone_mapping rows for the old or new number can no longer
+        # outrank Admin, but remove them so the Overrides editor stops showing
+        # (and re-saving) a contradictory mapping.
+        legacy_keys = {k for n in (number, previous_number) for k in (normalize_display_number(n), normalize_display_number(n).lstrip("+")) if k}
+        legacy_keys |= {k for k in (pnid, previous_pnid) if k}
+        legacy_removed = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "phone_mapping",
+            TenantOverride.key.in_(sorted(legacy_keys)),
+        ).delete(synchronize_session=False)
+        db.flush()
+
+        effective = _whatsapp_effective_routing(tenant_id, number, pnid, conn=db.connection())
+        if tenant_active and not effective["routes_to_this_tenant"]:
+            db.rollback()
+            raise HTTPException(
+                409,
+                "Not saved: this number would still not route to this account "
+                f"({effective['reason'] or 'routes to tenant ' + str(effective['effective_tenant_id'])}).",
+            )
+
         db.commit()
-        _audit(_, "updated", "tenant_whatsapp", str(tenant_id), f"number={req.whatsapp_number}")
-        return {
-            "success": True,
-            "tenant_id": tenant_id,
-            "whatsapp_number": req.whatsapp_number,
-            "phone_number_id": req.phone_number_id or None,
-        }
     except HTTPException:
+        db.rollback()
         raise
     except Exception:
         db.rollback()
@@ -1248,6 +1315,30 @@ def update_mp_whatsapp(tenant_id: int, req: UpdateWhatsappRequest, _=Depends(get
         raise HTTPException(500, "Internal server error")
     finally:
         db.close()
+
+    # Re-read from a fresh connection: this is what every worker now sees.
+    effective = _whatsapp_effective_routing(tenant_id, number, pnid)
+    for other_id in ended:
+        _audit(admin_user, "ended", "tenant_whatsapp", str(other_id),
+               f"number={wa_mask(number)} pnid={wa_mask(pnid)} moved_to_tenant={tenant_id}")
+    _audit(
+        admin_user, "updated", "tenant_whatsapp", str(tenant_id),
+        f"number={wa_mask(number)} pnid={wa_mask(pnid)} previous_number={wa_mask(previous_number)} "
+        f"previous_pnid={wa_mask(previous_pnid)} transferred_from={ended} legacy_overrides_removed={legacy_removed} "
+        f"effective_tenant={effective['effective_tenant_id']} source={effective['source']}",
+    )
+    if tenant_active and not effective["routes_to_this_tenant"]:
+        logger.critical("WhatsApp assignment for tenant %s committed but not effective: %s", tenant_id, effective)
+        raise HTTPException(500, "Saved, but routing did not take effect. Check WhatsApp routing health.")
+    return {
+        "success": True,
+        "tenant_id": tenant_id,
+        "whatsapp_number": number,
+        "phone_number_id": pnid or None,
+        "transferred_from_tenant_ids": ended,
+        "legacy_overrides_removed": legacy_removed,
+        "effective_routing": effective,
+    }
 
 
 # ═══════════════════════════════════════════
@@ -4452,10 +4543,19 @@ def _collect_whatsapp_health(now: datetime | None = None, *, live_check: bool = 
                 cfg = {}
         has_wa_number = bool((tenant.get("whatsapp_number") or "").strip())
         has_phone_id = bool((cfg.get("meta_phone_number_id") or "").strip()) or bool(global_phone_id)
-        if has_wa_number and has_phone_id:
+        issue_parts = []
+        if has_wa_number or (cfg.get("meta_phone_number_id") or "").strip():
+            # Stored values are not enough — confirm inbound actually routes here.
+            effective = _whatsapp_detail_routing({**tenant, "config": cfg})
+            if effective and not effective["routes_to_this_tenant"]:
+                issue_parts.append(
+                    f"number routes to tenant {effective['effective_tenant_id']}"
+                    if effective["effective_tenant_id"] is not None
+                    else f"number does not route ({effective['reason']})"
+                )
+        if has_wa_number and has_phone_id and not issue_parts:
             configured_tenants += 1
             continue
-        issue_parts = []
         if not has_wa_number:
             issue_parts.append("missing tenant WhatsApp number")
         if not has_phone_id:
@@ -4854,6 +4954,20 @@ def list_job_runs(
 # MP DETAIL (CRM CORE)
 # ═══════════════════════════════════════════
 
+def _whatsapp_detail_routing(tenant: dict) -> dict | None:
+    """Effective routing for the Admin account page (None when nothing is assigned)."""
+    cfg = tenant.get("config") if isinstance(tenant.get("config"), dict) else {}
+    number = tenant.get("whatsapp_number") or ""
+    pnid = str((cfg or {}).get("meta_phone_number_id") or "")
+    if not number and not pnid:
+        return None
+    try:
+        return _whatsapp_effective_routing(int(tenant["id"]), number, pnid)
+    except Exception:
+        logger.exception("Effective WhatsApp routing lookup failed for tenant %s", tenant.get("id"))
+        return None
+
+
 @router.get("/mps/{tenant_id}/detail")
 def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
     """Rich MP detail page — profile, activity, staff, health."""
@@ -4891,6 +5005,7 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
         "languages": extra.get("languages", []),
         "whatsapp_number": tenant.get("whatsapp_number", ""),
         "phone_number_id": (tenant.get("config") or {}).get("meta_phone_number_id", "") if isinstance(tenant.get("config"), dict) else "",
+        "whatsapp_routing": _whatsapp_detail_routing(tenant),
         "created_at": tenant["created_at"].isoformat() if tenant.get("created_at") and hasattr(tenant["created_at"], "isoformat") else str(tenant.get("created_at", "")),
     }
 

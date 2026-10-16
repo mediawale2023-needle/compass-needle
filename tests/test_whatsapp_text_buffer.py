@@ -92,8 +92,8 @@ def _reset_state():
         conn.execute(text("DELETE FROM cases"))
         conn.execute(text("DELETE FROM tenants"))
         conn.execute(text("""
-            INSERT INTO tenants (id, name, is_active) VALUES (1, 'Test MP', 1)
-        """))
+            INSERT INTO tenants (id, name, is_active, whatsapp_number) VALUES (1, 'Test MP', 1, :receiver)
+        """), {"receiver": RECEIVER})
     with main._text_buffer_timer_lock:
         for timer in main._text_buffer_timers.values():
             timer.cancel()

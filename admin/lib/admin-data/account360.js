@@ -38,6 +38,7 @@ export function accountIdentity(detail, tenantId) {
         seatKey: seatType && p.constituency && p.constituency !== 'India' ? `${seatType}:${p.constituency}` : null,
         whatsappNumber: p.whatsapp_number || null,
         phoneNumberId: p.phone_number_id || null,
+        whatsappRouting: p.whatsapp_routing || null,
         languages: Array.isArray(p.languages) ? p.languages : [],
         keyFacts: Array.isArray(p.key_facts) ? p.key_facts : [],
     };

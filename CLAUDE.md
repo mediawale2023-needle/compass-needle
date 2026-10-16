@@ -230,7 +230,7 @@ Static JSON loaded at startup (not in DB):
 - `modules/data/csr_db.json` — CSR opportunities database
 - `modules/data/schemes_db.json` — Government schemes (1500+)
 - `modules/data/fund_intel.json` — Fund intelligence
-- `tenant_overrides.json` — WhatsApp number → tenant ID overrides (per-number phone/language config)
+- `tenant_overrides.json` — legacy WhatsApp number → tenant ID overrides (subordinate to Admin assignment; see WhatsApp Tenant Routing)
 - `modules/constituency_library/` — Regional constituency data
 - `data/geography/<District>/` — Per-constituency JSON geography files (e.g. Aligarh/Koil.json)
 
@@ -267,6 +267,28 @@ Incoming WA message → case_query_parser.py (NLP → filters)
 **Filter fields:** `location`, `constituency`, `days` (1–365), `issue_type`, `status`
 
 **DB performance:** Run `scripts/add_query_indexes.sql` once on production to add partial indexes on `assembly`, `location`, `status`, `created_at`, `category`, and a composite index.
+
+---
+
+## WhatsApp Tenant Routing (`sansadx_backend/wa_routing.py`)
+
+Single source of truth for which tenant owns a WhatsApp number — used by the
+webhook, outbound sends and the Admin dashboard alike:
+
+- **Authority:** the Admin assignment on the tenant row — `tenants.config->>'meta_phone_number_id'`
+  (matched first, from webhook `metadata.phone_number_id`) then `tenants.whatsapp_number`.
+  Read fresh from the DB on every message (no cache), so reassignment is immediate on every worker.
+- **One owner:** `whatsapp_number` is UNIQUE; `uq_tenants_meta_phone_number_id` (startup migration) makes the
+  Phone Number ID unique too. Split/duplicate ownership resolves to *no* tenant (`ambiguous_assignment`).
+- **No default tenant:** unresolved inbound rows are marked `failed` with `TENANT_UNRESOLVED:<reason>`
+  (retryable from Admin after fixing the assignment). There is no `tenant_id=1` fallback.
+- **Legacy `phone_mapping` overrides** apply only to numbers no Admin assignment claims, and are deleted
+  when Admin assigns those numbers. They can never outrank Admin.
+- **Reassign:** `PATCH /admin/mps/{id}/whatsapp` with `transfer=true` moves the number atomically, verifies
+  the live resolver now returns the new tenant before committing, and audits both ends.
+  Historical cases/messages keep their original tenant.
+- **Outbound:** `get_tenant_phone_number_id()` never returns another tenant's number; `send_whatsapp_message()`
+  refuses a foreign or blocked Phone Number ID.
 
 ---
 

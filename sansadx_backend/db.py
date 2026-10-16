@@ -1041,21 +1041,17 @@ def get_phone_tenant_mapping() -> dict:
 
 
 def get_tenant_phone_number_id(tenant_id: int) -> str | None:
-    """Return the Meta Phone Number ID for a tenant, or None if not set.
+    """Return the Meta Phone Number ID this tenant is authorised to send from.
 
-    The ID is stored in tenants.config->>'meta_phone_number_id' and is set
-    via the PATCH /admin/mps/{id}/whatsapp endpoint.  Falls back to None so
-    callers can degrade to the global WHATSAPP_PHONE_NUMBER_ID env var.
+    Delegates to sansadx_backend.wa_routing so outbound uses the same
+    assignment Admin edits and inbound routes on. When the tenant has no own
+    ID the global WHATSAPP_PHONE_NUMBER_ID is used only if no other tenant owns
+    it; otherwise OUTBOUND_BLOCKED_PHONE_NUMBER_ID is returned and
+    send_whatsapp_message() refuses rather than sending from another tenant's
+    number.
     """
-    db = SessionLocal()
-    try:
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if not tenant:
-            return None
-        config = tenant.config or {}
-        return config.get("meta_phone_number_id") or None
-    finally:
-        db.close()
+    from sansadx_backend.wa_routing import outbound_phone_number_id_for_tenant
+    return outbound_phone_number_id_for_tenant(tenant_id)
 
 
 def get_geo_overrides(tenant_id: int) -> dict:
