@@ -78,3 +78,46 @@ jobs:
 
       - name: Build Admin Frontend
         run: npm run build:admin
+
+  whatsapp-routing-postgres:
+    name: WhatsApp Tenant Routing (PostgreSQL 17)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wa_routing_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/wa_routing_test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m venv venv
+          venv/bin/python -m pip install --upgrade pip
+          venv/bin/pip install -r requirements.txt
+          venv/bin/pip install pytest
+
+      - name: Run Routing Suite Against PostgreSQL 17
+        run: venv/bin/python -m pytest tests/test_wa_tenant_routing_pg.py -v

@@ -119,7 +119,34 @@ describe('Account 360', () => {
         fireEvent.change(screen.getByLabelText('WhatsApp number', { exact: false }), { target: { value: '+919000000009' } });
         fireEvent.change(screen.getByLabelText('Meta phone number ID', { exact: false }), { target: { value: '123456' } });
         await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })); });
-        expect(apiPatchMock).toHaveBeenCalledWith('/api/admin/mps/9/whatsapp', { whatsapp_number: '+919000000009', phone_number_id: '123456' });
+        expect(apiPatchMock).toHaveBeenCalledWith('/api/admin/mps/9/whatsapp', { whatsapp_number: '+919000000009', phone_number_id: '123456', transfer: false });
+    });
+
+    it('asks for explicit confirmation before moving a number from another account', async () => {
+        apiPatchMock
+            .mockRejectedValueOnce(new Error('This WhatsApp number is currently assigned to Tenant Eleven (id=11). Confirm the transfer to move it to this account.'))
+            .mockResolvedValueOnce({ transferred_from_tenant_ids: [11], effective_routing: { routes_to_this_tenant: true, effective_tenant_id: 9 } });
+        window.history.replaceState(null, '', '/dashboard/mps/9#whatsapp');
+        await renderPage();
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+        fireEvent.change(screen.getByLabelText('WhatsApp number', { exact: false }), { target: { value: '+919000000009' } });
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })); });
+        expect(await screen.findByText(/currently assigned to Tenant Eleven/)).toBeInTheDocument();
+        expect(screen.getByText(/existing cases stay with their current account/)).toBeInTheDocument();
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Move number to this account' })); });
+        expect(apiPatchMock).toHaveBeenLastCalledWith('/api/admin/mps/9/whatsapp', { whatsapp_number: '+919000000009', phone_number_id: '', transfer: true });
+        expect(await screen.findByText('Number moved to this account from tenant 11')).toBeInTheDocument();
+    });
+
+    it('does not report success when the saved number does not route to this account', async () => {
+        apiPatchMock.mockResolvedValue({ effective_routing: { routes_to_this_tenant: false, effective_tenant_id: null, reason: 'tenant_inactive' } });
+        window.history.replaceState(null, '', '/dashboard/mps/9#whatsapp');
+        await renderPage();
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+        fireEvent.change(screen.getByLabelText('WhatsApp number', { exact: false }), { target: { value: '+919000000009' } });
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })); });
+        expect(await screen.findByText(/will not reach this account \(tenant_inactive\)/)).toBeInTheDocument();
+        expect(screen.queryByText('WhatsApp settings saved')).not.toBeInTheDocument();
     });
 
     it('preserves adding staff', async () => {

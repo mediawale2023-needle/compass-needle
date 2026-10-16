@@ -71,7 +71,14 @@ def _get_meta_app_secret() -> str:
     """Read the current webhook signing secret from env at request time."""
     return os.getenv("META_APP_SECRET", "") or META_APP_SECRET
 
-from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_geo_overrides, get_tenant_phone_number_id, log_letterbox_activity
+from sansadx_backend.db import engine, init_db, get_geo_overrides, get_tenant_phone_number_id, log_letterbox_activity
+from sansadx_backend.wa_routing import (
+    RoutingResolution,
+    log_resolution_failure,
+    mask as wa_mask,
+    normalize_phone_number_id,
+    resolve_whatsapp_tenant,
+)
 
 
 # ── Needle status write helpers ──────────────────────────────────────────
@@ -2831,52 +2838,44 @@ async def verify_webhook(request: Request):
     raise HTTPException(status_code=403, detail="Verification failed")
 
 
-def _resolve_tenant(receiver_number: str) -> int | None:
-    """Resolve WhatsApp receiver number → tenant_id.
+def _resolve_inbound_routing(receiver_number: str | None, phone_number_id: str | None = None) -> RoutingResolution:
+    """Resolve an inbound WhatsApp identity via the single authoritative mapping.
 
-    FAIL-SAFE: returns None when the number cannot be matched to any tenant.
-    Callers MUST check for None and drop the message rather than defaulting.
-    Only falls back to tenant_id=1 when receiver_number is empty/None
-    (single-tenant deployments that never set WHATSAPP_PHONE_NUMBER_ID).
-
-    Resolution order:
-      1. In-memory phone_mapping from DB (TenantOverride)
-      2. Direct tenant.whatsapp_number match in DB
-      3. None (fail-safe — caller drops message)
+    See sansadx_backend/wa_routing.py: Admin's tenant assignment (Phone Number ID
+    first, then display number) is read fresh from the DB on every call, so a
+    reassignment is effective on every worker immediately. Unassigned,
+    ambiguous or stale identities resolve to no tenant — never a default.
     """
-    # Empty receiver_number = single-tenant deployment without phone routing
-    if not receiver_number:
-        logger.debug("_resolve_tenant: no receiver_number — falling back to tenant_id=1 (single-tenant mode)")
-        return 1
+    res = resolve_whatsapp_tenant(receiver_number, phone_number_id)
+    if not res.ok:
+        log_resolution_failure(res, receiver_number, phone_number_id)
+    elif res.reason:
+        logger.warning(
+            "Tenant resolution warning reason=%s tenant=%s receiver=%s",
+            res.reason, res.tenant_id, wa_mask(receiver_number),
+        )
+    return res
 
-    # 1. DB phone mapping (overrides table)
-    try:
-        phone_map = get_phone_tenant_mapping()
-        if receiver_number in phone_map:
-            return phone_map[receiver_number]
-    except Exception as exc:
-        logger.warning("Tenant phone mapping lookup failed for %s: %s", receiver_number, exc)
 
-    # 2. Direct whatsapp_number match on tenants table
-    try:
-        with engine.connect() as conn:
-            row = conn.execute(
-                text("SELECT id FROM tenants WHERE whatsapp_number = :num AND is_active = true LIMIT 1"),
-                {"num": receiver_number}
-            ).fetchone()
-            if row:
-                return row[0]
-    except Exception as exc:
-        logger.warning("Tenant DB lookup failed for %s: %s", receiver_number, exc)
+def _resolve_tenant(receiver_number: str) -> int | None:
+    """Resolve WhatsApp receiver (display number, or bare Phone Number ID) → tenant_id.
 
-    # 3. No match — fail-safe: drop the message
-    logger.critical(
-        "TENANT_RESOLUTION_FAILED: receiver_number='%s' matched no tenant. "
-        "Message will be DROPPED. Verify WHATSAPP_PHONE_NUMBER_ID env var and "
-        "tenant_overrides configuration match this number exactly (include country code).",
-        receiver_number,
-    )
-    return None
+    FAIL-SAFE: returns None when no single active tenant owns the identity.
+    Callers MUST check for None and drop the message rather than defaulting.
+    """
+    return _resolve_inbound_routing(receiver_number).tenant_id
+
+
+def _inbound_routing_key(res: RoutingResolution, display_number: str, phone_number_id: str) -> str:
+    """The receiver string downstream handlers re-resolve with.
+
+    When the Phone Number ID decided the route, pass it on (bare digits) so
+    every later _resolve_tenant() call — text-buffer flush, letter batches —
+    reaches the same tenant even if the display number is not configured.
+    """
+    if res.source == "phone_number_id" and phone_number_id:
+        return normalize_phone_number_id(phone_number_id)
+    return display_number
 
 
 def _get_registered_staff_sender(sender: str, tenant_id: int) -> dict | None:
@@ -6431,10 +6430,20 @@ def _dispatch_inbound_ledger_row(row: dict) -> None:
     receiver_number = str(row.get("receiver_number") or metadata.get("display_phone_number") or "").strip()
     if receiver_number and not receiver_number.startswith("+"):
         receiver_number = f"+{receiver_number}"
+    phone_number_id = str(metadata.get("phone_number_id") or "").strip()
+    if not receiver_number and not phone_number_id:
+        # Legacy single-number deployments: identify by the configured number.
+        phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
 
-    current_tenant = row.get("tenant_id")
-    if current_tenant is None and receiver_number:
-        current_tenant = _resolve_tenant(receiver_number)
+    # Always resolve against the CURRENT assignment (never the tenant stamped on
+    # the ledger row at receipt), and stop here if no single tenant owns the
+    # number — failing the row keeps it visible and retryable after Admin fixes
+    # the assignment, instead of letting a downstream handler guess.
+    routing = _resolve_inbound_routing(receiver_number, phone_number_id)
+    if not routing.ok:
+        raise RuntimeError(f"TENANT_UNRESOLVED:{routing.reason}")
+    current_tenant = routing.tenant_id
+    receiver_number = _inbound_routing_key(routing, receiver_number, phone_number_id)
 
     msg_type = str(row.get("message_type") or message.get("type") or "").strip().lower()
     msg_id = str(row.get("meta_message_id") or message.get("id") or "").strip()
@@ -6771,7 +6780,11 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
             display_number = entry.get("metadata", {}).get("display_phone_number", "")
             if display_number and not display_number.startswith("+"):
                 display_number = f"+{display_number}"
-            current_tenant = _resolve_tenant(display_number) if display_number else None
+            entry_phone_number_id = str(entry.get("metadata", {}).get("phone_number_id") or "").strip()
+            current_tenant = (
+                _resolve_inbound_routing(display_number, entry_phone_number_id).tenant_id
+                if (display_number or entry_phone_number_id) else None
+            )
 
             for msg in messages:
                 msg_id = str(msg.get("id") or "").strip()
@@ -6861,6 +6874,27 @@ try:
         logger.info("Migration: contacts(tenant_id, phone) unique index verified")
 except Exception as _contact_exc:
     logger.warning("contacts unique index migration skipped: %s", _contact_exc)
+
+# ─── Migration: one tenant per Meta Phone Number ID (idempotent) ───
+# tenants.whatsapp_number is already UNIQUE; this gives the Phone Number ID the
+# same guarantee so two tenants can never both own the routing key. If existing
+# data already conflicts, creation fails loudly and the resolver still rejects
+# the ambiguous number at runtime (sansadx_backend/wa_routing.py).
+if engine.dialect.name == "postgresql":
+    try:
+        with engine.begin() as conn:
+            conn.execute(sa_text("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_tenants_meta_phone_number_id
+                ON tenants ((config->>'meta_phone_number_id'))
+                WHERE COALESCE(config->>'meta_phone_number_id', '') <> ''
+            """))
+            logger.info("Migration: tenants meta_phone_number_id unique index verified")
+    except Exception as _pnid_exc:
+        logger.critical(
+            "tenants meta_phone_number_id unique index NOT created — two tenants may share a "
+            "Phone Number ID; inbound routing will reject that number until fixed: %s",
+            type(_pnid_exc).__name__,
+        )
 
 # ─── Startup: prune token_blocklist entries older than 8h (JWT max age) ───
 # Prevents unbounded table growth. Safe to run on every startup — only
