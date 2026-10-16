@@ -1,37 +1,90 @@
 name: Deploy Backend To AWS EC2
+run-name: Deploy backend @ ${{ inputs.target_sha }}
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "Dockerfile"
-      - "requirements.txt"
-      - "main.py"
-      - "api_router.py"
-      - "admin_api.py"
-      - "core/**"
-      - "modules/**"
-      - "sansadx_backend/**"
-      - "jobs/**"
-      - "scripts/**"
-      - "data/**"
-      - "deploy/ec2/**"
-      - "tenant_overrides.json"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/deploy-aws-ec2.yml"
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "Full 40-character commit SHA to deploy (must be tested and contained in main)"
+        required: true
+        type: string
 
 concurrency:
   group: aws-ec2-backend-production
   cancel-in-progress: false
 
 jobs:
+  prepare:
+    name: Validate Production Revision
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+    outputs:
+      target_sha: ${{ steps.revision.outputs.target_sha }}
+    steps:
+      - name: Checkout Main History
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate Target Revision
+        id: revision
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$TARGET_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "target_sha must be a full 40-character Git commit SHA." >&2
+            exit 1
+          fi
+
+          TARGET_SHA="$(printf '%s' "$TARGET_SHA" | tr '[:upper:]' '[:lower:]')"
+          git fetch --no-tags origin main
+          git cat-file -e "${TARGET_SHA}^{commit}"
+
+          if ! git merge-base --is-ancestor "$TARGET_SHA" origin/main; then
+            echo "Refusing deployment: $TARGET_SHA is not contained in origin/main." >&2
+            exit 1
+          fi
+
+          PRODUCT_TESTS_STATE="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/commits/${TARGET_SHA}/check-runs" \
+              --jq '[.check_runs[] | select(.name == "Backend, Frontend, Admin, And Browser Tests")] | {total: length, unsuccessful: map(select(.status != "completed" or .conclusion != "success")) | length}'
+          )"
+          PRODUCT_TESTS_TOTAL="$(jq -r '.total' <<< "$PRODUCT_TESTS_STATE")"
+          PRODUCT_TESTS_UNSUCCESSFUL="$(jq -r '.unsuccessful' <<< "$PRODUCT_TESTS_STATE")"
+          if [[ "$PRODUCT_TESTS_TOTAL" -lt 1 ]]; then
+            echo "Refusing deployment: $TARGET_SHA has no Product Tests check." >&2
+            exit 1
+          fi
+          if [[ "$PRODUCT_TESTS_UNSUCCESSFUL" -ne 0 ]]; then
+            echo "Refusing deployment: $TARGET_SHA has failed, cancelled, or pending Product Tests checks." >&2
+            exit 1
+          fi
+
+          echo "target_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Production deployment revision"
+            echo
+            echo "Validated commit: \`$TARGET_SHA\`"
+            echo "Source: manually supplied, contained in \`main\`, Product Tests passed."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   deploy:
     name: Pull Latest Code And Restart Backend
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
     env:
       AWS_REGION: ap-south-1
       EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
@@ -107,11 +160,12 @@ jobs:
           key: ${{ secrets.AWS_EC2_SSH_KEY }}
           port: 22
           command_timeout: 20m
+          envs: TARGET_SHA
           script: |
             set -e
             cd /opt/compass-needle/app
             git fetch origin main
-            git reset --hard ${{ github.sha }}
+            git reset --hard "$TARGET_SHA"
             sudo apt-get update -y
             sudo apt-get install -y cron
             if ! command -v aws >/dev/null 2>&1; then
@@ -141,6 +195,8 @@ jobs:
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend backend_govt_live
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --force-recreate caddy
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml ps
+        env:
+          TARGET_SHA: ${{ needs.prepare.outputs.target_sha }}
 
       - name: Verify Backend Health
         shell: bash
@@ -165,6 +221,17 @@ jobs:
           fi
           echo "Backend did not pass health check after deploy." >&2
           exit 1
+
+      - name: Record Deployed Revision
+        shell: bash
+        env:
+          TARGET_SHA: ${{ needs.prepare.outputs.target_sha }}
+        run: |
+          {
+            echo "## Deployment completed"
+            echo
+            echo "Deployed and health-checked commit: \`$TARGET_SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove GitHub Runner SSH Access
         if: always() && steps.ssh_ip.outputs.runner_ip != ''
