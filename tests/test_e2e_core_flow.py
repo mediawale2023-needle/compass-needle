@@ -7,6 +7,7 @@ import hashlib
 from datetime import datetime, timedelta
 
 import jwt
+import pytest
 from tests.auth_token_claims import credential_claims
 import time
 from fastapi.testclient import TestClient
@@ -1605,3 +1606,96 @@ def test_audio_media_bypasses_contextless_media_rule(monkeypatch):
 
     rows = _cases_for_phone(sender)
     assert len(rows) == 2  # voice note treated as a real distinct issue
+
+
+# ── Case lifecycle: intake, classification and follow-ups never start progress ──
+
+_PROGRESS_OR_RESOLVED = {"in_progress", "escalated", "resolved", "completed", "closed"}
+
+
+def _status_changes_into(case_ids, new_values):
+    if not case_ids:
+        return []
+    placeholders = ", ".join(f":c{i}" for i in range(len(case_ids)))
+    params = {f"c{i}": cid for i, cid in enumerate(case_ids)}
+    with test_engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                f"SELECT case_id, username, new_value FROM case_activity_log "  # nosec B608
+                f"WHERE action = 'status_change' AND case_id IN ({placeholders})"
+            ),
+            params,
+        ).mappings().all()
+    return [dict(r) for r in rows if str(r["new_value"] or "").lower() in new_values]
+
+
+def _lifecycle_fake_ai(status_value):
+    def _fake_ai(prompt, tenant_id=None):
+        return {
+            "status": status_value,
+            "detected_language": "English",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Whitefield",
+                "summary": "No water in Whitefield",
+            },
+        }
+    return _fake_ai
+
+
+def _silence_outbound(monkeypatch):
+    monkeypatch.setattr(main, "send_whatsapp_message", lambda *args, **kwargs: None)
+    monkeypatch.setattr(whatsapp_module, "send_whatsapp_message", lambda *args, **kwargs: None)
+
+
+def test_lifecycle_new_whatsapp_grievance_stays_new(monkeypatch):
+    _seed_database()
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _lifecycle_fake_ai("new"))
+    _silence_outbound(monkeypatch)
+
+    sender = "919900070001"
+    main._process_incoming_message(sender, "No water supply in Whitefield for 3 days", receiver_number="+15551636821")
+
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 1
+    assert rows[0]["status"] == "new"
+    assert _status_changes_into([rows[0]["id"]], _PROGRESS_OR_RESOLVED) == []
+
+
+@pytest.mark.parametrize("ai_status", ["COMPLETED", "completed", "pending", "INCOMPLETE"])
+def test_lifecycle_ai_classification_never_implies_progress(monkeypatch, ai_status):
+    _seed_database()
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _lifecycle_fake_ai(ai_status))
+    _silence_outbound(monkeypatch)
+
+    sender = "919900070002"
+    main._process_incoming_message(sender, "Water has not come to Whitefield ward for a week", receiver_number="+15551636821")
+
+    rows = _cases_for_phone(sender)
+    assert rows, "classification should still create the case"
+    assert all(str(r["status"]).lower() not in _PROGRESS_OR_RESOLVED for r in rows)
+    assert _status_changes_into([r["id"] for r in rows], _PROGRESS_OR_RESOLVED) == []
+
+
+def test_lifecycle_citizen_followups_never_imply_progress(monkeypatch):
+    _seed_database()
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _lifecycle_fake_ai("new"))
+    _silence_outbound(monkeypatch)
+
+    sender = "919900070003"
+    for message in (
+        "No water supply in Whitefield",
+        "No water supply in Whitefield still",
+        "Please do something about the water in Whitefield",
+        "Any update?",
+    ):
+        main._process_incoming_message(sender, message, receiver_number="+15551636821")
+
+    rows = _cases_for_phone(sender)
+    assert rows
+    assert all(str(r["status"]).lower() not in _PROGRESS_OR_RESOLVED for r in rows)
+    assert _status_changes_into([r["id"] for r in rows], _PROGRESS_OR_RESOLVED) == []

@@ -1216,6 +1216,26 @@ const GOVT_STATUS_LABEL = {
     rejected: 'Rejected by department',
 };
 
+// Confirming the AI's suggested category is triage, not progress: it writes
+// only the taxonomy and never touches the case status. Progress starts on
+// verified external evidence (government filing / portal confirmation) or an
+// explicit staff status change. Exported so this contract is pinned by tests.
+export async function confirmSuggestedCategory(patch, caseId, suggestion) {
+    try {
+        await patch(`/api/cases/${caseId}`, {
+            problem_domain: suggestion.ai_category,
+            problem_subdomain: suggestion.ai_subcategory || null,
+        });
+    } catch (error) {
+        if (!suggestion.ai_subcategory) throw error;
+        // Stale/legacy subdomain suggestions can fail validation —
+        // the domain alone is still worth confirming.
+        await patch(`/api/cases/${caseId}`, {
+            problem_domain: suggestion.ai_category,
+        });
+    }
+}
+
 function isGovtAlreadyFiled(item) {
     if (!item) return false;
     if (String(item.govt_reference_number || '').trim()) return true;
@@ -3290,25 +3310,11 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         if (!suggestedTriage?.ai_category || acceptingSuggestion) return;
         setAcceptingSuggestion(true);
         try {
-            try {
-                await apiPatch(`/api/cases/${current.id}`, {
-                    problem_domain: suggestedTriage.ai_category,
-                    problem_subdomain: suggestedTriage.ai_subcategory || null,
-                });
-            } catch (error) {
-                if (!suggestedTriage.ai_subcategory) throw error;
-                // Stale/legacy subdomain suggestions can fail validation —
-                // the domain alone is still worth confirming.
-                await apiPatch(`/api/cases/${current.id}`, {
-                    problem_domain: suggestedTriage.ai_category,
-                });
-            }
-            await apiPatch(`/api/cases/${current.id}/status`, { status: 'in_progress' });
+            await confirmSuggestedCategory(apiPatch, current.id, suggestedTriage);
             const patch = {
                 category: suggestedTriage.ai_category,
                 problem_domain: suggestedTriage.ai_category,
                 problem_subdomain: suggestedTriage.ai_subcategory || null,
-                status: 'in_progress',
             };
             setFullCase((existing) => {
                 if (!existing) return existing;
@@ -3318,7 +3324,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 const base = existing.id === current.id ? { ...existing, ...patch } : { ...existing };
                 return { ...base, thread_cases: nextThreadCases };
             });
-            onStatusChange(current.id, 'in_progress');
+            onStatusChange(current.id, currentStatus);
             toast.success(`Categorised as ${suggestedTriage.ai_category}`);
         } catch (error) {
             toast.error(error.message || 'Failed to apply category');

@@ -1,0 +1,92 @@
+name: Diagnose Case Status Lifecycle
+
+# Manually triggered, STRICTLY READ-ONLY. Runs
+# scripts/diagnose_case_status_lifecycle.sql against production inside a
+# READ ONLY transaction that ends in ROLLBACK: internal status vs government
+# status per tenant, evidence behind every IN PROGRESS case, automatic
+# transitions, inconsistent combinations, and cases awaiting resolution
+# verification.
+#
+# Writes nothing. Logs are public: the script selects only tenant ids,
+# status values, counts and case ids — never phone numbers, names, message
+# text, notes or government reference numbers.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Report case status lifecycle evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Encode Diagnostic SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          SQL=scripts/diagnose_case_status_lifecycle.sql
+          grep -q '^BEGIN TRANSACTION READ ONLY;' "$SQL"
+          tail -n 3 "$SQL" | grep -q '^ROLLBACK;'
+          echo "DIAG_SQL_B64=$(base64 -w0 "$SQL")" >> "$GITHUB_ENV"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions diagnose-case-status-lifecycle'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Run Read-Only Diagnostic Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 8m
+          envs: DIAG_SQL_B64
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            SQLFILE=/tmp/diagnose_case_status_$$.sql
+            trap 'rm -f "$SQLFILE"' EXIT
+            echo "$DIAG_SQL_B64" | base64 -d > "$SQLFILE"
+            docker compose -f "$COMPOSE" exec -T postgres sh -c \
+              'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' < "$SQLFILE"
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true

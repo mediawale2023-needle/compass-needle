@@ -44,6 +44,7 @@ from core.session_auth import (token_revoked, revoke_in_transaction, require_act
 from modules.ack_composer import compose_status_update
 from modules.ack_validator import ack_policy_mode, validate_citizen_message, violation_codes
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
+from modules import case_lifecycle
 from core.gemini_client import get_gemini_client
 from modules.parliament_context import build_parliament_context
 from google.genai import types as genai_types
@@ -2091,6 +2092,10 @@ def get_cases(
                 "govt_raw_portal_status": pl.get("raw_portal_status") or None,
             }
 
+    reviewed_cycles_map = _resolution_reviewed_cycles(
+        tid, set(filing_ids) | set(page_case_ids)
+    )
+
     def _with_govt_sync(case):
         prepared = _prepare_briefcase_list_case(
             case, tenant_constituency, tid, media_count_map.get(case.get("id"), 0)
@@ -2100,6 +2105,10 @@ def get_cases(
         sync = govt_sync_map.get(case.get("govt_filing_case_id") or case.get("id"))
         if sync:
             prepared.update(sync)
+        reviewed = reviewed_cycles_map.get(case.get("id"), set()) | reviewed_cycles_map.get(
+            case.get("govt_filing_case_id"), set()
+        )
+        prepared["resolution_verification"] = case_lifecycle.resolution_verification(prepared, reviewed)
         return prepared
 
     cases = [
@@ -2148,7 +2157,24 @@ def get_case_filter_options(user=Depends(get_current_user)):
     def format_rows(rows):
         return [{"value": r["value"], "count": r["count"]} for r in rows if r.get("value")]
 
+    # Derived (never stored) count: portal reports resolution for the current
+    # round and staff have not verified it. Same rule as the per-case flag.
+    resolution_candidates = _q(
+        f"""
+        SELECT id, status, govt_status, govt_reference_number, govt_status_updated_at
+        FROM cases
+        WHERE {base_where} AND LOWER(COALESCE(govt_status, '')) IN ('resolved', 'disposed')
+        """,
+        params,
+    )
+    reviewed_cycles = _resolution_reviewed_cycles(tid, [r["id"] for r in resolution_candidates])
+    resolution_pending = sum(
+        1 for r in resolution_candidates
+        if case_lifecycle.resolution_verification(r, reviewed_cycles.get(r["id"], set())) == "pending"
+    )
+
     return {
+        "resolution_verification_pending": resolution_pending,
         "statuses": format_rows(status_rows),
         "categories": format_rows(category_rows),
         "locations": format_rows(location_rows),
@@ -2539,7 +2565,25 @@ def get_case(case_id: int, user=Depends(get_current_user)):
         )
     case["suppressed_contact_messages"] = suppressed_messages
 
+    case["resolution_verification"] = case_lifecycle.resolution_verification(
+        case, _resolution_reviewed_cycles(tid, [case_id]).get(case_id, set())
+    )
     return case
+
+
+def _resolution_reviewed_cycles(tenant_id: int, case_ids) -> dict:
+    """{case_id: {cycle markers staff reviewed}} for govt-resolution reviews."""
+    ids = [cid for cid in case_ids if cid is not None]
+    if not ids:
+        return {}
+    placeholders = ", ".join(f":rv_id_{i}" for i in range(len(ids)))
+    params = {"tid": tenant_id, **{f"rv_id_{i}": cid for i, cid in enumerate(ids)}}
+    rows = _q(  # nosec B608 — placeholders generated; ids are bound params
+        f"SELECT case_id, details FROM case_activity_log "
+        f"WHERE tenant_id = :tid AND action = 'govt_resolution_reviewed' AND case_id IN ({placeholders})",
+        params,
+    )
+    return case_lifecycle.reviewed_cycles_by_case(rows)
 
 
 @router.get("/cases/{case_id}/media/{media_id}")
@@ -2567,10 +2611,7 @@ class StatusUpdate(BaseModel):
 
 
 def _normalize_case_status_value(status: str | None) -> str:
-    normalized = str(status or "").strip().lower()
-    if normalized == "escalated":
-        return "in_progress"
-    return normalized
+    return case_lifecycle.normalize_status(status)
 
 
 def _log_case_activity(tenant_id, case_id, username, action, old_value=None, new_value=None, details=None):
@@ -2641,7 +2682,10 @@ def update_case_status(case_id: int, body: StatusUpdate, user=Depends(get_curren
     if current is None:
         raise HTTPException(404, "Case not found")
     old_status = current["status"]
-    next_status = _normalize_case_status_value(body.status)
+    try:
+        next_status = case_lifecycle.validate_manual_status(body.status)
+    except ValueError:
+        raise HTTPException(400, "Unsupported case status")
 
     with engine.begin() as conn:
         _write_case_status(conn, tid, case_id, next_status, old_status=old_status,
@@ -4104,7 +4148,7 @@ def record_govt_resolution_review(case_id: int, body: GovtResolutionReviewReques
     if str(case.get("govt_status") or "").strip().lower() not in ("resolved", "disposed"):
         raise HTTPException(409, "The government portal has not marked this grievance resolved")
 
-    cycle_marker = _coerce_iso(case.get("govt_status_updated_at"))
+    cycle_marker = case_lifecycle.cycle_marker(case.get("govt_status_updated_at"))
     _log_case_activity(
         tid, case_id, user.get("username", ""),
         "govt_resolution_reviewed", new_value=decision,
@@ -4148,9 +4192,6 @@ def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_cur
             }
         raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), existing_ref))
 
-    _old_needle_status = str(case.get("status") or "")
-    _keep_terminal = _old_needle_status.strip().lower() in ("resolved", "completed", "closed")
-    _next_needle_status = _old_needle_status if _keep_terminal else "in_progress"
     _now = _utcnow()
     with engine.begin() as conn:
         conn.execute(
@@ -4161,12 +4202,17 @@ def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_cur
             ),
             {"ref": ref, "now": _now, "cid": case_id, "tid": tid},
         )
-        # Filing side-effect on the Needle status (never demotes a terminal case).
-        # _write_case_status advances status_changed_at + logs status_change only
-        # when the value actually moves.
-        _write_case_status(conn, tid, case_id, _next_needle_status,
-                           old_status=_old_needle_status,
-                           actor=user.get("username", ""), now=_now)
+        # A recorded filing reference is verified external evidence. The
+        # lifecycle module moves only eligible (open, not-yet-progressing)
+        # cases, in this same transaction, and logs the evidence.
+        case_lifecycle.apply_external_evidence(
+            conn,
+            tenant_id=tid,
+            case_id=case_id,
+            evidence=case_lifecycle.EVIDENCE_GOVT_FILING_RECORDED,
+            source={"recorded_by": user.get("username", "")},
+            now=_now,
+        )
     _log_govt_action(tid, case_id, "staff_submitted", user.get("username"), payload={"reference_number": ref})
     try:
         _log_case_activity(tid, case_id, user.get("username", ""), "govt_submitted", new_value=ref)
@@ -4447,12 +4493,16 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
         return {"success": True, "changed": False, "state": "complete", "note": _GOVT_NO_STATUS_CHANGE_NOTE}
 
     changed = result.status != case["govt_status"]
-    if changed:
-        with engine.begin() as conn:
+    with engine.begin() as conn:
+        if changed:
             conn.execute(
                 text("UPDATE cases SET govt_status = :status, govt_status_updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
                 {"status": result.status, "now": _utcnow(), "cid": case_id, "tid": tid},
             )
+        case_lifecycle.apply_portal_confirmation(
+            conn, tenant_id=tid, case_id=case_id, govt_status=result.status,
+            source={"check": "interactive_status_check"},
+        )
     _log_govt_action(
         tid,
         case_id,
@@ -4879,12 +4929,16 @@ async def govt_tamil_nadu_check_status(case_id: int, session_id: str, user=Depen
     old_status = case.get("govt_status")
     normalized = result.normalized_status
     changed = normalized != old_status
-    if changed:
-        with engine.begin() as conn:
+    with engine.begin() as conn:
+        if changed:
             conn.execute(
                 text("UPDATE cases SET govt_status = :status, govt_status_updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
                 {"status": normalized, "now": _utcnow(), "cid": case_id, "tid": tid},
             )
+        case_lifecycle.apply_portal_confirmation(
+            conn, tenant_id=tid, case_id=case_id, govt_status=normalized,
+            source={"check": "tamil_nadu_live_session"},
+        )
 
     portal_detail = {
         "status_text": result.raw_detail_status,
