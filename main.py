@@ -81,8 +81,9 @@ from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_te
 # so /api/cases can show a real "since" date. resolved_at follows the same
 # rule as api_router._write_case_status.
 def _normalize_needle_status(value):
-    v = str(value or "").strip().lower()
-    return "in_progress" if v == "escalated" else v
+    from modules.case_lifecycle import normalize_status
+
+    return normalize_status(value)
 
 
 _STATUS_SINCE_SET_SQL = (
@@ -705,6 +706,15 @@ logger.info("Performance indexes verified.")
 # ─── Migration: retire legacy escalated case status ───
 try:
     with engine.begin() as conn:
+        # Audit each remap in the same transaction before rewriting the value
+        # (escalated only ever came from the retired staff escalation workflow).
+        if conn.execute(text("SELECT 1 FROM cases WHERE status = 'escalated' LIMIT 1")).fetchone():
+            conn.execute(text(
+                "INSERT INTO case_activity_log "
+                "(tenant_id, case_id, username, action, old_value, new_value, details, created_at) "
+                "SELECT tenant_id, id, 'system:legacy_status_remap', 'status_change', 'escalated', "
+                "'in_progress', NULL, CURRENT_TIMESTAMP FROM cases WHERE status = 'escalated'"
+            ))
         result = conn.execute(
             text("UPDATE cases SET status = 'in_progress' WHERE status = 'escalated'")
         )
