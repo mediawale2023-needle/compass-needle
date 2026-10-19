@@ -9,8 +9,8 @@ import { useDashboardOverview } from '@/hooks/useDashboardOverview';
 import { canAccessSansadAI } from '@/lib/account';
 
 // ─── Overview ──────────────────────────────────────────────────
-// Locked design (components/dashboard/OverviewDashboard) wired to the real
-// tenant-scoped GET /api/dashboard/overview aggregate. Do not redesign.
+// Operations Dashboard (components/dashboard/OverviewDashboard, design.md)
+// wired to the real tenant-scoped GET /api/dashboard/overview aggregate.
 export default function DashboardPage() {
     const { user } = useAuth();
     const router = useRouter();

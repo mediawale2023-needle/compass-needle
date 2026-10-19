@@ -45,8 +45,9 @@ export default function useBriefcaseCases(user) {
     const [totalCases, setTotalCases] = useState(0);
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [staff, setStaff] = useState([]);
-    const [searchInput, setSearchInput] = useState('');
-    const [search, setSearch] = useState('');
+    // ?q= comes from the dashboard header search; it seeds the normal search box.
+    const [searchInput, setSearchInput] = useState(() => searchParams.get('q') || '');
+    const [search, setSearch] = useState(() => searchParams.get('q') || '');
     const [pageSize, setPageSize] = useState(25);
     const [assignedFilter, setAssignedFilter] = useState('');
     const [dateFrom, setDateFrom] = useState('');
@@ -82,6 +83,11 @@ export default function useBriefcaseCases(user) {
         setCategoryFilter(searchParams.get('category') || '');
         setLocationFilter(searchParams.get('location') || '');
         setAssemblyFilter(searchParams.get('assembly') || '');
+        const q = searchParams.get('q');
+        if (q != null) {
+            setSearchInput(q);
+            setSearch(q);
+        }
         setPage(1);
     }, [searchParams]);
 
@@ -254,6 +260,7 @@ export default function useBriefcaseCases(user) {
         setSearch('');
         setSearchInput('');
         const url = new URL(window.location.href);
+        url.searchParams.delete('q');
         if (key === 'all_cases') {
             url.searchParams.delete('status');
         } else {
@@ -280,7 +287,7 @@ export default function useBriefcaseCases(user) {
         setSearchInput('');
         setSearch('');
         const url = new URL(window.location.href);
-        ['category', 'location', 'assembly'].forEach((key) => url.searchParams.delete(key));
+        ['category', 'location', 'assembly', 'q'].forEach((key) => url.searchParams.delete(key));
         window.history.replaceState({}, '', url.toString());
         setPage(1);
         setRefreshToken((value) => value + 1);

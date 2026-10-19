@@ -1,1367 +1,639 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
+import {
+    ArrowRight, Building2, CalendarDays, ChevronRight, Eye, FileText, Landmark, MapPin, RefreshCw,
+} from 'lucide-react';
+import { gen2, gen2Fonts, gen2Type } from '@/lib/briefcase-tokens';
 
-// Locked Overview design — approved visual baseline. Do not redesign.
-// Data comes from GET /api/dashboard/overview (+ /api/dashboard/engagements,
+// Operations Dashboard — Overview (design.md, "constituency command centre").
+// Every figure comes from GET /api/dashboard/overview (+ /api/dashboard/engagements,
 // /api/news?news_type=local) via lib/dashboard-mappers → mapOverviewResponse.
+// Nothing here is illustrative: sections whose data is not recorded yet
+// (department response times, overdue/awaiting-response stages, date ranges,
+// trends, seat boundaries) render an honest note instead of a number.
 
-// Canonical Gen 2 tokens, with this view's own shades kept verbatim. The
-// Overview is an approved locked baseline, so the five values that differ
-// from canonical are preserved exactly rather than snapped to it — folding
-// them in would be a (small) redesign of a locked surface. Resolve under a
-// deliberate visual review, not here.
 const C = {
     ...gen2,
     border: gen2.hair,
-    borderStrong: gen2.hairStrong,
     red: gen2.err,
-    muted: '#5F584B',      // canonical #6C6858
-    faint: '#837A69',      // canonical #8A8270
-    rustSoft: '#F0DED0',   // canonical #F1DED0
-    amberSoft: '#F1E5CF',  // canonical #F2E6CF
-    redSoft: '#F1D8D2',    // no canonical equivalent
-    blue: '#45667C',       // Overview-only; not a status colour
-    blueSoft: '#E2E8EA',
+    redSoft: '#F6E2DE',
+    blue: '#295F91',      // information / registration (design.md token)
+    blueSoft: '#E6EEF6',
 };
-
 const SANS = gen2Fonts.sans;
 const SERIF = gen2Fonts.serif;
 const MONO = gen2Fonts.mono;
+const T = gen2Type;
 
-function ToneDot({ tone = 'green' }) {
-    const color = tone === 'red' ? C.red : tone === 'rust' ? C.rust : tone === 'amber' ? C.amber : C.green;
-    return <span className="op-dot" style={{ background: color }} />;
-}
+const BUCKETS = [
+    { key: 'needs_review', label: 'Needs review' },
+    { key: 'needs_location', label: 'Needs location' },
+    { key: 'sync_issues', label: 'Sync issues' },
+    { key: 'govt_updates', label: 'Govt updates' },
+    // The backend's `ready_to_file` attention bucket is every active thread that
+    // is not yet filed with government — broader than the "Ready to file" KPI,
+    // which is the portal-prepared stage. Labelled so the two never read as one.
+    { key: 'ready_to_file', label: 'Not yet filed' },
+];
 
-function getStateTone(state) {
+function stateTone(state) {
     const key = String(state || '').toLowerCase();
-    if (key.includes('needs') || key.includes('sync')) return 'attention';
-    if (key.includes('ready') || key.includes('registered')) return 'positive';
-    if (key.includes('department') || key.includes('govt update')) return 'government';
-    if (key.includes('draft') || key.includes('unassigned')) return 'workflow';
+    if (key.includes('needs review') || key.includes('sync')) return 'red';
+    if (key.includes('needs location')) return 'amber';
+    if (key.includes('ready')) return 'green';
+    if (key.includes('registered') || key.includes('department') || key.includes('govt')) return 'blue';
     return 'neutral';
 }
 
-function Section({ title, action, children, className = '' }) {
+function formatReceived(value) {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return {
+        date: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+        time: d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }),
+    };
+}
+
+function Panel({ id, title, action, note, className = '', children }) {
     return (
-        <section className={`op-panel ${className}`}>
-            <div className="op-section-head">
-                <h2>{title}</h2>
-                {action ? <Link href={action.href}>{action.label}</Link> : null}
+        <section id={id} className={`ov-panel ${className}`} aria-labelledby={id ? `${id}-title` : undefined}>
+            <div className="ov-panel-head">
+                <h2 id={id ? `${id}-title` : undefined}>{title}</h2>
+                {action ? (
+                    <Link href={action.href} className="ov-link">
+                        {action.label} <ArrowRight size={14} aria-hidden="true" />
+                    </Link>
+                ) : null}
             </div>
             {children}
+            {note ? <p className="ov-note">{note}</p> : null}
         </section>
     );
 }
 
-function AttentionStrip({ items }) {
+// ─── KPI strip ─────────────────────────────────────────────────────────
+function KpiCard({ icon: Icon, tone, value, label, context, emphasis, href, onClick, title }) {
+    const body = (
+        <>
+            <span className={`ov-kpi-icon tone-${tone}`} aria-hidden="true"><Icon size={24} strokeWidth={1.8} /></span>
+            <span className="ov-kpi-text">
+                <span className="ov-kpi-value">{Number(value || 0).toLocaleString('en-IN')}</span>
+                <span className="ov-kpi-label">{label}</span>
+                <span className="ov-kpi-context">{context}</span>
+            </span>
+            <ChevronRight className="ov-kpi-chev" size={18} aria-hidden="true" />
+        </>
+    );
+    const cls = `ov-kpi${emphasis ? ' is-emphasis' : ''}`;
+    if (href) return <Link className={cls} href={href} title={title}>{body}</Link>;
+    return <button type="button" className={cls} onClick={onClick} title={title}>{body}</button>;
+}
+
+function KpiStrip({ data, onSelectBucket }) {
+    const a = data.attentionByKey || {};
+    const notFiled = a.ready_to_file || 0;
+    const sync = a.sync_issues || 0;
+    const updates = a.govt_updates || 0;
     return (
-        <div className="attention-strip" aria-label="Attention counters">
-            {items.map((item) => (
-                <div className="attention-item" key={item.key || item.label}>
-                    <ToneDot tone={item.tone} />
-                    <span className="attention-value">{item.value}</span>
-                    <span className="attention-label">{item.label}</span>
-                </div>
-            ))}
+        <div className="ov-kpis" aria-label="Key counts">
+            <KpiCard
+                emphasis
+                icon={FileText}
+                tone="green"
+                value={data.govt.ready}
+                label="Ready to file"
+                context={`Prepared for portal · ${notFiled.toLocaleString('en-IN')} active not yet filed`}
+                href="#government-tracking"
+                title="Threads whose government submission is prepared and waiting for staff to file on the portal"
+            />
+            <KpiCard
+                icon={Eye}
+                tone="amber"
+                value={a.needs_review}
+                label="Needs review"
+                context="Awaiting staff review"
+                href="/dashboard/sansadx?status=pending_review"
+            />
+            <KpiCard
+                icon={MapPin}
+                tone="red"
+                value={a.needs_location}
+                label="Needs location"
+                context="Location not yet resolved"
+                href="/dashboard/sansadx?status=awaiting_location"
+            />
+            <KpiCard
+                icon={RefreshCw}
+                tone="blue"
+                value={sync}
+                label="Sync issues"
+                context={sync ? 'Latest portal check failed' : 'No pending issues'}
+                onClick={() => onSelectBucket('sync_issues')}
+            />
+            <KpiCard
+                icon={Landmark}
+                tone="neutral"
+                value={updates}
+                label="Govt updates"
+                context={updates ? 'New portal status to review' : 'No new updates'}
+                onClick={() => onSelectBucket('govt_updates')}
+            />
         </div>
     );
 }
 
-function AttentionQueue({ rows, onOpenCase, onRunAction }) {
+// ─── Attention Queue ───────────────────────────────────────────────────
+function AttentionQueue({ rows, counts, tab, onTab, onOpenCase, onRunAction }) {
+    const visible = tab === 'all' ? rows : rows.filter((row) => row.bucket === tab);
+    const total = tab === 'all' ? null : (counts[tab] || 0);
+    const tabs = [{ key: 'all', label: 'Latest', count: rows.length }, ...BUCKETS.map((b) => ({ ...b, count: counts[b.key] || 0 }))];
+
     return (
-        <Section
-            title="Attention Queue"
-            action={{ href: '/dashboard/sansadx', label: 'View full Briefcase ->' }}
-            className="queue-panel"
-        >
-            <div className="queue-table" role="table" aria-label="Attention queue">
-                <div className="queue-header" role="row">
-                    <span>Case / Thread</span>
-                    <span>Raw Message</span>
-                    <span>Issue / Location</span>
-                    <span>State</span>
-                    <span>Next Action</span>
-                </div>
-                {rows.length === 0 ? (
-                    <div className="queue-empty">Nothing needs attention right now.</div>
-                ) : null}
-                {rows.map((row) => (
-                    <div
-                        className="queue-row"
-                        role="row"
-                        key={row.id || row.caseId}
-                        onClick={() => onOpenCase(row.caseId)}
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                onOpenCase(row.caseId);
-                            }
-                        }}
-                        tabIndex={0}
+        <Panel id="attention-queue" title="Attention Queue" action={{ href: '/dashboard/sansadx', label: 'View all Briefcase' }} className="ov-queue">
+            <div className="ov-tabs" role="tablist" aria-label="Attention queue filter">
+                {tabs.map((t) => (
+                    <button
+                        key={t.key}
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === t.key}
+                        className={tab === t.key ? 'is-active' : ''}
+                        onClick={() => onTab(t.key)}
                     >
-                        <div className="case-cell">
-                            <div className="case-line">
-                                <div className="case-id">
-                                    {row.critical ? <span className="critical-mark" aria-label="Critical" /> : null}
-                                    {row.id}
-                                </div>
-                                <div className={`state-cell state-${getStateTone(row.state)} mobile-state`}>
-                                    <span>{row.state}</span>
-                                </div>
-                            </div>
-                            <div className="case-meta">{row.meta}</div>
-                        </div>
-                        <p className="message-cell">{row.message}</p>
-                        <div className="issue-cell">
-                            <strong>{row.issue}</strong>
-                            <span>{row.location}</span>
-                        </div>
-                        <div className={`state-cell state-${getStateTone(row.state)} desktop-state`}>
-                            <span>{row.state}</span>
-                        </div>
-                        <div className="action-cell">
-                            {row.action ? (
-                                <button
-                                    type="button"
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        onRunAction(row);
-                                    }}
-                                >
-                                    {row.action.label}
-                                </button>
-                            ) : (
-                                <span className="action-none">—</span>
-                            )}
-                        </div>
-                    </div>
+                        {t.label} <span>({t.count.toLocaleString('en-IN')})</span>
+                    </button>
                 ))}
             </div>
-            <Link className="mobile-queue-footer" href="/dashboard/sansadx">{'View all cases ->'}</Link>
-        </Section>
+
+            <div className="ov-table" role="table" aria-label="Attention queue">
+                <div className="ov-thead" role="row">
+                    <span role="columnheader">Case</span>
+                    <span role="columnheader">Grievance</span>
+                    <span role="columnheader">Category</span>
+                    <span role="columnheader">Location</span>
+                    <span role="columnheader">State</span>
+                    <span role="columnheader">Next action</span>
+                    <span role="columnheader">Received</span>
+                </div>
+                {visible.length === 0 ? (
+                    <div className="ov-empty">
+                        {tab === 'all' ? 'Nothing needs attention right now.' : (total ? 'None of these are among the latest items — open Briefcase to see them.' : 'Nothing in this category.')}
+                    </div>
+                ) : null}
+                {visible.map((row) => {
+                    const received = formatReceived(row.receivedAt);
+                    const tone = stateTone(row.state);
+                    return (
+                        <div
+                            key={row.caseId ?? row.id}
+                            role="row"
+                            tabIndex={0}
+                            className={`ov-row${row.critical ? ' is-critical' : ''}`}
+                            aria-label={`Open case ${row.id}${row.critical ? ' (critical)' : ''}`}
+                            onClick={() => onOpenCase(row.caseId)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    onOpenCase(row.caseId);
+                                }
+                            }}
+                        >
+                            <div role="cell" className="ov-c-case">
+                                <strong>{row.id}</strong>
+                                <span>{row.threadCount > 1 ? `Thread · ${row.threadCount}` : '1 complaint'}</span>
+                                {row.recency ? <span>{row.recency} ago</span> : null}
+                            </div>
+                            <p role="cell" className="ov-c-msg">{row.message || <em>No message text</em>}</p>
+                            <div role="cell" className="ov-c-cat">{row.issue}</div>
+                            <div role="cell" className="ov-c-loc">{row.location}</div>
+                            <div role="cell" className="ov-c-state"><span className={`ov-badge tone-${tone}`}>{row.state}</span></div>
+                            <div role="cell" className="ov-c-action">
+                                {row.action ? (
+                                    <button
+                                        type="button"
+                                        onClick={(event) => { event.stopPropagation(); onRunAction(row); }}
+                                    >
+                                        {row.action.label}
+                                    </button>
+                                ) : <span className="ov-dash">—</span>}
+                            </div>
+                            <div role="cell" className="ov-c-recv">
+                                {received ? (<><span>{received.date}</span><span>{received.time}</span></>) : '—'}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="ov-queue-foot">
+                {tab === 'all'
+                    ? `Latest ${rows.length} items needing attention, newest citizen message first.`
+                    : `Showing ${visible.length} of ${(total || 0).toLocaleString('en-IN')} (latest items only).`}
+                <Link href="/dashboard/sansadx" className="ov-link">Open Briefcase <ArrowRight size={14} aria-hidden="true" /></Link>
+            </div>
+        </Panel>
     );
 }
 
+// ─── Government Tracking ───────────────────────────────────────────────
 function GovernmentTracking({ govt }) {
-    const steps = [
-        ['Ready to file', govt.ready],
-        ['Registered with portal', govt.registered],
-        ['Department Action', govt.department],
+    const stages = [
+        { key: 'ready', label: 'Ready to file (prepared for portal)', value: govt.ready, tone: 'green' },
+        { key: 'registered', label: 'Registered with portal', value: govt.registered, tone: 'blue' },
+        { key: 'department', label: 'Department action', value: govt.department, tone: 'amber' },
+        { key: 'resolved', label: 'Resolved by government', value: govt.resolved, tone: 'deep' },
     ];
-
+    const max = Math.max(1, ...stages.map((s) => s.value || 0));
     return (
-        <Section title="Government Tracking" action={{ href: '/dashboard/sansadx', label: 'Open government cases ->' }}>
-            <div className="journey">
-                {steps.map(([label, value], idx) => (
-                    <div className="journey-step" key={label}>
-                        <div>
-                            <span>{label}</span>
-                            <strong>{value}</strong>
-                        </div>
-                        {idx < steps.length - 1 ? <span className="journey-arrow" aria-hidden="true" /> : null}
-                    </div>
+        <Panel
+            id="government-tracking"
+            title="Government Tracking"
+            action={{ href: '/dashboard/sansadx', label: 'Open Briefcase' }}
+            note="Threads by current government stage — each counted once, all time. Awaiting-response and overdue stages need government response dates, which are not recorded yet."
+        >
+            <ul className="ov-bars">
+                {stages.map((s) => (
+                    <li key={s.key}>
+                        <span className={`ov-bar-key tone-${s.tone}`} aria-hidden="true" />
+                        <span className="ov-bar-label">{s.label}</span>
+                        <span className="ov-bar-track" aria-hidden="true">
+                            <span className={`ov-bar-fill tone-${s.tone}`} style={{ width: `${((s.value || 0) / max) * 100}%` }} />
+                        </span>
+                        <strong>{(s.value || 0).toLocaleString('en-IN')}</strong>
+                    </li>
                 ))}
-            </div>
-            <div className="govt-resolved">{govt.resolved} resolved cases kept as quiet context.</div>
-            <div className="sync-box">
+            </ul>
+            <div className={`ov-sync${govt.syncIssues ? ' has-issues' : ''}`}>
                 <div>
-                    <strong>{govt.syncIssues} sync issues</strong>
-                    <span>Review before next portal check.</span>
+                    <strong>{govt.syncIssues} sync {govt.syncIssues === 1 ? 'issue' : 'issues'}</strong>
+                    <span>{govt.syncIssues ? 'Latest portal status check failed or needs verification.' : 'All portal status checks are current.'}</span>
                 </div>
                 {govt.issues.length ? (
-                    <ul>
-                        {govt.issues.map((issue) => <li key={issue}>{issue}</li>)}
-                    </ul>
+                    <ul>{govt.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>
                 ) : null}
             </div>
-        </Section>
+        </Panel>
     );
 }
 
-function PressureMap({ hotspots }) {
+// ─── Constituency Pressure (ranked hotspots — no fictional geography) ──
+function ConstituencyPressure({ hotspots }) {
+    const max = Math.max(1, ...hotspots.map((h) => h.count || 0));
     return (
-        <Section title="Constituency Pressure">
-            <div className="map-card">
-                <div className="map-shape" aria-label="Constituency pressure map">
-                    <span className="map-road road-a" />
-                    <span className="map-road road-b" />
-                    <span className="map-road road-c" />
-                </div>
-                <div className="hotspot-list">
-                    {hotspots.length === 0 ? (
-                        <div><span>No location pressure yet</span><strong>0</strong></div>
-                    ) : null}
-                    {hotspots.map((spot) => (
-                        <div key={spot.name}>
-                            <span>{spot.name}</span>
-                            <strong>{spot.count}</strong>
-                        </div>
+        <Panel
+            id="constituency-pressure"
+            title="Constituency Pressure"
+            note="Top locations by thread count, all time. A map will appear once verified boundaries are available for this seat."
+        >
+            {hotspots.length === 0 ? (
+                <div className="ov-empty">No located grievances yet.</div>
+            ) : (
+                <ol className="ov-ranked">
+                    {hotspots.map((h, i) => (
+                        <li key={h.name}>
+                            <Link href={`/dashboard/sansadx?location=${encodeURIComponent(h.name)}`}>
+                                <span className="ov-rank">{i + 1}</span>
+                                <span className="ov-ranked-name">{h.name}</span>
+                                <span className="ov-bar-track" aria-hidden="true">
+                                    <span className="ov-bar-fill tone-deep" style={{ width: `${((h.count || 0) / max) * 100}%` }} />
+                                </span>
+                                <strong>{h.count}</strong>
+                            </Link>
+                        </li>
                     ))}
-                </div>
-            </div>
-        </Section>
+                </ol>
+            )}
+        </Panel>
     );
 }
 
-function IssuePressure({ items }) {
+// ─── Bottom row ────────────────────────────────────────────────────────
+const ISSUE_TONES = ['sage', 'blue', 'amber', 'violet', 'rose'];
+
+function TopIssues({ items }) {
+    const max = Math.max(1, ...items.map((i) => i.count || 0));
     return (
-        <Section title="Issue Pressure">
-            <div className="pressure-list">
-                {items.length === 0 ? (
-                    <div className="pressure-row"><div><strong>No issue clusters yet</strong><span>&nbsp;</span></div><b>0</b></div>
-                ) : null}
-                {items.map((item) => (
-                    <div key={item.title} className="pressure-row">
-                        <div>
-                            <strong>{item.title}</strong>
-                            <span>{item.place}</span>
-                        </div>
-                        <b>{item.count}</b>
-                    </div>
-                ))}
-            </div>
-        </Section>
+        <Panel
+            id="top-issues"
+            title="Top Issues"
+            action={{ href: '/dashboard/sansadx', label: 'Open Briefcase' }}
+            note="Grievance threads by category, all time."
+        >
+            {items.length === 0 ? <div className="ov-empty">No categorised grievances yet.</div> : (
+                <ul className="ov-issues">
+                    {items.map((item, i) => (
+                        <li key={item.title}>
+                            <span className="ov-issue-name">
+                                {item.title}
+                                {item.place ? <small>{item.place}</small> : null}
+                            </span>
+                            <span className="ov-bar-track" aria-hidden="true">
+                                <span className={`ov-bar-fill tone-${ISSUE_TONES[i % ISSUE_TONES.length]}`} style={{ width: `${((item.count || 0) / max) * 100}%` }} />
+                            </span>
+                            <strong>{item.count}</strong>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </Panel>
     );
 }
 
+function DepartmentResponse() {
+    return (
+        <Panel id="department-response" title="Department Response Time">
+            <div className="ov-placeholder">
+                <Building2 size={26} strokeWidth={1.6} aria-hidden="true" />
+                <p>Response-time analytics will appear once government filing and response timestamps are available.</p>
+            </div>
+        </Panel>
+    );
+}
+
+function RecentActivity({ items }) {
+    return (
+        <Panel
+            id="recent-activity"
+            title="Recent Activity"
+            action={{ href: '/dashboard/archives', label: 'View all' }}
+            note="Office activity log (drafts, letters and other office actions)."
+        >
+            {items.length === 0 ? <div className="ov-empty">No recent activity.</div> : (
+                <ol className="ov-activity">
+                    {items.map((item) => {
+                        const body = (
+                            <>
+                                <span className="ov-act-time">{item.time}</span>
+                                <span className={`ov-act-dot tone-${item.tone === 'green' ? 'green' : 'amber'}`} aria-hidden="true" />
+                                <span className="ov-act-text">{item.item}</span>
+                            </>
+                        );
+                        return (
+                            <li key={item.id}>
+                                {item.href ? <Link href={item.href}>{body}</Link> : <div>{body}</div>}
+                            </li>
+                        );
+                    })}
+                </ol>
+            )}
+        </Panel>
+    );
+}
+
+// ─── Office row (existing Overview features kept below the reference layout)
 function TodayAgenda({ items }) {
     return (
-        <Section title="Today" action={{ href: '/dashboard', label: 'Open schedule ->' }}>
-            <div className="agenda-list">
-                {items.length === 0 ? (
-                    <div className="agenda-row"><span>—</span><p>No engagements scheduled today.</p></div>
-                ) : null}
-                {items.map((item, idx) => (
-                    <div className="agenda-row" key={`${item.time}-${item.item}-${idx}`}>
-                        <span>{item.time}</span>
-                        <p>{item.item}</p>
-                    </div>
-                ))}
-            </div>
-        </Section>
+        <Panel id="today" title="Today">
+            {items.length === 0 ? <div className="ov-empty">No engagements scheduled today.</div> : (
+                <ul className="ov-simple">
+                    {items.map((item, idx) => (
+                        <li key={`${item.time}-${item.item}-${idx}`}><span>{item.time || '—'}</span><p>{item.item}</p></li>
+                    ))}
+                </ul>
+            )}
+        </Panel>
     );
 }
 
 function OfficePending({ items, onNavigate }) {
     return (
-        <Section title="Office Pending">
-            <div className="pending-list">
+        <Panel id="office-pending" title="Office Pending">
+            <ul className="ov-pending">
                 {items.map((item) => (
-                    <button
-                        type="button"
-                        key={item.key || item.label}
-                        onClick={() => (item.href ? onNavigate(item.href) : undefined)}
-                    >
-                        {item.label}
-                    </button>
+                    <li key={item.key || item.label}>
+                        <button type="button" onClick={() => (item.href ? onNavigate(item.href) : undefined)}>
+                            {item.label} <ChevronRight size={16} aria-hidden="true" />
+                        </button>
+                    </li>
                 ))}
-            </div>
-        </Section>
-    );
-}
-
-function RecentMovement({ items }) {
-    return (
-        <Section title="Recent Movement">
-            <div className="movement-list">
-                {items.length === 0 ? (
-                    <div className="movement-row"><span>—</span><ToneDot tone="rust" /><p>No recent activity.</p></div>
-                ) : null}
-                {items.map((item) => {
-                    const body = (
-                        <>
-                            <span>{item.time}</span>
-                            <ToneDot tone={item.tone} />
-                            <p>{item.item}</p>
-                        </>
-                    );
-                    return item.href ? (
-                        <Link className="movement-row" href={item.href} key={item.id}>{body}</Link>
-                    ) : (
-                        <div className="movement-row" key={item.id}>{body}</div>
-                    );
-                })}
-            </div>
-        </Section>
+            </ul>
+        </Panel>
     );
 }
 
 function LocalSignals({ items }) {
     return (
-        <section className="media-strip">
-            <div className="op-section-head">
-                <h2>Local Signals</h2>
-            </div>
-            <div className="media-list">
-                {items.length === 0 ? (
-                    <article><span>Local desk</span><p>No local coverage picked up yet.</p></article>
-                ) : null}
-                {items.map((item) => {
-                    const body = (
-                        <>
+        <Panel id="local-signals" title="Local Signals">
+            {items.length === 0 ? <div className="ov-empty">No local coverage picked up yet.</div> : (
+                <ul className="ov-simple">
+                    {items.map((item) => (
+                        <li key={`${item.source}-${item.title}`}>
                             <span>{item.source}</span>
-                            <p>{item.title}</p>
-                        </>
-                    );
-                    return item.href ? (
-                        <a
-                            key={`${item.source}-${item.title}`}
-                            href={item.href}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                        >
-                            {body}
-                        </a>
-                    ) : (
-                        <article key={`${item.source}-${item.title}`}>{body}</article>
-                    );
-                })}
-            </div>
-        </section>
+                            {item.href
+                                ? <a href={item.href} target="_blank" rel="noreferrer noopener">{item.title}</a>
+                                : <p>{item.title}</p>}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </Panel>
     );
 }
 
 export default function OverviewDashboard({ data, onNavigate }) {
     const go = typeof onNavigate === 'function' ? onNavigate : () => {};
-    const openCase = (caseId) => {
-        if (caseId == null) {
-            go('/dashboard/sansadx');
-            return;
+    const [tab, setTab] = useState('all');
+    const counts = useMemo(() => data.attentionByKey || {}, [data.attentionByKey]);
+
+    const openCase = (caseId) => go(caseId == null ? '/dashboard/sansadx' : `/dashboard/sansadx?case_id=${caseId}`);
+    const runAction = (row) => (row.action && row.action.href ? go(row.action.href) : openCase(row.caseId));
+    const selectBucket = (key) => {
+        setTab(key);
+        if (typeof document !== 'undefined') {
+            document.getElementById('attention-queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-        go(`/dashboard/sansadx?case_id=${caseId}`);
-    };
-    const runAction = (row) => {
-        if (row.action && row.action.href) {
-            go(row.action.href);
-            return;
-        }
-        openCase(row.caseId);
     };
 
     return (
-        <main className="overview-dashboard">
-            <header className="overview-head">
+        <main className="ov">
+            <header className="ov-head">
                 <div>
-                    <p className="overview-kicker">Constituency operations</p>
                     <h1>Overview</h1>
-                    <p className="overview-context">{data.seat} · {data.dateLabel}</p>
+                    <p>Grievance status, key insights and actions for today{data.seat ? ` · ${data.seat}` : ''}.</p>
+                </div>
+                <div className="ov-scope" title="Date filtering is not available yet — every figure covers all time.">
+                    <CalendarDays size={16} aria-hidden="true" />
+                    <span>All time</span>
                 </div>
             </header>
 
-            <AttentionStrip items={data.attention} />
+            <KpiStrip data={data} onSelectBucket={selectBucket} />
 
-            {/* Desktop (>=1440): two independent vertical columns with their own
-                flow/gap so each section starts as soon as the one above it ends.
-                Below that the two wrappers flatten (display:contents) and the
-                sections re-flow into the approved responsive stack (see the
-                max-width:1439 media block). */}
-            <div className="overview-columns">
-                <div className="overview-col overview-col-left">
-                    <AttentionQueue rows={data.queue} onOpenCase={openCase} onRunAction={runAction} />
-                    <IssuePressure items={data.issuePressure} />
-                    <OfficePending items={data.officePending} onNavigate={go} />
-                </div>
-                <div className="overview-col overview-col-right">
+            <div className="ov-main">
+                <AttentionQueue
+                    rows={data.queue}
+                    counts={counts}
+                    tab={tab}
+                    onTab={setTab}
+                    onOpenCase={openCase}
+                    onRunAction={runAction}
+                />
+                <div className="ov-side">
                     <GovernmentTracking govt={data.govt} />
-                    <PressureMap hotspots={data.hotspots} />
-                    <TodayAgenda items={data.today} />
-                    <RecentMovement items={data.movement} />
+                    <ConstituencyPressure hotspots={data.hotspots} />
                 </div>
             </div>
 
-            <LocalSignals items={data.media} />
+            <div className="ov-bottom">
+                <TopIssues items={data.issuePressure} />
+                <DepartmentResponse />
+                <RecentActivity items={data.movement} />
+            </div>
+
+            <div className="ov-bottom ov-office">
+                <TodayAgenda items={data.today} />
+                <OfficePending items={data.officePending} onNavigate={go} />
+                <LocalSignals items={data.media} />
+            </div>
 
             <style>{`
-                .overview-dashboard {
-                    min-height: 100dvh;
-                    background: ${C.bg};
-                    color: ${C.ink};
-                    font-family: ${SANS};
-                    padding: 22px 34px 40px;
+                .ov { min-height: 100dvh; background: ${C.bg}; color: ${C.ink}; font-family: ${SANS}; padding: 22px 28px 40px; font-size: ${T.body}px; }
+                .ov *, .ov *::before, .ov *::after { box-sizing: border-box; }
+                .ov a { color: inherit; text-decoration: none; }
+                .ov :focus-visible { outline: 2px solid ${C.greenDeep}; outline-offset: 2px; }
+
+                .ov-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+                .ov-head h1 { margin: 0; font-family: ${SERIF}; font-weight: 700; font-size: clamp(34px, 3.2vw, 46px); letter-spacing: -0.02em; line-height: 1; }
+                .ov-head p { margin: 8px 0 0; color: ${C.muted}; font-size: 15px; }
+                .ov-scope { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; background: ${C.surface}; border: 1px solid ${C.border}; border-radius: 6px; font-size: ${T.body}px; color: ${C.ink}; }
+
+                .ov-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+                .ov-kpi { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; padding: 16px 16px; background: ${C.surface}; border: 1px solid ${C.border}; border-radius: 6px; text-align: left; font: inherit; color: inherit; cursor: pointer; transition: border-color 120ms ease, background-color 120ms ease; min-width: 0; }
+                .ov-kpi:hover { border-color: ${C.hairStrong}; background: ${C.rowHover}; }
+                .ov-kpi.is-emphasis { border-color: ${C.green}; background: ${C.greenSoft}; box-shadow: inset 0 0 0 1px ${C.green}; }
+                .ov-kpi-icon { width: 52px; height: 52px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+                .ov-kpi-text { display: flex; flex-direction: column; min-width: 0; }
+                .ov-kpi-value { font-family: ${SERIF}; font-weight: 700; font-size: 34px; line-height: 1; letter-spacing: -0.01em; }
+                .ov-kpi-label { margin-top: 6px; font-size: 15px; font-weight: 500; }
+                .ov-kpi-context { margin-top: 6px; font-size: ${T.small}px; color: ${C.muted}; line-height: 1.35; }
+                .ov-kpi-chev { color: ${C.muted}; }
+
+                .tone-green  { --tone: ${C.green};  --tone-soft: ${C.greenSoft}; }
+                .tone-deep   { --tone: ${C.greenDeep}; --tone-soft: ${C.greenSoft}; }
+                .tone-amber  { --tone: ${C.amber};  --tone-soft: ${C.amberSoft}; }
+                .tone-red    { --tone: ${C.red};    --tone-soft: ${C.redSoft}; }
+                .tone-blue   { --tone: ${C.blue};   --tone-soft: ${C.blueSoft}; }
+                .tone-neutral{ --tone: ${C.muted};  --tone-soft: ${C.neutralSoft}; }
+                .tone-sage   { --tone: #8FB5A0; } .tone-violet { --tone: #9C95C9; } .tone-rose { --tone: #D49189; }
+                .ov-kpi-icon { background: var(--tone-soft); color: var(--tone); }
+                .ov-kpi.is-emphasis .ov-kpi-icon { background: ${C.green}; color: ${C.surface}; }
+
+                .ov-panel { background: ${C.surface}; border: 1px solid ${C.border}; border-radius: 6px; padding: 16px 18px; min-width: 0; display: flex; flex-direction: column; }
+                .ov-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+                .ov-panel-head h2 { margin: 0; font-family: ${SERIF}; font-weight: 700; font-size: 22px; letter-spacing: -0.01em; }
+                .ov-link { display: inline-flex; align-items: center; gap: 4px; font-size: ${T.small}px; font-weight: 600; color: ${C.greenDeep} !important; white-space: nowrap; }
+                .ov-link:hover { text-decoration: underline !important; }
+                .ov-note { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid ${C.hairSoft}; font-size: ${T.small}px; color: ${C.muted}; line-height: 1.45; }
+                .ov-empty { padding: 18px 4px; color: ${C.muted}; font-size: ${T.body}px; }
+
+                .ov-main { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(300px, 1fr); gap: 16px; margin-bottom: 16px; align-items: start; }
+                .ov-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+                .ov-tabs { display: flex; gap: 4px; border-bottom: 1px solid ${C.border}; margin: 0 -18px 0; padding: 0 12px; overflow-x: auto; }
+                .ov-tabs button { border: 0; background: transparent; font: inherit; font-size: ${T.body}px; color: ${C.muted}; padding: 10px 8px; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; white-space: nowrap; }
+                .ov-tabs button span { font-size: ${T.small}px; }
+                .ov-tabs button.is-active { color: ${C.greenDeep}; font-weight: 600; border-bottom-color: ${C.green}; }
+
+                .ov-table { margin: 0 -18px; overflow-x: auto; }
+                .ov-thead, .ov-row { display: grid; grid-template-columns: minmax(84px, 0.75fr) minmax(160px, 2fr) minmax(90px, 1fr) minmax(96px, 1fr) minmax(100px, 0.95fr) minmax(116px, 1fr) minmax(70px, 0.7fr); gap: 10px; align-items: start; padding: 12px 18px; }
+                .ov-thead { padding-top: 10px; padding-bottom: 10px; border-bottom: 1px solid ${C.border}; font-size: ${T.small}px; color: ${C.muted}; font-weight: 600; }
+                .ov-row { border-bottom: 1px solid ${C.hairSoft}; cursor: pointer; box-shadow: inset 3px 0 0 transparent; transition: background-color 120ms ease; }
+                .ov-row:hover { background: ${C.rowHover}; }
+                .ov-row.is-critical { box-shadow: inset 3px 0 0 ${C.red}; }
+                .ov-c-case strong { display: block; font-family: ${MONO}; font-size: ${T.caseId}px; }
+                .ov-c-case span { display: block; margin-top: 2px; white-space: nowrap; font-family: ${MONO}; font-size: ${T.meta}px; color: ${C.muted}; }
+                .ov-c-msg { margin: 0; font-size: ${T.body}px; line-height: 1.4; font-weight: 500; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+                .ov-c-cat, .ov-c-loc { font-size: ${T.small}px; line-height: 1.35; overflow-wrap: anywhere; }
+                .ov-c-loc { color: ${C.muted}; }
+                .ov-badge { display: inline-block; padding: 4px 7px; font-family: ${MONO}; font-size: ${T.badge}px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; line-height: 1.25; border: 1px solid var(--tone); color: var(--tone); background: var(--tone-soft); }
+                .ov-c-action button { font: inherit; font-size: ${T.control}px; font-weight: 600; color: ${C.greenDeep}; background: transparent; border: 1px solid ${C.hairStrong}; border-radius: 4px; padding: 7px 10px; cursor: pointer; white-space: nowrap; }
+                .ov-c-action button:hover { border-color: ${C.green}; background: ${C.greenSoft}; }
+                .ov-dash { color: ${C.faint}; }
+                .ov-c-recv { display: flex; flex-direction: column; font-size: ${T.small}px; color: ${C.muted}; }
+                .ov-queue-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 12px; font-size: ${T.small}px; color: ${C.muted}; }
+
+                .ov-bars, .ov-ranked, .ov-issues, .ov-activity, .ov-simple, .ov-pending { list-style: none; margin: 0; padding: 0; }
+                .ov-bars li { display: grid; grid-template-columns: 4px minmax(0, 1fr) minmax(70px, 38%) 44px; align-items: center; gap: 10px; padding: 8px 0; font-size: ${T.body}px; }
+                .ov-bar-key { width: 4px; height: 18px; background: var(--tone); }
+                .ov-bar-label { min-width: 0; }
+                .ov-bar-track { display: block; height: 14px; background: ${C.paper}; border-radius: 2px; overflow: hidden; }
+                .ov-bar-fill { display: block; height: 100%; min-width: 2px; background: var(--tone); }
+                .ov-bars strong, .ov-ranked strong, .ov-issues strong { text-align: right; font-size: 15px; font-variant-numeric: tabular-nums; }
+                .ov-sync { margin-top: 10px; padding: 10px 12px; border: 1px solid ${C.border}; background: ${C.surfaceWarm}; font-size: ${T.small}px; }
+                .ov-sync.has-issues { border-color: ${C.red}; background: ${C.redSoft}; }
+                .ov-sync strong { display: block; font-size: ${T.body}px; }
+                .ov-sync span { color: ${C.muted}; }
+                .ov-sync ul { margin: 6px 0 0; padding-left: 18px; font-family: ${MONO}; font-size: ${T.meta}px; }
+
+                .ov-ranked a { display: grid; grid-template-columns: 24px minmax(0, 1fr) minmax(60px, 35%) 40px; align-items: center; gap: 10px; padding: 8px 0; font-size: ${T.body}px; border-bottom: 1px solid ${C.hairSoft}; }
+                .ov-ranked li:last-child a { border-bottom: 0; }
+                .ov-ranked a:hover .ov-ranked-name { text-decoration: underline; }
+                .ov-rank { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; background: ${C.paper}; font-size: ${T.meta}px; font-family: ${MONO}; }
+
+                .ov-bottom { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; align-items: start; }
+                .ov-issues li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(70px, 40%) 44px; align-items: center; gap: 12px; padding: 8px 0; font-size: ${T.body}px; }
+                .ov-issue-name small { display: block; color: ${C.muted}; font-size: ${T.meta}px; margin-top: 2px; }
+                .ov-placeholder { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; background: ${C.surfaceWarm}; border: 1px dashed ${C.hairStrong}; color: ${C.muted}; }
+                .ov-placeholder p { margin: 0; font-size: ${T.body}px; line-height: 1.45; color: ${C.ink}; }
+                .ov-activity li > a, .ov-activity li > div { display: grid; grid-template-columns: 74px 12px minmax(0, 1fr); align-items: start; gap: 10px; padding: 9px 0; border-bottom: 1px solid ${C.hairSoft}; font-size: ${T.body}px; }
+                .ov-activity li:last-child > a, .ov-activity li:last-child > div { border-bottom: 0; }
+                .ov-activity a:hover .ov-act-text { text-decoration: underline; }
+                .ov-act-time { font-size: ${T.small}px; color: ${C.muted}; }
+                .ov-act-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: var(--tone); }
+
+                .ov-office .ov-panel-head h2 { font-size: 18px; }
+                .ov-simple li { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid ${C.hairSoft}; font-size: ${T.body}px; }
+                .ov-simple li:last-child { border-bottom: 0; }
+                .ov-simple span { font-size: ${T.small}px; color: ${C.muted}; }
+                .ov-simple p { margin: 0; }
+                .ov-simple a:hover { text-decoration: underline; }
+                .ov-pending button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; font: inherit; font-size: ${T.body}px; text-align: left; background: transparent; border: 0; border-bottom: 1px solid ${C.hairSoft}; padding: 9px 0; cursor: pointer; color: ${C.ink}; }
+                .ov-pending li:last-child button { border-bottom: 0; }
+                .ov-pending button:hover { color: ${C.greenDeep}; }
+
+                /* 1440 → 1280: KPIs stay in one row but tighten. */
+                @media (max-width: 1499px) {
+                    .ov-kpi { grid-template-columns: auto 1fr; gap: 12px; padding: 14px; }
+                    .ov-kpi-chev { display: none; }
+                    .ov-kpi-icon { width: 44px; height: 44px; }
+                    .ov-kpi-value { font-size: 30px; }
+                }
+                /* Below 1500 the two-thirds column is too narrow for a 7-column
+                   table: the queue takes the full width and the side panels pair up. */
+                @media (max-width: 1499px) {
+                    .ov-main { grid-template-columns: minmax(0, 1fr); }
+                    .ov-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+                }
+                @media (max-width: 1359px) {
+                    .ov-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
                 }
-
-                .overview-dashboard * {
-                    box-sizing: border-box;
-                }
-
-                .overview-dashboard ::selection {
-                    background: ${C.green};
-                    color: ${C.surface};
-                }
-
-                .overview-head {
-                    display: flex;
-                    align-items: end;
-                    justify-content: space-between;
-                    gap: 24px;
-                    margin-bottom: 13px;
-                }
-
-                .overview-kicker,
-                .case-meta,
-                .queue-header,
-                .attention-label,
-                .state-cell,
-                .action-cell button,
-                .action-cell .action-none,
-                .mobile-queue-footer,
-                .movement-row span,
-                .agenda-row span,
-                .media-list span {
-                    font-family: ${MONO};
-                }
-
-                .overview-kicker {
-                    margin: 0 0 6px;
-                    color: ${C.greenDeep};
-                    font-size: 10px;
-                    letter-spacing: 0.1em;
-                    text-transform: uppercase;
-                }
-
-                .overview-dashboard h1 {
-                    margin: 0;
-                    font-family: ${SERIF};
-                    font-size: clamp(32px, 3.4vw, 51px);
-                    font-weight: 700;
-                    letter-spacing: -0.035em;
-                    line-height: 0.96;
-                    color: ${C.ink};
-                }
-
-                .overview-context {
-                    margin: 7px 0 0;
-                    color: ${C.muted};
-                    font-size: 13.5px;
-                }
-
-                .attention-strip {
-                    display: grid;
-                    grid-template-columns: repeat(5, minmax(0, 1fr));
-                    background: ${C.surface};
-                    border: 1px solid ${C.border};
-                    margin-bottom: 13px;
-                }
-
-                .attention-item {
-                    min-height: 58px;
-                    display: grid;
-                    grid-template-columns: auto auto 1fr;
-                    align-items: center;
-                    gap: 8px;
-                    padding: 11px 14px;
-                    border-right: 1px solid ${C.border};
-                }
-
-                .attention-item:last-child {
-                    border-right: 0;
-                }
-
-                .op-dot {
-                    width: 7px;
-                    height: 7px;
-                    display: inline-block;
-                    border-radius: 999px;
-                }
-
-                .attention-value {
-                    font-family: ${SERIF};
-                    font-size: 26px;
-                    line-height: 1;
-                    font-weight: 690;
-                    letter-spacing: -0.04em;
-                    color: ${C.ink};
-                }
-
-                .attention-label {
-                    color: ${C.muted};
-                    font-size: 10px;
-                    line-height: 1.2;
-                    text-transform: uppercase;
-                    letter-spacing: 0.06em;
-                }
-
-                .overview-columns {
-                    display: grid;
-                    grid-template-columns: minmax(0, 1.68fr) minmax(324px, 0.92fr);
-                    gap: 14px;
-                    align-items: start;
-                }
-
-                .overview-col {
-                    display: grid;
-                    gap: 14px;
-                    align-content: start;
-                    min-width: 0;
-                }
-
-                .op-panel,
-                .media-strip {
-                    background: ${C.surface};
-                    border: 1px solid ${C.border};
-                }
-
-                .op-section-head {
-                    min-height: 48px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    gap: 16px;
-                    padding: 12px 16px;
-                    border-bottom: 1px solid ${C.border};
-                }
-
-                .op-section-head h2 {
-                    margin: 0;
-                    font-family: ${SERIF};
-                    font-size: 21px;
-                    font-weight: 670;
-                    letter-spacing: -0.025em;
-                    line-height: 1;
-                    color: ${C.ink};
-                }
-
-                .op-section-head a {
-                    color: ${C.greenDeep};
-                    font-size: 11.5px;
-                    text-decoration: none;
-                    white-space: nowrap;
-                    transition: color 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
-                }
-
-                @media (hover: hover) and (pointer: fine) {
-                    .op-section-head a:hover {
-                        color: ${C.rust};
-                        transform: translateX(1px);
-                    }
-                }
-
-                .op-section-head a:active,
-                .action-cell button:active,
-                .mobile-queue-footer:active,
-                .pending-list button:active {
-                    transform: scale(0.98);
-                }
-
-                .queue-table {
-                    width: 100%;
-                }
-
-                .queue-empty,
-                .queue-header,
-                .queue-row {
-                    display: grid;
-                    grid-template-columns: minmax(88px, 0.6fr) minmax(250px, 2.15fr) minmax(112px, 0.84fr) minmax(88px, 0.62fr) minmax(112px, 0.84fr);
-                    column-gap: 9px;
-                    align-items: center;
-                }
-
-                .queue-empty {
-                    display: block;
-                    padding: 16px 16px;
-                    color: ${C.muted};
-                    font-size: 13px;
-                }
-
-                .queue-header {
-                    padding: 8px 16px;
-                    color: ${C.faint};
-                    font-size: 9.5px;
-                    letter-spacing: 0.08em;
-                    text-transform: uppercase;
-                    border-bottom: 1px solid ${C.border};
-                }
-
-                .queue-row {
-                    min-height: 78px;
-                    padding: 11px 16px;
-                    border-bottom: 1px solid ${C.border};
-                    cursor: pointer;
-                    transition: background 140ms cubic-bezier(0.23, 1, 0.32, 1);
-                }
-
-                .queue-row:last-child {
-                    border-bottom: 0;
-                }
-
-                @media (hover: hover) and (pointer: fine) {
-                    .queue-row:hover {
-                        background: ${C.surfaceWarm};
-                    }
-                }
-
-                .queue-row:focus-visible {
-                    outline: 2px solid ${C.greenDeep};
-                    outline-offset: -2px;
-                }
-
-                .case-line {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    gap: 10px;
-                }
-
-                .case-id {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    font-family: ${MONO};
-                    font-size: 12px;
-                    font-weight: 600;
-                    color: ${C.ink};
-                }
-
-                .critical-mark {
-                    width: 5px;
-                    height: 20px;
-                    background: ${C.red};
-                    display: inline-block;
-                }
-
-                .case-meta {
-                    margin-top: 4px;
-                    color: ${C.faint};
-                    font-size: 10px;
-                    line-height: 1.2;
-                }
-
-                .message-cell {
-                    margin: 0;
-                    color: #1F1D17;
-                    font-size: 13px;
-                    font-weight: 620;
-                    line-height: 1.3;
-                    letter-spacing: -0.01em;
-                    display: -webkit-box;
-                    -webkit-line-clamp: 2;
-                    -webkit-box-orient: vertical;
-                    overflow: hidden;
-                }
-
-                .issue-cell {
-                    display: grid;
-                    gap: 3px;
-                    font-size: 12px;
-                    line-height: 1.2;
-                }
-
-                .issue-cell strong {
-                    color: #2E2A22;
-                    font-weight: 650;
-                }
-
-                .issue-cell span,
-                .govt-resolved,
-                .sync-box span,
-                .agenda-row p,
-                .movement-row p,
-                .media-list p {
-                    color: ${C.muted};
-                }
-
-                .mobile-state {
-                    display: none;
-                }
-
-                .state-cell span {
-                    display: inline-flex;
-                    width: fit-content;
-                    max-width: 100%;
-                    border: 1px solid ${C.borderStrong};
-                    background: ${C.surfaceWarm};
-                    padding: 4px 6px;
-                    color: ${C.greenDeep};
-                    font-size: 10px;
-                    font-weight: 650;
-                    letter-spacing: 0.04em;
-                    text-transform: uppercase;
-                    line-height: 1.1;
-                    overflow-wrap: anywhere;
-                }
-
-                .state-attention span {
-                    border-color: rgba(188, 106, 54, 0.42);
-                    background: ${C.amberSoft};
-                    color: #684010;
-                }
-
-                .state-positive span {
-                    border-color: rgba(43, 110, 76, 0.34);
-                    background: ${C.greenSoft};
-                    color: ${C.greenDeep};
-                }
-
-                .state-workflow span {
-                    border-color: rgba(69, 102, 124, 0.32);
-                    background: ${C.blueSoft};
-                    color: #2B4E63;
-                }
-
-                .state-government span {
-                    border-color: rgba(43, 110, 76, 0.3);
-                    background: #E9E8DA;
-                    color: ${C.greenDeep};
-                }
-
-                .state-neutral span {
-                    border-color: ${C.borderStrong};
-                    background: ${C.neutralSoft};
-                    color: ${C.muted};
-                }
-
-                .action-cell button {
-                    display: inline-flex;
-                    align-items: center;
-                    max-width: 100%;
-                    min-height: 26px;
-                    border: 1px solid rgba(43, 110, 76, 0.34);
-                    background: ${C.surface};
-                    color: ${C.greenDeep};
-                    cursor: pointer;
-                    font-size: 10px;
-                    font-weight: 650;
-                    letter-spacing: 0.025em;
-                    line-height: 1.15;
-                    padding: 5px 7px;
-                    text-align: left;
-                    transition: border-color 150ms cubic-bezier(0.23, 1, 0.32, 1), background 150ms cubic-bezier(0.23, 1, 0.32, 1), color 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
-                }
-
-                .action-cell .action-none {
-                    color: ${C.faint};
-                    font-size: 11px;
-                }
-
-                @media (hover: hover) and (pointer: fine) {
-                    .action-cell button:hover {
-                        border-color: rgba(43, 110, 76, 0.42);
-                        background: ${C.greenSoft};
-                        color: ${C.greenDeep};
-                    }
-                }
-
-                .mobile-queue-footer {
-                    display: none;
-                }
-
-                .journey {
-                    position: relative;
-                    display: grid;
-                    gap: 0;
-                    padding: 10px 14px 2px;
-                }
-
-                .journey-step {
-                    position: relative;
-                    display: grid;
-                    grid-template-columns: 1fr;
-                    padding-left: 14px;
-                    align-items: start;
-                }
-
-                .journey-step::before {
-                    content: '';
-                    position: absolute;
-                    left: 0;
-                    top: 15px;
-                    width: 6px;
-                    height: 6px;
-                    border-radius: 999px;
-                    background: ${C.green};
-                }
-
-                .journey-step:not(:last-child)::after {
-                    content: '';
-                    position: absolute;
-                    left: 2.5px;
-                    top: 23px;
-                    bottom: -2px;
-                    width: 1px;
-                    background: rgba(43, 110, 76, 0.22);
-                }
-
-                .journey-step > div {
-                    border: 1px solid ${C.border};
-                    background: ${C.surfaceWarm};
-                    padding: 8px 11px;
-                    display: flex;
-                    align-items: baseline;
-                    justify-content: space-between;
-                    gap: 12px;
-                }
-
-                .journey-step span:first-child {
-                    color: #514B3F;
-                    font-size: 12px;
-                }
-
-                .journey-step strong {
-                    font-family: ${SERIF};
-                    font-size: 22px;
-                    color: ${C.ink};
-                    font-weight: 680;
-                    letter-spacing: -0.04em;
-                    line-height: 1;
-                }
-
-                .journey-arrow {
-                    display: none;
-                }
-
-                .govt-resolved {
-                    margin: 7px 14px 9px;
-                    font-size: 11px;
-                    line-height: 1.35;
-                }
-
-                .sync-box {
-                    margin: 0 14px 12px;
-                    background: ${C.rustSoft};
-                    border: 1px solid rgba(188, 106, 54, 0.28);
-                    padding: 9px 11px;
-                }
-
-                .sync-box strong {
-                    display: block;
-                    color: ${C.ink};
-                    font-size: 12px;
-                    margin-bottom: 2px;
-                }
-
-                .sync-box span,
-                .sync-box li {
-                    font-size: 11px;
-                    line-height: 1.3;
-                }
-
-                .sync-box ul {
-                    margin: 6px 0 0;
-                    padding-left: 15px;
-                    color: #514B3F;
-                }
-
-                .map-card {
-                    padding: 9px 13px 10px;
-                }
-
-                .map-shape {
-                    position: relative;
-                    height: 184px;
-                    background: ${C.greenSoft};
-                    border: 1px solid ${C.borderStrong};
-                    clip-path: polygon(13% 2%, 63% 6%, 91% 27%, 83% 70%, 59% 98%, 19% 88%, 3% 52%);
-                    overflow: hidden;
-                }
-
-                .map-shape::before {
-                    content: '';
-                    position: absolute;
-                    inset: 12px;
-                    border: 1px solid rgba(36, 95, 69, 0.16);
-                    clip-path: polygon(11% 8%, 75% 12%, 91% 45%, 64% 90%, 21% 80%, 3% 44%);
-                }
-
-                .map-road {
-                    position: absolute;
-                    height: 1px;
-                    background: rgba(36, 95, 69, 0.22);
-                    transform-origin: left center;
-                }
-
-                .road-a { width: 190px; left: 18%; top: 40%; transform: rotate(17deg); }
-                .road-b { width: 150px; left: 30%; top: 72%; transform: rotate(-25deg); }
-                .road-c { width: 135px; left: 48%; top: 24%; transform: rotate(68deg); }
-
-                .hotspot-list {
-                    display: grid;
-                    gap: 0;
-                    margin-top: 8px;
-                }
-
-                .hotspot-list div {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: baseline;
-                    border-top: 1px solid ${C.border};
-                    padding-top: 6px;
-                    padding-bottom: 6px;
-                    color: #514B3F;
-                    font-size: 12px;
-                }
-
-                .hotspot-list strong {
-                    font-family: ${MONO};
-                    color: ${C.ink};
-                    font-size: 12px;
-                }
-
-                .pressure-list,
-                .agenda-list,
-                .movement-list {
-                    display: grid;
-                }
-
-                .pressure-row {
-                    display: grid;
-                    grid-template-columns: minmax(160px, 0.78fr) minmax(200px, 1fr) auto;
-                    gap: 14px;
-                    align-items: center;
-                    padding: 11px 16px;
-                    border-bottom: 1px solid ${C.border};
-                }
-
-                .pressure-row:last-child,
-                .agenda-row:last-child,
-                .movement-row:last-child {
-                    border-bottom: 0;
-                }
-
-                .pressure-row div {
-                    display: grid;
-                    gap: 3px;
-                }
-
-                .pressure-row strong {
-                    color: ${C.ink};
-                    font-size: 13px;
-                    font-weight: 650;
-                }
-
-                .pressure-row span {
-                    color: ${C.faint};
-                    font-size: 11.5px;
-                }
-
-                .pressure-row b {
-                    font-family: ${SERIF};
-                    color: ${C.greenDeep};
-                    font-size: 22px;
-                    font-weight: 700;
-                    letter-spacing: -0.04em;
-                }
-
-                .agenda-row,
-                .movement-row {
-                    display: grid;
-                    align-items: center;
-                    gap: 10px;
-                    padding: 10px 16px;
-                    border-bottom: 1px solid ${C.border};
-                    text-decoration: none;
-                }
-
-                .agenda-row {
-                    grid-template-columns: 46px 1fr;
-                }
-
-                .movement-row {
-                    grid-template-columns: 42px auto 1fr;
-                }
-
-                @media (hover: hover) and (pointer: fine) {
-                    a.movement-row:hover {
-                        background: ${C.surfaceWarm};
-                    }
-                }
-
-                .agenda-row span,
-                .movement-row span {
-                    color: ${C.faint};
-                    font-size: 10px;
-                }
-
-                .agenda-row p,
-                .movement-row p {
-                    margin: 0;
-                    color: ${C.ink};
-                    font-size: 12px;
-                    line-height: 1.3;
-                }
-
-                .pending-list {
-                    display: grid;
-                    grid-template-columns: repeat(3, minmax(0, 1fr));
-                    gap: 0;
-                }
-
-                .pending-list button {
-                    min-height: 76px;
-                    border: 0;
-                    border-right: 1px solid ${C.border};
-                    background: transparent;
-                    color: ${C.ink};
-                    cursor: pointer;
-                    font-family: ${SANS};
-                    font-size: 12.5px;
-                    font-weight: 560;
-                    line-height: 1.3;
-                    padding: 13px 16px;
-                    text-align: left;
-                    transition: background 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
-                }
-
-                .pending-list button:last-child {
-                    border-right: 0;
-                }
-
-                @media (hover: hover) and (pointer: fine) {
-                    .pending-list button:hover {
-                        background: ${C.surfaceWarm};
-                    }
-                }
-
-                .media-strip {
-                    margin-top: 14px;
-                }
-
-                .media-list {
-                    display: grid;
-                    grid-template-columns: repeat(3, minmax(0, 1fr));
-                }
-
-                .media-list article,
-                .media-list a {
-                    min-height: 76px;
-                    padding: 13px 16px;
-                    border-right: 1px solid ${C.border};
-                    text-decoration: none;
-                    display: block;
-                    transition: background 150ms cubic-bezier(0.23, 1, 0.32, 1);
-                }
-
-                @media (hover: hover) and (pointer: fine) {
-                    .media-list a:hover {
-                        background: ${C.surfaceWarm};
-                    }
-                }
-
-                .media-list article:last-child,
-                .media-list a:last-child {
-                    border-right: 0;
-                }
-
-                .media-list span {
-                    display: block;
-                    color: ${C.faint};
-                    font-size: 10px;
-                    letter-spacing: 0.04em;
-                    text-transform: uppercase;
-                    margin-bottom: 6px;
-                }
-
-                .media-list p {
-                    margin: 0;
-                    color: ${C.ink};
-                    font-size: 12.5px;
-                    font-weight: 560;
-                    line-height: 1.3;
-                }
-
-                /* Below ~1440 the fixed 220px app rail leaves too little room for
-                   the intended ~65/35 two-column composition, so fall back to the
-                   approved responsive stack: Attention Queue full width, then
-                   Government Tracking + Constituency Pressure paired where space
-                   allows, then every other section full width, all in the
-                   approved order. The two column wrappers are flattened with
-                   display:contents so order can interleave their children;
-                   explicit flex-basis keeps every card using the full workspace
-                   width (no narrow partial-width cards). */
-                @media (max-width: 1439px) {
-                    .overview-dashboard {
-                        padding: 20px 24px 36px;
-                    }
-
-                    .overview-columns {
-                        display: flex;
-                        flex-wrap: wrap;
-                        align-items: flex-start;
-                        gap: 14px;
-                    }
-
-                    .overview-col {
-                        display: contents;
-                    }
-
-                    .overview-col-left > :nth-child(1) { order: 1; flex: 1 1 100%; }                       /* Attention Queue */
-                    .overview-col-right > :nth-child(1) { order: 2; flex: 1 1 calc(50% - 7px); min-width: 0; }  /* Government Tracking */
-                    .overview-col-right > :nth-child(2) { order: 3; flex: 1 1 calc(50% - 7px); min-width: 0; }  /* Constituency Pressure */
-                    .overview-col-left > :nth-child(2) { order: 4; flex: 1 1 100%; }                       /* Issue Pressure */
-                    .overview-col-right > :nth-child(3) { order: 5; flex: 1 1 100%; }                      /* Today */
-                    .overview-col-left > :nth-child(3) { order: 6; flex: 1 1 100%; }                       /* Office Pending */
-                    .overview-col-right > :nth-child(4) { order: 7; flex: 1 1 100%; }                      /* Recent Movement */
-
-                    .queue-empty,
-                    .queue-header,
-                    .queue-row {
-                        grid-template-columns: minmax(116px, 0.68fr) minmax(300px, 2.2fr) minmax(140px, 0.88fr) minmax(116px, 0.72fr) minmax(130px, 0.78fr);
-                    }
-                }
-
                 @media (max-width: 1100px) {
-                    .queue-empty,
-                    .queue-header,
-                    .queue-row {
-                        grid-template-columns: minmax(78px, 0.58fr) minmax(230px, 2.05fr) minmax(104px, 0.82fr) minmax(82px, 0.62fr) minmax(96px, 0.72fr);
-                        column-gap: 8px;
-                    }
-
-                    .queue-header {
-                        padding-left: 14px;
-                        padding-right: 14px;
-                    }
-
-                    .queue-row {
-                        padding-left: 14px;
-                        padding-right: 14px;
-                    }
-
-                    .message-cell {
-                        font-size: 12.5px;
-                    }
-
-                    .action-cell button {
-                        font-size: 9px;
-                        padding-left: 6px;
-                        padding-right: 6px;
-                    }
+                    .ov-bottom { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+                    .ov-bottom > :last-child { grid-column: 1 / -1; }
                 }
-
+                /* Below ~1200 the content area (minus the 220px sidebar) can't hold
+                   the 7-column table: queue rows become cards. */
+                @media (max-width: 1199px) {
+                    .ov-thead { display: none; }
+                    .ov-table { overflow-x: visible; }
+                    .ov-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "case state" "msg msg" "cat cat" "loc loc" "action recv"; gap: 6px 12px; padding: 14px 18px; }
+                    .ov-c-case { grid-area: case; } .ov-c-state { grid-area: state; } .ov-c-msg { grid-area: msg; }
+                    .ov-c-cat { grid-area: cat; font-weight: 600; } .ov-c-loc { grid-area: loc; }
+                    .ov-c-action { grid-area: action; margin-top: 6px; } .ov-c-recv { grid-area: recv; flex-direction: row; gap: 6px; align-self: end; }
+                }
+                /* Tablet and below: panels stack. */
                 @media (max-width: 1023px) {
-                    .overview-head {
-                        align-items: start;
-                    }
-
-                    /* Not enough width to pair them — Government Tracking and
-                       Constituency Pressure go full width, keeping the stack. */
-                    .overview-col-right > :nth-child(1),
-                    .overview-col-right > :nth-child(2) {
-                        flex-basis: 100%;
-                    }
-
-                    .attention-strip {
-                        grid-template-columns: repeat(3, minmax(0, 1fr));
-                    }
-
-                    .attention-item:nth-child(3) {
-                        border-right: 0;
-                    }
-
-                    .attention-item:nth-child(n + 4) {
-                        border-top: 1px solid ${C.border};
-                    }
-
-                    .queue-header {
-                        display: none;
-                    }
-
-                    .queue-row {
-                        grid-template-columns: minmax(96px, 0.54fr) minmax(0, 1.46fr) minmax(118px, 0.62fr);
-                        row-gap: 9px;
-                        align-items: start;
-                    }
-
-                    .issue-cell,
-                    .state-cell {
-                        grid-column: 2;
-                    }
-
-                    .action-cell {
-                        grid-column: 3;
-                        grid-row: 1 / span 3;
-                    }
-
-                    .issue-cell {
-                        display: flex;
-                        gap: 8px;
-                        flex-wrap: wrap;
-                    }
-
-                    .state-cell span {
-                        white-space: normal;
-                    }
-
-                    .map-shape {
-                        height: 210px;
-                    }
+                    .ov { padding: 18px 16px 32px; }
+                    .ov-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+                    .ov-kpis > :first-child { grid-column: 1 / -1; }
+                    .ov-side { grid-template-columns: minmax(0, 1fr); }
                 }
-
-                @media (max-width: 640px) {
-                    .overview-dashboard {
-                        padding: 20px 14px 34px;
-                    }
-
-                    .overview-head {
-                        display: grid;
-                        gap: 14px;
-                    }
-
-                    .attention-strip {
-                        grid-template-columns: repeat(2, minmax(0, 1fr));
-                    }
-
-                    .attention-item,
-                    .attention-item:nth-child(3) {
-                        border-right: 0;
-                    }
-
-                    .attention-item {
-                        min-height: 54px;
-                        grid-template-columns: auto auto;
-                        align-content: center;
-                        gap: 4px 7px;
-                        padding: 10px 12px;
-                    }
-
-                    .attention-item:nth-child(odd) {
-                        border-right: 1px solid ${C.border};
-                    }
-
-                    .attention-item:nth-child(n + 3) {
-                        border-top: 1px solid ${C.border};
-                    }
-
-                    .attention-item:last-child {
-                        grid-column: 1 / -1;
-                    }
-
-                    .attention-label {
-                        grid-column: 2;
-                        font-size: 9px;
-                    }
-
-                    .attention-value {
-                        font-size: 24px;
-                    }
-
-                    .op-section-head {
-                        padding: 12px 14px;
-                    }
-
-                    .op-section-head h2 {
-                        font-size: 20px;
-                    }
-
-                    .queue-row {
-                        grid-template-columns: 1fr;
-                        min-height: 0;
-                        padding: 13px 14px;
-                        row-gap: 9px;
-                    }
-
-                    .queue-table .queue-row:nth-of-type(n + 6) {
-                        display: none;
-                    }
-
-                    .message-cell,
-                    .issue-cell,
-                    .desktop-state,
-                    .action-cell {
-                        grid-column: auto;
-                        grid-row: auto;
-                    }
-
-                    .desktop-state {
-                        display: none;
-                    }
-
-                    .mobile-state {
-                        display: inline-flex;
-                    }
-
-                    .issue-cell {
-                        display: grid;
-                    }
-
-                    .case-cell {
-                        display: flex;
-                        justify-content: space-between;
-                        gap: 12px;
-                    }
-
-                    .case-meta {
-                        margin-top: 5px;
-                        text-align: right;
-                    }
-
-                    .message-cell {
-                        font-size: 12.75px;
-                        margin-bottom: 5px;
-                        -webkit-line-clamp: 3;
-                    }
-
-                    .action-cell button {
-                        min-height: 28px;
-                        padding: 0;
-                        border: 0;
-                        background: transparent;
-                        color: ${C.greenDeep};
-                        font-size: 11px;
-                    }
-
-                    .action-cell button::after {
-                        content: ' ->';
-                    }
-
-                    .mobile-queue-footer {
-                        display: block;
-                        padding: 12px 14px 14px;
-                        border-top: 1px solid ${C.border};
-                        color: ${C.greenDeep};
-                        font-size: 11px;
-                        letter-spacing: 0.04em;
-                        text-decoration: none;
-                        text-transform: uppercase;
-                        transition: color 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
-                    }
-
-                    .journey,
-                    .map-card {
-                        padding-left: 14px;
-                        padding-right: 14px;
-                    }
-
-                    .journey-arrow {
-                        display: none;
-                    }
-
-                    .journey-step {
-                        grid-template-columns: 1fr;
-                        margin-bottom: 8px;
-                    }
-
-                    .sync-box,
-                    .govt-resolved {
-                        margin-left: 14px;
-                        margin-right: 14px;
-                    }
-
-                    .pressure-row {
-                        grid-template-columns: 1fr auto;
-                        gap: 6px 12px;
-                        padding: 12px 14px;
-                    }
-
-                    .pending-list,
-                    .media-list {
-                        grid-template-columns: 1fr;
-                    }
-
-                    .pending-list button,
-                    .media-list article,
-                    .media-list a {
-                        border-right: 0;
-                        border-bottom: 1px solid ${C.border};
-                    }
-
-                    .pending-list button:last-child,
-                    .media-list article:last-child,
-                    .media-list a:last-child {
-                        border-bottom: 0;
-                    }
+                @media (max-width: 767px) {
+                    .ov-bottom { grid-template-columns: minmax(0, 1fr); }
+                    .ov-kpis { grid-template-columns: minmax(0, 1fr); }
+                    .ov-head h1 { font-size: 34px; }
                 }
             `}</style>
         </main>
