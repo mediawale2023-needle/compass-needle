@@ -160,6 +160,16 @@ describe('Briefcase STATUS cell — grievance reference number on filed cases', 
         renderTable([makeCase({ status: 'in_progress', govt_status: null, govt_reference_number: 'MH-77' })]);
         expect(screen.getByText('#MH-77')).toBeInTheDocument();
     });
+
+    it.each([
+        ['as the only supporting line (REJECTED)', { govt_status: 'rejected' }],
+        ['after another supporting line', { govt_status: 'under_review', govt_department: 'PWD' }],
+    ])('renders #reference in the mono metadata style %s', (_label, overrides) => {
+        renderTable([makeCase({ status: 'in_progress', govt_reference_number: 'RAJ-4477', ...overrides })]);
+        const ref = screen.getByText('#RAJ-4477');
+        expect(ref.style.fontFamily).toContain('IBM Plex Mono');
+        expect(ref.style.fontSize).toBe('11.5px');
+    });
 });
 
 describe('Briefcase STATUS cell — Needle secondary layer', () => {

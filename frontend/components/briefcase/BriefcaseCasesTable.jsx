@@ -301,20 +301,25 @@ function StatusCellContent({ item }) {
                 }}>
                     {g.stage}
                 </div>
-                {g.lines.map((line, i) => (
-                    <div
-                        key={i}
-                        style={{
-                            marginTop: i === 0 ? 3 : 1,
-                            fontSize: i >= 1 ? T.meta : T.small,
-                            fontFamily: i >= 1 ? MONO : SANS,
-                            color: g.tone === 'err' ? C.err : C.muted,
-                            lineHeight: 1.3,
-                        }}
-                    >
-                        {line}
-                    </div>
-                ))}
+                {g.lines.map((line, i) => {
+                    // The #reference is a machine fact and keeps the mono
+                    // treatment even when it is the only supporting line.
+                    const isRef = !!g.ref && line === `#${g.ref}`;
+                    return (
+                        <div
+                            key={i}
+                            style={{
+                                marginTop: i === 0 ? 3 : 1,
+                                fontSize: isRef ? T.meta : T.small,
+                                fontFamily: isRef ? MONO : SANS,
+                                color: g.tone === 'err' ? C.err : C.muted,
+                                lineHeight: 1.3,
+                            }}
+                        >
+                            {line}
+                        </div>
+                    );
+                })}
                 <span style={{ display: 'block', width: 22, height: 1, background: C.hairStrong, margin: '6px 0 5px' }} />
                 <NeedleStatus status={item.status} />
                 {since && <div style={{ marginTop: 4, fontSize: T.meta, color: C.muted }}>Since {since}</div>}
