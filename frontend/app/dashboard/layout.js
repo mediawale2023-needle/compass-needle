@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/auth';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Sidebar from '@/components/Sidebar';
 import { apiGet, apiPost } from '@/lib/api';
@@ -52,9 +52,31 @@ export default function DashboardLayout({ children }) {
     const [dismissedIds, setDismissedIds] = useState([]);
     const [supportInbox, setSupportInbox] = useState({ pending_requests: [], active_sessions: [] });
     const [supportBusyKey, setSupportBusyKey] = useState('');
+    const [headerSearch, setHeaderSearch] = useState('');
+    const headerSearchRef = useRef(null);
     const isBriefcaseRoute = pathname?.startsWith('/dashboard/sansadx');
 
     useEffect(() => { setIsMobileMenuOpen(false); }, [pathname]);
+
+    // ⌘K / Ctrl+K focuses the header search (the hint shown in the field).
+    useEffect(() => {
+        const onKey = (event) => {
+            if ((event.metaKey || event.ctrlKey) && String(event.key).toLowerCase() === 'k' && headerSearchRef.current) {
+                event.preventDefault();
+                headerSearchRef.current.focus();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
+
+    const handleHeaderSearch = (event) => {
+        event.preventDefault();
+        const query = headerSearch.trim();
+        if (!query) return;
+        router.push(`/dashboard/sansadx?q=${encodeURIComponent(query)}`);
+        setHeaderSearch('');
+    };
 
     useEffect(() => {
         if (!loading && !user) router.push('/');
@@ -282,7 +304,7 @@ export default function DashboardLayout({ children }) {
                         style={{
                             background: 'var(--cn-paper)',
                             borderBottom: '1px solid var(--cn-hair)',
-                            gridTemplateColumns: 'auto 1fr auto auto auto auto',
+                            gridTemplateColumns: 'auto minmax(0, 1fr) auto auto auto auto',
                             alignItems: 'center',
                             gap: '18px',
                             padding: '12px 24px',
@@ -302,15 +324,6 @@ export default function DashboardLayout({ children }) {
                                 >
                                     Operations Dashboard
                                 </span>
-                                <span
-                                    className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.12em] uppercase"
-                                    style={{
-                                        background: 'var(--cn-green-tint)',
-                                        color: 'var(--cn-green-ink)',
-                                    }}
-                                >
-                                    Live
-                                </span>
                             </div>
                             <div
                                 className="mt-0.5 text-[10px] tracking-[0.12em] uppercase"
@@ -323,9 +336,12 @@ export default function DashboardLayout({ children }) {
                             </div>
                         </div>
 
-                        {/* Search bar */}
-                        <div
-                            className="flex items-center gap-2 px-3 py-2 w-full max-w-sm justify-self-center"
+                        {/* Search bar — hands the query to Briefcase's existing,
+                            tenant-scoped case search (?q=). ⌘K / Ctrl+K focuses it. */}
+                        <form
+                            role="search"
+                            onSubmit={handleHeaderSearch}
+                            className="flex items-center gap-2 px-3 py-2 w-full min-w-0 max-w-sm justify-self-center"
                             style={{
                                 background: 'var(--cn-surface)',
                                 border: '1px solid var(--cn-hair)',
@@ -333,7 +349,12 @@ export default function DashboardLayout({ children }) {
                         >
                             <Search className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--cn-ink3)' }} />
                             <input
-                                placeholder="Search grievance ref, citizen ID, letter ref…"
+                                ref={headerSearchRef}
+                                type="search"
+                                aria-label="Search cases in Briefcase"
+                                value={headerSearch}
+                                onChange={(event) => setHeaderSearch(event.target.value)}
+                                placeholder="Search cases: ref, citizen, message, location…"
                                 className="flex-1 bg-transparent outline-none text-[12.5px]"
                                 style={{ color: 'var(--cn-ink)', fontFamily: 'inherit' }}
                             />
@@ -347,7 +368,7 @@ export default function DashboardLayout({ children }) {
                             >
                                 ⌘K
                             </span>
-                        </div>
+                        </form>
 
                         {/* Sansad AI button */}
                         {canAccessSansadAI(user) && (
@@ -359,9 +380,11 @@ export default function DashboardLayout({ children }) {
                                     fontFamily: 'inherit',
                                 }}
                                 onClick={() => router.push('/dashboard/sansadai')}
+                                aria-label="Sansad AI"
                             >
                                 <Sparkles className="h-3 w-3" />
-                                Sansad AI
+                                {/* Icon-only on tablet widths so the header fits beside the sidebar. */}
+                                <span className="hidden lg:inline">Sansad AI</span>
                             </button>
                         )}
 
@@ -402,7 +425,7 @@ export default function DashboardLayout({ children }) {
                             >
                                 {user?.display_name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'CN'}
                             </div>
-                            <div>
+                            <div className="hidden lg:block">
                                 <div
                                     className="text-[12.5px] font-semibold leading-none"
                                     style={{ color: 'var(--cn-ink)' }}

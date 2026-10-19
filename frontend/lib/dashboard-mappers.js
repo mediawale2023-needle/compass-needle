@@ -73,6 +73,12 @@ function mapOverviewQueueRow(row) {
         recency: raw.recency || '',
         action,
         critical: !!raw.critical,
+        // Which mutually exclusive attention bucket the row was counted in
+        // (needs_review | needs_location | sync_issues | govt_updates | ready_to_file).
+        bucket: raw.bucket || '',
+        // "Received" = newest inbound citizen message on the thread, falling
+        // back to case creation — the same timestamp the queue is ordered by.
+        receivedAt: raw.latest_citizen_message_at || raw.created_at || null,
     };
 }
 
@@ -127,7 +133,12 @@ export function mapOverviewResponse(overview, engagements, localNews) {
                 tone: c.tone || 'green',
             }))
             : [],
+        // Same counts as `attention`, keyed by bucket for direct lookup.
+        attentionByKey: Array.isArray(o.attention_counts)
+            ? Object.fromEntries(o.attention_counts.map((c) => [c.key, c.value ?? 0]))
+            : {},
         queue: Array.isArray(o.attention_queue) ? o.attention_queue.map(mapOverviewQueueRow) : [],
+        threadCount: (o.validation && o.validation.thread_count) || 0,
         govt: mapOverviewGovt(o.government_tracking),
         hotspots: Array.isArray(o.constituency_pressure)
             ? o.constituency_pressure.map((h) => ({ name: h.name || '', count: h.count ?? 0 }))

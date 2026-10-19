@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { vi } from 'vitest';
 
 const { apiGetMock, pushMock } = vi.hoisted(() => ({
@@ -44,7 +44,7 @@ const OVERVIEW = {
         { key: 'needs_location', label: 'Needs location', value: 1, tone: 'amber' },
         { key: 'sync_issues', label: 'Sync issues', value: 1, tone: 'rust' },
         { key: 'govt_updates', label: 'Govt updates', value: 2, tone: 'green' },
-        { key: 'ready_to_file', label: 'Ready to file', value: 4, tone: 'green' },
+        { key: 'ready_to_file', label: 'Ready to file', value: 41, tone: 'green' },
     ],
     attention_queue: [
         {
@@ -63,6 +63,21 @@ const OVERVIEW = {
             recency: '1h',
             action: { label: 'Review case', href: '/dashboard/sansadx?case_id=101' },
             critical: false,
+            bucket: 'needs_review',
+            latest_citizen_message_at: '2026-10-19T04:44:00Z',
+        },
+        {
+            id: 102,
+            case_ref: '#CN-102',
+            thread_count: 1,
+            message: 'Streetlight not working near the temple',
+            issue: 'Electricity',
+            location: 'Tilakwadi',
+            state: 'Unassigned',
+            action: { label: 'File grievance', href: '/dashboard/sansadx?case_id=102' },
+            critical: true,
+            bucket: 'ready_to_file',
+            created_at: '2026-10-18T10:00:00Z',
         },
     ],
     government_tracking: { ready: 4, registered: 6, department: 2, resolved: 3, sync_issues: 1, issues: ['#CN-77 · Sync Issue'] },
@@ -95,21 +110,43 @@ describe('MP dashboard overview', () => {
         });
     });
 
-    it('renders the locked Overview design wired to /api/dashboard/overview', async () => {
+    it('renders the Operations Dashboard overview wired to /api/dashboard/overview', async () => {
         render(<DashboardPage />);
 
-        expect(await screen.findByText('Attention Queue')).toBeInTheDocument();
-        expect(screen.getByText('Government Tracking')).toBeInTheDocument();
-        expect(screen.getByText('Constituency Pressure')).toBeInTheDocument();
-        expect(screen.getByText('Issue Pressure')).toBeInTheDocument();
-        expect(screen.getByText('Today')).toBeInTheDocument();
-        expect(screen.getByText('Office Pending')).toBeInTheDocument();
-        expect(screen.getByText('Recent Movement')).toBeInTheDocument();
-        expect(screen.getByText('Local Signals')).toBeInTheDocument();
-
+        expect(await screen.findByRole('heading', { name: 'Overview', level: 1 })).toBeInTheDocument();
+        for (const title of ['Attention Queue', 'Government Tracking', 'Constituency Pressure', 'Top Issues',
+            'Department Response Time', 'Recent Activity', 'Today', 'Office Pending', 'Local Signals']) {
+            expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
+        }
         expect(screen.getByText('Pipeline burst in Whitefield since morning')).toBeInTheDocument();
-        expect(screen.getByText('Review case')).toBeInTheDocument();
-
+        expect(screen.getByRole('button', { name: 'Review case' })).toBeInTheDocument();
         expect(apiGetMock).toHaveBeenCalledWith('/api/dashboard/overview');
+    });
+
+    it('labels the two "ready" counts distinctly: KPI = portal-prepared stage, context = not yet filed', async () => {
+        render(<DashboardPage />);
+        const kpis = await screen.findByLabelText('Key counts');
+        const ready = within(kpis).getByText('Ready to file').closest('a');
+        // government_tracking.ready (4), not the broad not-filed attention bucket (41)
+        expect(within(ready).getByText('4')).toBeInTheDocument();
+        expect(within(ready).getByText('Prepared for portal · 41 active not yet filed')).toBeInTheDocument();
+        expect(within(kpis).getByText('Needs review').closest('a')).toHaveAttribute('href', '/dashboard/sansadx?status=pending_review');
+        expect(within(kpis).getByText('Needs location').closest('a')).toHaveAttribute('href', '/dashboard/sansadx?status=awaiting_location');
+    });
+
+    it('filters the Attention Queue by bucket and shows the real bucket total', async () => {
+        render(<DashboardPage />);
+        await screen.findByText('Streetlight not working near the temple');
+        fireEvent.click(screen.getByRole('tab', { name: /Needs review/ }));
+        expect(screen.getByText('Pipeline burst in Whitefield since morning')).toBeInTheDocument();
+        expect(screen.queryByText('Streetlight not working near the temple')).toBeNull();
+        expect(screen.getByText('Showing 1 of 3 (latest items only).')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('tab', { name: /Not yet filed/ }));
+        expect(screen.getByText('Streetlight not working near the temple')).toBeInTheDocument();
+    });
+
+    it('never shows fabricated department response metrics', async () => {
+        render(<DashboardPage />);
+        expect(await screen.findByText(/Response-time analytics will appear once government filing and response timestamps are available/)).toBeInTheDocument();
     });
 });
