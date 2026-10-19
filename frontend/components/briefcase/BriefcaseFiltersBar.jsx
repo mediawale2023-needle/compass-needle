@@ -251,7 +251,7 @@ export default function BriefcaseFiltersBar(props) {
 
                         <span style={{ width: 1, height: 18, background: P.hair, margin: '0 4px' }} />
                         {/* Label and inputs wrap as one unit so RANGE never strands at a line end. */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
                             <span style={{ fontFamily: MONO, fontSize: T.label, color: P.ink3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Range</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                 <input

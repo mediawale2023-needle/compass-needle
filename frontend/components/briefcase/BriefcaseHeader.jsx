@@ -26,7 +26,9 @@ function useIsDesktop() {
     const [isDesktop, setIsDesktop] = useState(true);
     useEffect(() => {
         if (typeof window === 'undefined' || !window.matchMedia) return undefined;
-        const mq = window.matchMedia('(min-width: 768px)');
+        // 1024, not 768: with the 220px sidebar, a 768–1023px viewport leaves
+        // ~520–780px of content — too narrow for the one-row desktop header.
+        const mq = window.matchMedia('(min-width: 1024px)');
         const update = () => setIsDesktop(mq.matches);
         update();
         mq.addEventListener('change', update);
@@ -68,7 +70,7 @@ export default function BriefcaseHeader({ searchInput, onSearchInputChange, subt
                     background: C.bg,
                     borderBottom: `1px solid ${C.border}`,
                     display: 'grid',
-                    gridTemplateColumns: 'minmax(220px,1fr) minmax(240px,440px) auto auto',
+                    gridTemplateColumns: 'minmax(0,1.2fr) minmax(200px,1fr) auto auto',
                     alignItems: 'center',
                     gap: 14,
                     padding: '11px 22px',
@@ -81,7 +83,7 @@ export default function BriefcaseHeader({ searchInput, onSearchInputChange, subt
                     <div style={{ fontSize: T.small, color: C.muted, marginTop: 3 }}>{subtitle}</div>
                 </div>
 
-                <div style={{ width: '100%' }}>
+                <div style={{ width: '100%', maxWidth: 440, justifySelf: 'center' }}>
                     <SearchInput value={searchInput} onChange={onSearchInputChange} placeholder="Search citizen, ref, message, location…" />
                 </div>
 
