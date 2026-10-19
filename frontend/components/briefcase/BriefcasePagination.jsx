@@ -1,6 +1,6 @@
 'use client';
 
-import { gen2 } from '@/lib/briefcase-tokens';
+import { gen2, gen2Type as T } from '@/lib/briefcase-tokens';
 
 const C = {
     ...gen2,
@@ -57,7 +57,7 @@ export default function BriefcasePagination({
                 borderRadius: 4,
                 background: active ? C.activeBg : 'transparent',
                 color: disabled ? '#C7BFAB' : active ? C.ink : C.muted,
-                fontSize: 12, fontFamily: 'inherit',
+                fontSize: T.control, fontFamily: 'inherit',
                 cursor: disabled ? 'default' : 'pointer',
             }}
         >
@@ -69,7 +69,7 @@ export default function BriefcasePagination({
         <div style={{
             minHeight: 58, padding: '10px 16px',
             display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 12,
-            color: C.muted, fontSize: 11,
+            color: C.muted, fontSize: T.control,
             background: C.surface, borderTop: `1px solid ${C.hair}`,
             fontFamily: '"Public Sans", system-ui, sans-serif',
         }}>
@@ -94,7 +94,7 @@ export default function BriefcasePagination({
                     onChange={(e) => onPageSizeChange && onPageSizeChange(Number(e.target.value))}
                     style={{
                         border: `1px solid ${C.hair}`, borderRadius: 4, background: C.surface,
-                        color: C.ink, fontSize: 12, fontFamily: 'inherit', padding: '4px 6px', outline: 'none',
+                        color: C.ink, fontSize: T.control, fontFamily: 'inherit', padding: '4px 6px', outline: 'none',
                     }}
                 >
                     {[25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}

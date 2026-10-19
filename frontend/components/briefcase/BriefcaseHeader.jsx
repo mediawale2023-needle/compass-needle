@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { canAccessSansadAI, getAccountLabel } from '@/lib/account';
-import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
+import { gen2, gen2Fonts, gen2Type } from '@/lib/briefcase-tokens';
 
 // Shared Overview / Case Detail visual system.
 // Canonical Gen 2 tokens. This component names hairlines `border`/
@@ -16,6 +16,7 @@ const C = {
 const SANS = gen2Fonts.sans;
 const SERIF = gen2Fonts.serif;
 const MONO = gen2Fonts.mono;
+const T = gen2Type;
 
 // Local desktop/mobile switch. The previous mobile header set an inline
 // `display: flex` alongside `className="md:hidden"`; the inline style outranks
@@ -25,7 +26,9 @@ function useIsDesktop() {
     const [isDesktop, setIsDesktop] = useState(true);
     useEffect(() => {
         if (typeof window === 'undefined' || !window.matchMedia) return undefined;
-        const mq = window.matchMedia('(min-width: 768px)');
+        // 1024, not 768: with the 220px sidebar, a 768–1023px viewport leaves
+        // ~520–780px of content — too narrow for the one-row desktop header.
+        const mq = window.matchMedia('(min-width: 1024px)');
         const update = () => setIsDesktop(mq.matches);
         update();
         mq.addEventListener('change', update);
@@ -37,12 +40,12 @@ function useIsDesktop() {
 function SearchInput({ value, onChange, placeholder }) {
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 11px', background: C.surface, border: `1px solid ${C.borderStrong}`, minWidth: 0 }}>
-            <span aria-hidden="true" style={{ color: C.faint, fontSize: 13 }}>⌕</span>
+            <span aria-hidden="true" style={{ color: C.muted, fontSize: T.body }}>⌕</span>
             <input
                 placeholder={placeholder}
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
-                style={{ flex: 1, minWidth: 0, border: 'none', background: 'transparent', outline: 'none', fontSize: 12.5, color: C.ink, fontFamily: SANS }}
+                style={{ flex: 1, minWidth: 0, border: 'none', background: 'transparent', outline: 'none', fontSize: T.body, color: C.ink, fontFamily: SANS }}
             />
         </div>
     );
@@ -55,7 +58,7 @@ export default function BriefcaseHeader({ searchInput, onSearchInputChange, subt
         : 'CN';
 
     const avatar = (
-        <div style={{ width: 32, height: 32, background: C.green, color: '#F3EEE2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontWeight: 600, fontSize: 12.5, flexShrink: 0 }}>
+        <div style={{ width: 32, height: 32, background: C.green, color: '#F3EEE2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontWeight: 600, fontSize: T.control, flexShrink: 0 }}>
             {initials}
         </div>
     );
@@ -67,7 +70,7 @@ export default function BriefcaseHeader({ searchInput, onSearchInputChange, subt
                     background: C.bg,
                     borderBottom: `1px solid ${C.border}`,
                     display: 'grid',
-                    gridTemplateColumns: 'auto 1fr auto auto',
+                    gridTemplateColumns: 'minmax(0,1.2fr) minmax(200px,1fr) auto auto',
                     alignItems: 'center',
                     gap: 14,
                     padding: '11px 22px',
@@ -77,17 +80,17 @@ export default function BriefcaseHeader({ searchInput, onSearchInputChange, subt
                     <h1 style={{ margin: 0, fontFamily: SERIF, fontWeight: 700, fontSize: 21, color: C.ink, letterSpacing: '-0.015em', lineHeight: 1.05 }}>
                         Briefcase
                     </h1>
-                    <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>{subtitle}</div>
+                    <div style={{ fontSize: T.small, color: C.muted, marginTop: 3 }}>{subtitle}</div>
                 </div>
 
-                <div style={{ width: 440, justifySelf: 'center' }}>
+                <div style={{ width: '100%', maxWidth: 440, justifySelf: 'center' }}>
                     <SearchInput value={searchInput} onChange={onSearchInputChange} placeholder="Search citizen, ref, message, location…" />
                 </div>
 
                 {canAccessSansadAI(user) ? (
                     <Link
                         href="/dashboard/sansadai"
-                        style={{ padding: '7px 12px', background: C.green, color: '#F3EEE2', border: 'none', fontSize: 10.5, letterSpacing: '0.08em', fontWeight: 600, textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: MONO, textDecoration: 'none' }}
+                        style={{ padding: '7px 12px', background: C.green, color: '#F3EEE2', border: 'none', fontSize: T.label, letterSpacing: '0.08em', fontWeight: 600, textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: MONO, textDecoration: 'none', whiteSpace: 'nowrap' }}
                     >
                         Sansad AI
                     </Link>
@@ -96,8 +99,8 @@ export default function BriefcaseHeader({ searchInput, onSearchInputChange, subt
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                     {avatar}
                     <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.1 }}>{user?.display_name || 'Workspace User'}</div>
-                        <div style={{ fontSize: 10, color: C.faint, fontFamily: MONO }}>{getAccountLabel(user)}</div>
+                        <div style={{ fontSize: T.control, fontWeight: 600, color: C.ink, lineHeight: 1.15 }}>{user?.display_name || 'Workspace User'}</div>
+                        <div style={{ fontSize: T.meta, color: C.muted, fontFamily: MONO }}>{getAccountLabel(user)}</div>
                     </div>
                 </div>
             </header>
@@ -112,7 +115,7 @@ export default function BriefcaseHeader({ searchInput, onSearchInputChange, subt
                         <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 18, color: C.ink, letterSpacing: '-0.015em', lineHeight: 1.05 }}>
                             Briefcase
                         </div>
-                        <div style={{ fontSize: 11, color: C.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: T.meta, color: C.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {subtitle}
                         </div>
                     </div>

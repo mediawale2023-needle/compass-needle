@@ -3,6 +3,8 @@
 import { Skeleton } from '@/components/ui/skeleton';
 import { briefcaseFonts, briefcasePalette as P, BriefcaseIcon, BriefcaseStatusPill } from '@/components/briefcase/briefcase-shared';
 
+import { gen2Type as T } from '@/lib/briefcase-tokens';
+
 const { serif: SERIF, mono: MONO } = briefcaseFonts;
 
 export default function BriefcaseClustersView({ clusters, loading, onSelectCase }) {
@@ -11,7 +13,7 @@ export default function BriefcaseClustersView({ clusters, loading, onSelectCase 
     }
 
     if (clusters.length === 0) {
-        return <div style={{ textAlign: 'center', padding: '64px 0', color: P.ink3 }}>No clusters found in the last 30 days.</div>;
+        return <div style={{ textAlign: 'center', padding: '64px 0', color: P.ink3, fontSize: T.body }}>No clusters found in the last 30 days.</div>;
     }
 
     return (
@@ -21,14 +23,14 @@ export default function BriefcaseClustersView({ clusters, loading, onSelectCase 
                     <div style={{ padding: '14px 16px', borderBottom: `1px solid ${P.hair}`, background: P.surfaceWarm }}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
                             <div>
-                                <div style={{ fontFamily: MONO, fontSize: 9.5, color: P.ink3, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+                                <div style={{ fontFamily: MONO, fontSize: T.label, color: P.ink3, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
                                     Cluster {String(index + 1).padStart(2, '0')}
                                 </div>
                                 <div style={{ fontFamily: SERIF, fontSize: 22, lineHeight: 1.05, color: P.ink, marginTop: 4 }}>
                                     {cluster.category || 'Emerging issue'}
                                 </div>
                                 {cluster.location && cluster.location !== 'Unknown' && (
-                                    <div style={{ fontSize: 11.5, color: P.ink2, marginTop: 4 }}>{cluster.location}</div>
+                                    <div style={{ fontSize: T.small, color: P.ink2, marginTop: 4 }}>{cluster.location}</div>
                                 )}
                             </div>
                             <div
@@ -38,7 +40,7 @@ export default function BriefcaseClustersView({ clusters, loading, onSelectCase 
                                     background: P.greenDeep,
                                     color: P.paper,
                                     fontFamily: MONO,
-                                    fontSize: 10,
+                                    fontSize: T.meta,
                                     textAlign: 'center',
                                 }}
                             >
@@ -63,10 +65,10 @@ export default function BriefcaseClustersView({ clusters, loading, onSelectCase 
                             >
                                 <BriefcaseStatusPill status={item.status} />
                                 <div style={{ minWidth: 0, flex: 1 }}>
-                                    <div style={{ fontFamily: MONO, fontSize: 10, color: P.ink3 }}>#{item.id}</div>
+                                    <div style={{ fontFamily: MONO, fontSize: T.meta, color: P.ink3 }}>#{item.id}</div>
                                     <div
                                         style={{
-                                            fontSize: 11.5,
+                                            fontSize: T.small,
                                             color: P.ink2,
                                             lineHeight: 1.3,
                                             whiteSpace: 'nowrap',
@@ -81,7 +83,7 @@ export default function BriefcaseClustersView({ clusters, loading, onSelectCase 
                             </div>
                         ))}
                         {cluster.count > 5 && (
-                            <p style={{ fontSize: 10.5, color: P.ink3 }}>+{cluster.count - 5} more cases in this cluster</p>
+                            <p style={{ fontSize: T.meta, color: P.ink3 }}>+{cluster.count - 5} more cases in this cluster</p>
                         )}
                     </div>
                 </article>

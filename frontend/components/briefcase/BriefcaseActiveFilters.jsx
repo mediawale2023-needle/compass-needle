@@ -3,7 +3,7 @@
 // Renders ONLY when a real advanced filter (category / location / assembly) is
 // active. The status tab is already shown as an active tab and is not echoed
 // here. Count reflects the filtered total, not the current page size.
-import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
+import { gen2, gen2Fonts, gen2Type as T } from '@/lib/briefcase-tokens';
 
 const C = { ...gen2, border: gen2.hair, borderStrong: gen2.hairStrong };
 const MONO = gen2Fonts.mono;
@@ -41,7 +41,7 @@ export default function BriefcaseActiveFilters({
                 background: C.surface,
             }}
         >
-            <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.faint }}>
+            <span style={{ fontFamily: MONO, fontSize: T.label, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>
                 Active
             </span>
             {activeChips.map((chip) => (
@@ -50,14 +50,14 @@ export default function BriefcaseActiveFilters({
                     style={{
                         display: 'inline-flex', alignItems: 'center', gap: 6,
                         border: `1px solid ${C.borderStrong}`, background: C.surfaceWarm,
-                        padding: '3px 8px', fontSize: 11, color: C.ink,
+                        padding: '3px 8px', fontSize: T.tag, color: C.ink,
                     }}
                 >
                     {chip.label}
                     <button
                         onClick={chip.onClear}
                         aria-label={`Clear ${chip.label}`}
-                        style={{ border: 'none', background: 'transparent', padding: 0, marginLeft: 2, cursor: 'pointer', color: C.faint, fontSize: 10 }}
+                        style={{ border: 'none', background: 'transparent', padding: 0, marginLeft: 2, cursor: 'pointer', color: C.muted, fontSize: T.tag }}
                     >
                         ✕
                     </button>
@@ -66,12 +66,12 @@ export default function BriefcaseActiveFilters({
             {onClearAll && (
                 <button
                     onClick={onClearAll}
-                    style={{ marginLeft: 2, border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.greenDeep }}
+                    style={{ marginLeft: 2, border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: MONO, fontSize: T.label, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.greenDeep }}
                 >
                     Clear filters
                 </button>
             )}
-            <span style={{ fontSize: 11, color: C.muted, marginLeft: 4 }}>
+            <span style={{ fontSize: T.tag, color: C.muted, marginLeft: 4 }}>
                 {loading ? '…' : `${(totalCases || 0).toLocaleString()} case${totalCases === 1 ? '' : 's'}`}
             </span>
         </div>
