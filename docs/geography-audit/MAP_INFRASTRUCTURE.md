@@ -66,4 +66,3 @@ The first working capacity estimate is 100–250 GB, allowing several raw/normal
 ## Existing NEEDLE map caution
 
 The current dashboard’s SVG projection, anchor coordinates and synthetic fallback are product presentation contracts. They are not validation infrastructure and should not influence the canonical national schema. Any future use of national releases in NEEDLE requires a separate visual/regression assessment after the dataset exists.
-

@@ -85,4 +85,3 @@ Counts describe repository contents, not legal/current electoral truth.
 ## Audit conclusion
 
 The existing implementation should remain operational and untouched. It is a consumer-oriented, seat-scoped geography system—not the substrate on which to conduct national acquisition. The independent repository should produce evidence-backed releases first. A later, separately approved decision can compare those releases with the product contract and select PostGIS, files, APIs or imports.
-

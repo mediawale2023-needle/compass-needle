@@ -95,4 +95,3 @@ Create small, legally distributable golden fixtures spanning duplicate village n
 ## Relationship to NEEDLE
 
 None is implemented or specified in this phase. A future integration review may consume a published release, but it must independently evaluate tenant isolation, resolver behavior, migration safety and map compatibility.
-

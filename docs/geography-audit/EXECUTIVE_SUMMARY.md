@@ -1,6 +1,6 @@
 # NEEDLE National Geography — Phase 0 Executive Summary
 
-**Audit date:** 19 October 2026  
+**Audit date:** 19 October 2026
 **Decision scope:** whether to begin an independent, dataset-first national geography project. This is not an integration design for NEEDLE.
 
 ## Recommendation
@@ -82,4 +82,3 @@ Raw data should be immutable and access-controlled where terms require it. Git s
 ## Stop point
 
 Phase 0 ends with this audit and the draft documentation PR. Do not create the new repository, perform bulk acquisition, modify NEEDLE, or choose a NEEDLE integration architecture without explicit approval.
-

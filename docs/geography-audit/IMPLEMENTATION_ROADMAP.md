@@ -98,4 +98,3 @@ A credible pilot needs geospatial/data engineering, research/data stewardship, e
 ## Immediate next approval request
 
 Approve or reject only: (a) creation of the independent repository, (b) the four-jurisdiction pilot, and (c) limited acquisition of the first datasets listed in the executive summary. Do not bundle NEEDLE integration into that approval.
-

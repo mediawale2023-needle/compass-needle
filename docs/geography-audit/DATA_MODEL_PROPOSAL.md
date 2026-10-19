@@ -86,4 +86,3 @@ Git should contain manifests, schemas, source adapters, fixtures and reports. La
 - NEEDLE import, sync or runtime consumption.
 
 Those decisions should follow pilot measurements for size, query patterns, licence constraints and update cadence.
-

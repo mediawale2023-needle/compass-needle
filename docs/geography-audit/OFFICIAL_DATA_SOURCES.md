@@ -84,4 +84,3 @@ Each retrieval manifest must contain source owner, canonical URL, resource ident
 ## Phase 0 conclusion
 
 Official data is sufficient to start a disciplined pilot, not to claim complete national coverage. LGD and SoI are the first administrative sources; ECI statutory material is the electoral authority; CEO portals are a separate state-by-state acquisition program. Third-party boundary projects can be comparison inputs only and must never silently fill an official-data gap.
-
