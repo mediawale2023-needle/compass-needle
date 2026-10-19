@@ -1,6 +1,7 @@
 'use client';
 
 import { briefcasePalette as BASE_P, BriefcaseIcon, TABS } from '@/components/briefcase/briefcase-shared';
+import { gen2Type as T } from '@/lib/briefcase-tokens';
 
 const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
 
@@ -89,7 +90,7 @@ export default function BriefcaseFiltersBar(props) {
                                 color: isActive ? P.ink : P.ink2,
                                 borderBottom: isActive ? `2px solid ${tab.accent || P.green}` : '2px solid transparent',
                                 marginBottom: -1,
-                                fontSize: 13,
+                                fontSize: T.tab,
                                 fontWeight: isActive ? 600 : 500,
                             }}
                         >
@@ -97,7 +98,7 @@ export default function BriefcaseFiltersBar(props) {
                             <span
                                 style={{
                                     fontFamily: MONO,
-                                    fontSize: 10,
+                                    fontSize: T.tag,
                                     color: isActive ? (tab.accent || P.green) : P.ink3,
                                     background: isActive && tab.accent ? P.saffronTint : 'transparent',
                                     padding: isActive && tab.accent ? '1px 5px' : 0,
@@ -120,7 +121,7 @@ export default function BriefcaseFiltersBar(props) {
                                 background: statusFilter === tab.key ? P.ink : 'transparent',
                                 color: statusFilter === tab.key ? P.paper : P.ink2,
                                 border: `1px solid ${P.hair}`,
-                                fontSize: 11,
+                                fontSize: T.control,
                                 cursor: 'pointer',
                                 fontFamily: 'inherit',
                                 display: 'inline-flex',
@@ -129,7 +130,7 @@ export default function BriefcaseFiltersBar(props) {
                                 flexShrink: 0,
                             }}
                         >
-                            <BriefcaseIcon name={tab.key === 'clusters' ? 'cluster' : 'eye'} size={11} color={statusFilter === tab.key ? P.paper : P.ink2} />
+                            <BriefcaseIcon name={tab.key === 'clusters' ? 'cluster' : 'eye'} size={12} color={statusFilter === tab.key ? P.paper : P.ink2} />
                             {tab.label}
                         </button>
                     ))}
@@ -151,7 +152,7 @@ export default function BriefcaseFiltersBar(props) {
                         <span
                             style={{
                                 fontFamily: MONO,
-                                fontSize: 9.5,
+                                fontSize: T.label,
                                 color: P.ink3,
                                 letterSpacing: '0.14em',
                                 textTransform: 'uppercase',
@@ -176,7 +177,7 @@ export default function BriefcaseFiltersBar(props) {
                                     background: chip.active ? P.ink : 'transparent',
                                     color: chip.active ? P.paper : P.ink2,
                                     border: `1px solid ${chip.active ? P.ink : P.hair}`,
-                                    fontSize: 11.5,
+                                    fontSize: T.control,
                                     fontWeight: 500,
                                     cursor: 'pointer',
                                     fontFamily: 'inherit',
@@ -187,23 +188,23 @@ export default function BriefcaseFiltersBar(props) {
                             >
                                 {chip.label}
                                 {chip.count != null && (
-                                    <span style={{ fontFamily: MONO, fontSize: 9.5, color: chip.active ? P.paper : P.ink3 }}>
+                                    <span style={{ fontFamily: MONO, fontSize: T.tag, color: chip.active ? P.paper : P.ink3 }}>
                                         {chip.count}
                                     </span>
                                 )}
                             </button>
                         ))}
                         <div style={{ flex: 1 }} />
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: P.ink3 }}>
-                            <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Sort</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: T.control, color: P.ink3 }}>
+                            <span style={{ fontFamily: MONO, fontSize: T.label, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Sort</span>
                             <select
                                 value={sortOrder}
                                 onChange={(event) => onSortOrderChange(event.target.value)}
                                 style={{
                                     border: `1px solid ${P.hair}`,
                                     background: P.surface,
-                                    padding: '4px 8px',
-                                    fontSize: 11,
+                                    padding: '5px 8px',
+                                    fontSize: T.control,
                                     fontFamily: 'inherit',
                                     color: P.ink,
                                     cursor: 'pointer',
@@ -232,7 +233,8 @@ export default function BriefcaseFiltersBar(props) {
                                     padding: '5px 10px',
                                     background: 'transparent',
                                     border: `1px solid ${P.hairStrong}`,
-                                    fontSize: 11.5,
+                                    maxWidth: 220,
+                                    fontSize: T.control,
                                     color: P.ink2,
                                     cursor: 'pointer',
                                     fontFamily: 'inherit',
@@ -248,37 +250,40 @@ export default function BriefcaseFiltersBar(props) {
                         ))}
 
                         <span style={{ width: 1, height: 18, background: P.hair, margin: '0 4px' }} />
-                        <span style={{ fontFamily: MONO, fontSize: 9.5, color: P.ink3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Range</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <input
-                                type="date"
-                                value={dateFrom}
-                                onChange={(event) => onDateFromChange(event.target.value)}
-                                style={{
-                                    width: 122,
-                                    padding: '4px 8px',
-                                    border: `1px solid ${P.hair}`,
-                                    background: P.surface,
-                                    fontSize: 11,
-                                    fontFamily: MONO,
-                                    color: P.ink,
-                                }}
-                            />
-                            <span style={{ color: P.ink3 }}>→</span>
-                            <input
-                                type="date"
-                                value={dateTo}
-                                onChange={(event) => onDateToChange(event.target.value)}
-                                style={{
-                                    width: 122,
-                                    padding: '4px 8px',
-                                    border: `1px solid ${P.hair}`,
-                                    background: P.surface,
-                                    fontSize: 11,
-                                    fontFamily: MONO,
-                                    color: P.ink,
-                                }}
-                            />
+                        {/* Label and inputs wrap as one unit so RANGE never strands at a line end. */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontFamily: MONO, fontSize: T.label, color: P.ink3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Range</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <input
+                                    type="date"
+                                    value={dateFrom}
+                                    onChange={(event) => onDateFromChange(event.target.value)}
+                                    style={{
+                                        width: 136,
+                                        padding: '4px 8px',
+                                        border: `1px solid ${P.hair}`,
+                                        background: P.surface,
+                                        fontSize: T.meta,
+                                        fontFamily: MONO,
+                                        color: P.ink,
+                                    }}
+                                />
+                                <span style={{ color: P.ink3 }}>→</span>
+                                <input
+                                    type="date"
+                                    value={dateTo}
+                                    onChange={(event) => onDateToChange(event.target.value)}
+                                    style={{
+                                        width: 136,
+                                        padding: '4px 8px',
+                                        border: `1px solid ${P.hair}`,
+                                        background: P.surface,
+                                        fontSize: T.meta,
+                                        fontFamily: MONO,
+                                        color: P.ink,
+                                    }}
+                                />
+                            </div>
                         </div>
                         <div style={{ flex: 1 }} />
                         <button
@@ -287,7 +292,7 @@ export default function BriefcaseFiltersBar(props) {
                                 padding: '5px 10px',
                                 background: 'transparent',
                                 border: `1px solid ${P.hair}`,
-                                fontSize: 11,
+                                fontSize: T.control,
                                 color: P.ink2,
                                 cursor: 'pointer',
                                 fontFamily: 'inherit',
@@ -296,7 +301,7 @@ export default function BriefcaseFiltersBar(props) {
                                 gap: 5,
                             }}
                         >
-                            <BriefcaseIcon name="refresh" size={11} color={P.ink2} /> Refresh
+                            <BriefcaseIcon name="refresh" size={12} color={P.ink2} /> Refresh
                         </button>
                         <button
                             onClick={onExport}
@@ -304,7 +309,7 @@ export default function BriefcaseFiltersBar(props) {
                                 padding: '5px 10px',
                                 background: 'transparent',
                                 border: `1px solid ${P.hair}`,
-                                fontSize: 11,
+                                fontSize: T.control,
                                 color: P.ink2,
                                 cursor: 'pointer',
                                 fontFamily: 'inherit',
@@ -313,7 +318,7 @@ export default function BriefcaseFiltersBar(props) {
                                 gap: 5,
                             }}
                         >
-                            <BriefcaseIcon name="download" size={11} color={P.ink2} /> Export CSV
+                            <BriefcaseIcon name="download" size={12} color={P.ink2} /> Export CSV
                         </button>
                         <button
                             onClick={onClear}
@@ -321,7 +326,7 @@ export default function BriefcaseFiltersBar(props) {
                                 padding: '5px 10px',
                                 background: 'transparent',
                                 border: `1px solid ${P.hair}`,
-                                fontSize: 11,
+                                fontSize: T.control,
                                 color: P.ink2,
                                 cursor: 'pointer',
                                 fontFamily: 'inherit',

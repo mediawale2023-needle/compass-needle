@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { formatBriefcaseAge } from '@/components/briefcase/briefcase-shared';
-import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
+import { gen2, gen2Fonts, gen2Type } from '@/lib/briefcase-tokens';
 
 // ─── Shared Overview / Case Detail visual system ─────────────────────
 // Canonical Gen 2 tokens, plus the few table-local shades that have no
@@ -19,13 +19,16 @@ const C = {
 
 const SANS = gen2Fonts.sans;
 const MONO = gen2Fonts.mono;
+const T = gen2Type;
 
 // checkbox · CASE/THREAD · MESSAGE (widest scan column) · ISSUE/LOCATION ·
 // STATUS (government primary + short divider + Needle pill & since) ·
-// NEXT ACTION · overflow.
+// NEXT ACTION · overflow. NEXT ACTION's floor fits "File grievance →" at
+// the control type size; ISSUE's floor fits a category chip on one line at
+// 13" laptop widths.
 const GRID_COLS =
-    '34px minmax(116px,0.8fr) minmax(252px,2.4fr) minmax(144px,1fr) minmax(160px,1.18fr) minmax(96px,0.6fr) 30px';
-const GRID_MIN = 912;
+    '34px minmax(120px,0.75fr) minmax(252px,2.1fr) minmax(176px,1.1fr) minmax(168px,1.18fr) minmax(136px,0.66fr) 30px';
+const GRID_MIN = 928;
 
 // ─── narrow-layout hook (grid → stacked cards below the desktop table) ─
 function useNarrow(bp = 1200) {
@@ -137,8 +140,8 @@ function NeedleStatus({ status }) {
     return (
         <span style={{
             display: 'inline-flex', alignItems: 'center',
-            border: `1px solid ${C.hairStrong}`, padding: '2px 6px',
-            fontFamily: MONO, fontSize: 9, fontWeight: 600, letterSpacing: '.03em',
+            border: `1px solid ${C.hairStrong}`, padding: '2px 7px',
+            fontFamily: MONO, fontSize: T.badge, fontWeight: 600, letterSpacing: '.03em',
             textTransform: 'uppercase', lineHeight: 1.15,
             background: m.bg, color: m.fg, whiteSpace: 'nowrap',
         }}>
@@ -198,7 +201,7 @@ function locationLine(item) {
 // Restrained, outlined — reads as "step into a workflow", never a filled
 // one-click execute, and never out-shouts the citizen's message.
 function ActionButton({ action, onClick }) {
-    if (!action) return <span style={{ color: C.faint, fontSize: 12 }}>—</span>;
+    if (!action) return <span style={{ color: C.faint, fontSize: T.control }}>—</span>;
     const strong = action.kind === 'primary';
     return (
         <button
@@ -206,15 +209,15 @@ function ActionButton({ action, onClick }) {
             onClick={onClick}
             style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5, maxWidth: '100%',
-                minHeight: 28, padding: '5px 9px',
-                fontSize: 11, fontWeight: 550, fontFamily: SANS, cursor: 'pointer',
+                minHeight: 30, padding: '5px 10px',
+                fontSize: T.control, fontWeight: 550, fontFamily: SANS, cursor: 'pointer',
                 border: `1px solid ${strong ? 'rgba(43,110,76,0.5)' : C.hairStrong}`,
                 background: 'transparent', color: C.greenDeep,
                 lineHeight: 1.15, whiteSpace: 'nowrap',
             }}
         >
             {action.label}
-            <span style={{ fontFamily: MONO, fontSize: 10, opacity: 0.7 }} aria-hidden="true">→</span>
+            <span style={{ fontFamily: MONO, fontSize: T.meta, opacity: 0.7 }} aria-hidden="true">→</span>
         </button>
     );
 }
@@ -264,7 +267,7 @@ function OverflowMenu({ item, onSelectCase, onOpenContact, onDeleteCase }) {
                             style={{
                                 display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
                                 background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                                fontSize: 12.5, color: opt.danger ? C.err : C.ink,
+                                fontSize: T.small, color: opt.danger ? C.err : C.ink,
                             }}
                         >
                             {opt.label}
@@ -293,8 +296,8 @@ function StatusCellContent({ item }) {
             <div style={{ flex: '0 0 2px', width: 2, alignSelf: 'stretch', background: GOV_BAR[g.tone] || C.hairStrong }} />
             <div style={{ minWidth: 0 }}>
                 <div style={{
-                    fontFamily: MONO, fontSize: 10, fontWeight: 700, letterSpacing: '.03em',
-                    textTransform: 'uppercase', color: C.ink, lineHeight: 1.2,
+                    fontFamily: MONO, fontSize: T.stage, fontWeight: 700, letterSpacing: '.03em',
+                    textTransform: 'uppercase', color: C.ink, lineHeight: 1.25,
                 }}>
                     {g.stage}
                 </div>
@@ -302,19 +305,19 @@ function StatusCellContent({ item }) {
                     <div
                         key={i}
                         style={{
-                            marginTop: i === 0 ? 2 : 1,
-                            fontSize: i >= 1 ? 10.5 : 11,
+                            marginTop: i === 0 ? 3 : 1,
+                            fontSize: i >= 1 ? T.meta : T.small,
                             fontFamily: i >= 1 ? MONO : SANS,
-                            color: g.tone === 'err' ? C.err : (i >= 1 ? C.faint : C.muted),
-                            lineHeight: 1.25,
+                            color: g.tone === 'err' ? C.err : C.muted,
+                            lineHeight: 1.3,
                         }}
                     >
                         {line}
                     </div>
                 ))}
-                <span style={{ display: 'block', width: 22, height: 1, background: C.hairStrong, margin: '5px 0 4px' }} />
+                <span style={{ display: 'block', width: 22, height: 1, background: C.hairStrong, margin: '6px 0 5px' }} />
                 <NeedleStatus status={item.status} />
-                {since && <div style={{ marginTop: 3, fontSize: 10.5, color: C.faint }}>Since {since}</div>}
+                {since && <div style={{ marginTop: 4, fontSize: T.meta, color: C.muted }}>Since {since}</div>}
             </div>
         </div>
     );
@@ -329,7 +332,7 @@ function MessageCell({ item }) {
     const text = (item.raw_message || '').trim();
     return (
         <div style={{
-            fontSize: 13, lineHeight: 1.4, color: C.ink,
+            fontSize: T.body, lineHeight: 1.45, color: C.ink,
             display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
             overflow: 'hidden', wordBreak: 'break-word',
         }}>
@@ -346,7 +349,7 @@ function CaseThreadContent({ item }) {
     return (
         <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, color: C.ink }}>
+                <span style={{ fontFamily: MONO, fontSize: T.caseId, fontWeight: 600, color: C.ink }}>
                     {item.case_ref || `#${item.id}`}
                 </span>
                 {item.is_critical && (
@@ -354,18 +357,18 @@ function CaseThreadContent({ item }) {
                         title="Critical"
                         style={{
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: 14, height: 14, background: C.rust, color: '#F3EEE2',
-                            fontSize: 10, fontWeight: 800, lineHeight: 1,
+                            width: 16, height: 16, background: C.rust, color: '#F3EEE2',
+                            fontSize: T.meta, fontWeight: 800, lineHeight: 1,
                         }}
                     >
                         !
                     </span>
                 )}
             </div>
-            <div style={{ marginTop: 5, fontFamily: MONO, fontSize: 10, color: C.muted }}>
+            <div style={{ marginTop: 5, fontFamily: MONO, fontSize: T.meta, color: C.muted }}>
                 {t.isThread ? `Thread · ${t.count}` : '1 complaint'}
             </div>
-            <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 10, color: C.faint }}>{age}</div>
+            <div style={{ marginTop: 3, fontFamily: MONO, fontSize: T.meta, color: C.muted }}>{age}</div>
         </div>
     );
 }
@@ -374,13 +377,13 @@ function CaseThreadContent({ item }) {
 function IssueCellContent({ item }) {
     return (
         <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 640, color: C.ink, lineHeight: 1.3 }}>{issueTitle(item)}</div>
-            <div style={{ marginTop: 4, fontSize: 11.5, color: C.muted, lineHeight: 1.3 }}>{locationLine(item)}</div>
+            <div style={{ fontSize: T.title, fontWeight: 640, color: C.ink, lineHeight: 1.3 }}>{issueTitle(item)}</div>
+            <div style={{ marginTop: 4, fontSize: T.small, color: C.muted, lineHeight: 1.35 }}>{locationLine(item)}</div>
             {item.category && (
                 <span style={{
                     display: 'inline-flex', marginTop: 7, padding: '3px 6px',
                     border: `1px solid ${C.hair}`, background: C.catBg,
-                    color: C.muted, fontSize: 10.5,
+                    color: C.muted, fontSize: T.tag, lineHeight: 1.25,
                 }}>
                     {item.category}
                 </span>
@@ -448,8 +451,8 @@ function CaseCard({ item, selected, onToggle, onSelectCase, onOpenContact, onDel
 }
 
 const metaLbl = {
-    fontSize: 10, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase',
-    color: C.faint, marginBottom: 6, fontFamily: MONO,
+    fontSize: T.label, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase',
+    color: C.muted, marginBottom: 6, fontFamily: MONO,
 };
 
 // ─── main ────────────────────────────────────────────────────────────
@@ -515,7 +518,7 @@ export default function BriefcaseCasesTable({
                         </div>
                     ))
                 ) : rows.length === 0 ? (
-                    <div style={{ padding: '48px 20px', textAlign: 'center', color: C.faint, fontSize: 13 }}>{emptyMsg}</div>
+                    <div style={{ padding: '48px 20px', textAlign: 'center', color: C.muted, fontSize: T.body }}>{emptyMsg}</div>
                 ) : rows.map((item) => (
                     <CaseCard
                         key={item.id}
@@ -532,11 +535,11 @@ export default function BriefcaseCasesTable({
     }
 
     // ── desktop / tablet: grid table ──
-    const headCell = { display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', color: C.faint, fontSize: 9, fontWeight: 600, letterSpacing: '.08em', fontFamily: MONO, textTransform: 'uppercase' };
-    const cellPad = { padding: '12px 14px', minWidth: 0 };
+    const headCell = { display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', color: C.muted, fontSize: T.label, fontWeight: 600, letterSpacing: '.08em', fontFamily: MONO, textTransform: 'uppercase' };
+    const cellPad = { padding: '14px 14px', minWidth: 0 };
 
     const SortIcon = ({ active, dir }) => (
-        <span style={{ fontSize: 10, color: active ? C.ink : C.faint, userSelect: 'none' }}>{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+        <span style={{ fontSize: T.meta, color: active ? C.ink : C.faint, userSelect: 'none' }}>{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
     );
 
     return (
@@ -564,7 +567,7 @@ export default function BriefcaseCasesTable({
                 {loading ? (
                     <SkeletonGrid />
                 ) : rows.length === 0 ? (
-                    <div style={{ padding: '56px 22px', textAlign: 'center', color: C.faint, fontSize: 13 }}>{emptyMsg}</div>
+                    <div style={{ padding: '56px 22px', textAlign: 'center', color: C.muted, fontSize: T.body }}>{emptyMsg}</div>
                 ) : rows.map((item) => {
                     const selected = selectedIds.has(item.id);
                     const action = nextAction(item);

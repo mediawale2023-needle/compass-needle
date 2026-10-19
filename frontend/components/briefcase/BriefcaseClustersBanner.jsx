@@ -1,6 +1,7 @@
 'use client';
 
 import { briefcaseFonts, briefcasePalette as P, BriefcaseIcon } from '@/components/briefcase/briefcase-shared';
+import { gen2Type as T } from '@/lib/briefcase-tokens';
 
 const { serif: SERIF, mono: MONO } = briefcaseFonts;
 
@@ -24,7 +25,7 @@ export default function BriefcaseClustersBanner({ clusters = [], onOpenClusters 
                 <div
                     style={{
                         fontFamily: MONO,
-                        fontSize: 9.5,
+                        fontSize: T.label,
                         letterSpacing: '0.16em',
                         textTransform: 'uppercase',
                         color: P.ink3,
@@ -49,15 +50,15 @@ export default function BriefcaseClustersBanner({ clusters = [], onOpenClusters 
                         >
                             <span
                                 style={{
-                                    width: 22,
-                                    height: 22,
+                                    width: 24,
+                                    height: 24,
                                     background: P.greenDeep,
                                     color: P.paper,
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     fontFamily: MONO,
-                                    fontSize: 10,
+                                    fontSize: T.meta,
                                     fontWeight: 700,
                                 }}
                             >
@@ -66,7 +67,7 @@ export default function BriefcaseClustersBanner({ clusters = [], onOpenClusters 
                             <div style={{ minWidth: 0 }}>
                                 <div
                                     style={{
-                                        fontSize: 12.5,
+                                        fontSize: T.title,
                                         color: P.ink,
                                         fontWeight: 600,
                                         lineHeight: 1.15,
@@ -77,7 +78,7 @@ export default function BriefcaseClustersBanner({ clusters = [], onOpenClusters 
                                 >
                                     {cluster.category || 'Emerging issue'}
                                 </div>
-                                <div style={{ fontSize: 10.5, color: P.ink3, marginTop: 2 }}>
+                                <div style={{ fontSize: T.meta, color: P.ink3, marginTop: 2 }}>
                                     {cluster.location && cluster.location !== 'Unknown' ? cluster.location : 'Constituency wide'}
                                 </div>
                             </div>
@@ -97,7 +98,7 @@ export default function BriefcaseClustersBanner({ clusters = [], onOpenClusters 
                         background: P.greenDeep,
                         color: P.paper,
                         padding: '8px 12px',
-                        fontSize: 11.5,
+                        fontSize: T.control,
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
