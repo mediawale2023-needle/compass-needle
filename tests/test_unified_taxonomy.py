@@ -165,6 +165,13 @@ def test_infer_silent_log_category_for_media_outreach():
     assert infer_silent_log_category("press interview request from local media reporter") == "Media / Press Outreach"
 
 
+def test_silent_log_markers_do_not_match_inside_civic_words():
+    assert infer_silent_log_category(
+        "Mahatma Phule Road is in very bad condition. Needs immediate attention"
+    ) is None
+    assert infer_silent_log_category("Water pressure is low in our area") is None
+
+
 def test_pure_greetings_route_to_silent_greetings_category():
     for greeting in ("Good morning", "Hello", "Hi", "Namaste", "Good evening sir ji", "शुभ प्रभात", "Jai Hind"):
         assert infer_silent_log_category(greeting.lower()) == "Greetings", greeting

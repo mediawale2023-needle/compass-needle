@@ -18,6 +18,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 
 ## Architecture Memory
 
+- Silent WhatsApp intent routing is acknowledgement-suppressing and therefore must use high-precision marker matching. Latin markers in `infer_silent_log_category()` require complete word/phrase boundaries; raw substring matching previously treated `media` inside `immediate` (and `press` inside `pressure`) as Media / Press Outreach. Civic road rescue rules also recognize `bad condition` / `poor condition` so terse road complaints cannot remain in a wrong silent category.
 - The Admin redesign visual contract is documented in `PRODUCT.md` and `DESIGN.md`: Admin is the tenant-safe operational control plane for Compass Needle, using an independent semantic-token implementation of the Briefcase paper/ink/green language. Operational surfaces must distinguish unavailable data from empty/healthy states, use direct domain navigation with persistent local tabs, and preserve account/seat/message/job context without inventing backend capabilities.
 
 - Case Detail refinement (2026-09-18): `/cases/{id}/notify/send` sends an authorised, policy-validated citizen reply only; it must never resolve a complaint or change lifecycle timestamps. Resolution remains an explicit `/status` action. The Case Detail caller passes `keepWorkspaceOpen` to the queue hook so a resolved row can leave the active queue while its detail workspace remains open. Government and Needle lifecycles remain independent.

@@ -1,5 +1,13 @@
 # Task Log
 
+- Date: 2026-11-02
+- Request: Fix, push, and deploy the missing WhatsApp response correction for “Mahatma Phule Road is in very bad condition. Needs immediate attention.”
+- Summary: Production diagnosis showed case `3579` was ingested but silently categorized as `Media / Press Outreach` because the raw substring marker `media` matched inside `immediate`; the road guard also did not recognize `bad condition`. Silent-intent Latin markers now require complete word/phrase boundaries while non-Latin markers preserve the existing substring behavior, and road civic rules now recognize `bad condition` / `poor condition`. Added regressions for the exact message, `pressure`/`press` collision, genuine media outreach, deterministic road categorization, and end-to-end acknowledgement rescue when an upstream classifier supplies the wrong silent category.
+- Files touched: `sansadx_backend/unified_taxonomy.py`, `modules/briefcase_rules.py`, `tests/test_unified_taxonomy.py`, `tests/test_briefcase_guardrails.py`, `tests/test_citizen_clarification_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Verification: Focused taxonomy/guardrail/intake suite passed 61/61; the current-main core-flow suite passed 29/29 and case-bucket suite passed 1/1 in isolated processes; Python compilation and `git diff --check` passed.
+- Push/deployment: Prepared as an isolated production hotfix from current `origin/main`; push and AWS deployment verification follow this commit.
+- Risks or follow-ups: Existing production case `3579` remains unchanged; the fix applies to new processing after deployment.
+
 - Date: 2026-10-16
 - Request: Fix recurring WhatsApp language/script drift and unsafe geography persistence with a language-agnostic, tenant-scoped architecture; add end-to-end regressions and prepare one review PR without merge/deploy.
 - Summary: Added a conversation-aware `LanguageDecision` that separates Unicode script from language, carries prior case context into the existing AI classification call, treats tenant languages only as priors, persists decision provenance/confidence/code-mix state, and drives deterministic acknowledgments from the same decision. Added deterministic pre-send normalization/script validation with a neutral non-registration fallback for genuinely unresolved language, and repaired literal `\\n` template output. Preserved geography fuzzy/phonetic candidate discovery while restricting resolved persistence to verified exact/boundary/manual matches; unverified candidates now remain `geography_candidate`/`unresolved_location`, route to clarification, and continue into gazetteer shadow discovery. Removed `main.py`'s parallel legacy geography promotion path.
