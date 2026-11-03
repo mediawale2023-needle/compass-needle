@@ -66,6 +66,15 @@ INDEPENDENCE RULES — load-bearing, not stylistic:
     authorized investigation (see the procedure below) establishes
     otherwise.
 
+  Delhi CM Jan Sunwai — verified 2026-10-31 from the public pages only (DELHI_CM_JAN_SUNWAI_CAPABILITY_MAP.md).
+  Execution: Manual / staff-assisted (status_check_adapter="delhi_staff_assisted", no automation, never polled) ·
+  Authentication: Mobile OTP (or e-mail OTP) for registration, status, reminder and feedback · Human verification: image CAPTCHA
+  on every one of them · OTP scope: UNKNOWN (mobile/e-mail scope suggested by the page heading, not proven; reuse across lookups not
+  evidenced) · post-OTP pages (complaint form, status/details layout, history, disposal): UNKNOWN. The department/category lists
+  are NOT a status concern: they were captured from the public selection controls into modules/data/delhi_catalogue.json
+  (90 departments, 1,814 rows; Delhi Police partial; locations not captured) and are used for staff selection only.
+  Everything else about Delhi is Unknown, not guessed.
+
 CURRENT CLASSIFICATION (confirmed findings only — everything else is
 Unknown, not guessed):
 
@@ -173,6 +182,7 @@ from .rajasthan_sampark import RajasthanSamparkAPIAdapter
 from .karnataka_ipgrs import KarnatakaAPIAdapter
 from .maharashtra_aaplesarkar import MaharashtraAapleSarkarAdapter
 from .tamil_nadu_http import TamilNaduHTTPStatusAdapter
+from .delhi_cm_jan_sunwai import DelhiStaffAssistedAdapter
 
 # portal_type -> adapter class. All current portals (state_branded, cpgrams)
 # use the manual-assisted adapter — see modules/govt_sync/__init__.py for why
@@ -195,6 +205,8 @@ _STATUS_CHECK_ADAPTERS = {
     "karnataka_ipgrs_api": KarnatakaAPIAdapter,
     "maharashtra_aaplesarkar_api": MaharashtraAapleSarkarAdapter,
     "tamil_nadu_http_api": TamilNaduHTTPStatusAdapter,
+    # Explicit "no automation" adapter: see delhi_cm_jan_sunwai.py. Not a status adapter.
+    "delhi_staff_assisted": DelhiStaffAssistedAdapter,
 }
 
 

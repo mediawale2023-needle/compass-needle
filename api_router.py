@@ -18,7 +18,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, Response, Form, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import jwt
 from jwt.exceptions import PyJWTError as JWTError
 from sqlalchemy import text
@@ -1226,7 +1226,8 @@ def dashboard_overview(user=Depends(get_current_user)):
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
                c.response_to_citizen, c.notes_for_staff, c.assigned_to,
                c.govt_status, c.govt_reference_number, c.govt_status_updated_at,
-               c.govt_portal_id, c.govt_department, p.portal_name AS govt_portal_name
+               c.govt_portal_id, c.govt_department, p.portal_name AS govt_portal_name,
+               p.state AS govt_portal_state
         FROM cases c
         LEFT JOIN govt_portals p ON p.id = c.govt_portal_id
         WHERE c.tenant_id = :tid
@@ -1810,7 +1811,7 @@ def _briefcase_group_bundles(cases: list[dict], sort: str = "newest") -> list[di
             ),
         )
         for _f in ("govt_status", "govt_reference_number", "govt_status_updated_at",
-                   "govt_portal_id", "govt_department", "govt_portal_name"):
+                   "govt_portal_id", "govt_department", "govt_portal_name", "govt_portal_state"):
             anchor[_f] = filing.get(_f)
         anchor["govt_filing_case_id"] = filing.get("id")
         grouped_rows.append((anchor, members_by_received, members))
@@ -1999,7 +2000,8 @@ def get_cases(
                c.status_changed_at, c.resolved_at,
                c.response_to_citizen, c.notes_for_staff, c.assigned_to,
                c.govt_status, c.govt_reference_number, c.govt_status_updated_at,
-               c.govt_portal_id, c.govt_department, p.portal_name AS govt_portal_name
+               c.govt_portal_id, c.govt_department, p.portal_name AS govt_portal_name,
+               p.state AS govt_portal_state
         FROM cases c
         LEFT JOIN govt_portals p ON p.id = c.govt_portal_id
         WHERE {where}
@@ -2375,8 +2377,10 @@ def export_cases(
 def get_case(case_id: int, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
     case = _q_one("""
-        SELECT c.*, t.name as mp_name, t.constituency as mp_constituency
+        SELECT c.*, t.name as mp_name, t.constituency as mp_constituency,
+               gp.portal_name AS govt_portal_name, gp.state AS govt_portal_state
         FROM cases c JOIN tenants t ON c.tenant_id = t.id
+        LEFT JOIN govt_portals gp ON gp.id = c.govt_portal_id
         WHERE c.id = :cid AND c.tenant_id = :tid
     """, {"cid": case_id, "tid": tid})
 
@@ -3559,6 +3563,15 @@ def _resolve_govt_portal_for_tenant(tid: int) -> tuple[dict | None, str]:
     profile = _q_one("SELECT state FROM tenant_profiles WHERE tenant_id = :tid", {"tid": tid})
     state = (profile or {}).get("state") or ""
 
+    # Delhi has its own staff-assisted flow (see the DELHI section below). While that capability
+    # is enabled a Delhi tenant must NEVER silently fall through to the generic CPGRAMS fallback:
+    # that is how a Delhi case would get linked to the wrong portal. Resolve to "no generic portal"
+    # (generic endpoints then answer "not supported") and let the Delhi-specific endpoints,
+    # which resolve the Delhi portal explicitly, do the work. With the switch off (the default)
+    # behaviour is exactly what it was before.
+    if state.strip().lower() == "delhi" and _delhi_manual_reference_enabled():
+        return None, state
+
     portal_cols = (
         "id, state, portal_name, portal_type, base_url, status_check_url, status_check_mode, "
         "department_taxonomy, field_schema, otp_bound, live_session_supported, status_check_adapter"
@@ -3591,12 +3604,24 @@ def _resolve_govt_portal_for_tenant(tid: int) -> tuple[dict | None, str]:
 def get_resolved_govt_portal(user=Depends(get_current_user)):
     """The portal this tenant will use — read-only, not a choice. Frontend
     shows this as a fixed label, never a picker."""
+    from modules.govt_sync import delhi_portal as _delhi_portal_facts
     tid = get_tenant_or_fail(user)
     portal, state = _resolve_govt_portal_for_tenant(tid)
+    # Eligible Delhi tenant with the server-side switch on. Derived from the authenticated tenant only.
+    delhi_eligible = bool(_delhi_manual_reference_enabled() and _resolve_manual_reference_portal_for_tenant(tid))
     return {
         "state": state,
         "supported": portal is not None,
         "live_automation_enabled": _govt_live_automation_enabled(),
+        # Capability flag only (never the env var itself): true solely for an
+        # eligible Delhi tenant while the server-side switch is on. Derived from
+        # the authenticated tenant; nothing in the request can influence it.
+        "manual_reference_enabled": delhi_eligible,
+        # Verified staff-assisted tasks (official pages + the exact inputs the portal asks for) for
+        # an eligible Delhi tenant while the switch is on; null for every other tenant. Static
+        # facts from modules/govt_sync/delhi_portal.py - nothing here is fetched from the portal.
+        "staff_assisted_tasks": _delhi_portal_facts.staff_assisted_tasks() if delhi_eligible else None,
+        "reference_rule": _delhi_portal_facts.REFERENCE_RULE_TEXT if delhi_eligible else None,
         # This tenant's own portal contact number (the office's, never a
         # constituent's). Surfaced so Settings can show what is on file and
         # let the primary account set it — without it, a tenant with no
@@ -4011,7 +4036,7 @@ def get_govt_forward_state(case_id: int, user=Depends(get_current_user)):
     case = _q_one(
         """SELECT c.id, c.govt_portal_id, c.govt_department, c.govt_reference_number, c.govt_status,
                   c.govt_status_updated_at, c.govt_last_forwarded_to_citizen_at, c.govt_submission_worksheet,
-                  p.portal_name, p.base_url
+                  p.portal_name, p.state AS portal_state, p.base_url
            FROM cases c LEFT JOIN govt_portals p ON p.id = c.govt_portal_id
            WHERE c.id = :cid AND c.tenant_id = :tid""",
         {"cid": case_id, "tid": tid},
@@ -4162,6 +4187,456 @@ def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_cur
     }
 
 
+# Staff-assisted manual reference capture for a portal whose department list
+# has not been verified. Deliberately a name-pinned allowlist of ONE portal, not
+# "any portal with an empty taxonomy": an unmapped taxonomy elsewhere must keep
+# failing closed in _prepare_govt_worksheet.
+_MANUAL_REFERENCE_PORTAL_NAME = "Delhi CM Jan Sunwai"
+_MANUAL_REFERENCE_PORTAL_STATE = "delhi"
+
+
+def _delhi_manual_reference_enabled() -> bool:
+    """Server-side deny-by-default switch for the inactive-portal exception
+    below. Env-only (GOVT_DELHI_MANUAL_REFERENCE_ENABLED=true), read fresh on
+    every call; no request field, DB row or portal flag can turn it on. It
+    gates ONLY manual reference recording - it does not activate the portal or
+    feed any other govt-sync path (those never read it)."""
+    return os.getenv("GOVT_DELHI_MANUAL_REFERENCE_ENABLED", "false").strip().lower() == "true"
+
+
+def _resolve_manual_reference_portal_for_tenant(tid: int) -> dict | None:
+    """The Delhi portal for a Delhi tenant, or None. Server-derived from the
+    tenant's own state - no client-supplied portal id exists.
+
+    Unlike _resolve_govt_portal_for_tenant this does NOT require active=true:
+    the row is staged inactive until its taxonomy is verified, and this path
+    only records a reference staff obtained themselves (no automation).
+    Still requires a real base_url, and refuses once a taxonomy is configured
+    (that portal then belongs on the normal worksheet path).
+    """
+    profile = _q_one("SELECT state FROM tenant_profiles WHERE tenant_id = :tid", {"tid": tid})
+    if ((profile or {}).get("state") or "").strip().lower() != _MANUAL_REFERENCE_PORTAL_STATE:
+        return None
+    portal = _q_one(
+        "SELECT id, state, portal_name, base_url, department_taxonomy FROM govt_portals "
+        "WHERE portal_name = :name AND LOWER(state) = :state AND is_primary = true "
+        "AND base_url IS NOT NULL ORDER BY id LIMIT 1",
+        {"name": _MANUAL_REFERENCE_PORTAL_NAME, "state": _MANUAL_REFERENCE_PORTAL_STATE},
+    )
+    if not portal or _parse_meta(portal.get("department_taxonomy")):
+        return None
+    return portal
+
+
+@router.post("/cases/{case_id}/govt/manual-reference")
+def govt_record_manual_reference(case_id: int, body: GovtSubmitRequest, user=Depends(get_current_user)):
+    """Link a case to the tenant's Delhi portal and record a reference staff
+    obtained by filing on the portal themselves. No AI translation, no live
+    session, no portal network request. This endpoint never sets govt_department
+    (only the Delhi filing worksheet does, and only from a staff-confirmed catalogue
+    pick). The portal is never taken from the request."""
+    tid = get_tenant_or_fail(user)
+    if not _delhi_manual_reference_enabled():
+        raise HTTPException(403, "Manual reference capture isn't enabled.")
+    ref = (body.reference_number or "").strip()
+    if not ref:
+        raise HTTPException(400, "Reference number is required")
+    from modules.govt_sync import delhi_portal as _delhi
+    if not _delhi.normalize_reference(ref):
+        # Verified portal rule: the Delhi tracker only accepts a numeric code of at most 14 digits.
+        raise HTTPException(400, _delhi.REFERENCE_RULE_TEXT)
+
+    portal = _resolve_manual_reference_portal_for_tenant(tid)
+    if not portal:
+        raise HTTPException(400, "Manual reference capture isn't available for this tenant's portal.")
+
+    case = _q_one(
+        "SELECT id, govt_portal_id, govt_reference_number, govt_status, status FROM cases "
+        "WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    existing_ref = _govt_stored_reference(case.get("govt_reference_number"))
+    if existing_ref:
+        if existing_ref == ref and case.get("govt_portal_id") == portal["id"]:
+            return {
+                "success": True,
+                "govt_status": case.get("govt_status") or "submitted",
+                "govt_reference_number": existing_ref,
+                "status": case.get("status") or "in_progress",
+                "idempotent": True,
+                "filing_record_state": "staff_reported_filed",
+            }
+        raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), existing_ref))
+    # Filed status without a reference, or already linked to some other portal:
+    # never relink/overwrite - same fail-closed stance as the normal flow.
+    if _govt_already_filed(case.get("govt_status"), None):
+        raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), None))
+    if case.get("govt_portal_id") and case.get("govt_portal_id") != portal["id"]:
+        raise HTTPException(409, "This case is already linked to a different government portal.")
+    if (case.get("govt_status") or "not_forwarded") not in ("not_forwarded", "pending_staff_submit"):
+        raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), None))
+
+    _old_needle_status = str(case.get("status") or "")
+    _keep_terminal = _old_needle_status.strip().lower() in ("resolved", "completed", "closed")
+    _next_needle_status = _old_needle_status if _keep_terminal else "in_progress"
+    _now = _utcnow()
+    with engine.begin() as conn:
+        # Guarded UPDATE: only fires while still unfiled, so a concurrent filer wins.
+        res = conn.execute(
+            text(
+                "UPDATE cases SET govt_portal_id = :pid, govt_reference_number = :ref, "
+                "govt_status = 'submitted', govt_status_updated_at = :now "
+                "WHERE id = :cid AND tenant_id = :tid "
+                "AND (govt_reference_number IS NULL OR govt_reference_number = '') "
+                "AND (govt_portal_id IS NULL OR govt_portal_id = :pid) "
+                "AND (govt_status IS NULL OR govt_status IN ('not_forwarded', 'pending_staff_submit'))"
+            ),
+            {"pid": portal["id"], "ref": ref, "now": _now, "cid": case_id, "tid": tid},
+        )
+        if res.rowcount != 1:
+            raced = conn.execute(
+                text("SELECT govt_portal_id, govt_reference_number, govt_status FROM cases "
+                     "WHERE id = :cid AND tenant_id = :tid"),
+                {"cid": case_id, "tid": tid},
+            ).mappings().first()
+            if raced and _govt_stored_reference(raced["govt_reference_number"]) == ref and raced["govt_portal_id"] == portal["id"]:
+                # Identical concurrent request won: same outcome as the idempotent repeat.
+                return {"success": True, "govt_status": raced["govt_status"] or "submitted",
+                        "govt_reference_number": ref, "status": _old_needle_status or "in_progress",
+                        "idempotent": True}
+            raise HTTPException(409, "This case was just filed by someone else - refresh and check the reference on record.")
+        _write_case_status(conn, tid, case_id, _next_needle_status,
+                           old_status=_old_needle_status,
+                           actor=user.get("username", ""), now=_now)
+    from modules.govt_sync import delhi_filing as _delhi_filing
+    # Separate read (the pre-check query above is deliberately left untouched): the staff's selections, for the audit row.
+    _ws_row = _q_one("SELECT govt_submission_worksheet FROM cases WHERE id = :cid AND tenant_id = :tid", {"cid": case_id, "tid": tid}) or {}
+    _ws = _parse_meta(_ws_row.get("govt_submission_worksheet"))
+    _sel = (_ws.get("delhi_filing") if isinstance(_ws, dict) else None) or {}
+    _log_govt_action(tid, case_id, "staff_submitted", user.get("username"),
+                     payload={"reference_number": ref, "portal": portal["portal_name"], "manual_link": True,
+                              # Who reported it, when, against which portal - and that Needle did NOT verify it.
+                              "filing_record_state": _delhi_filing.STATE_STAFF_REPORTED_FILED,
+                              "reported_by": user.get("username"), "reported_at": _now.isoformat(),
+                              "portal_id": portal["id"], "verified_with_portal": False,
+                              "department": _sel.get("department") or None, "category": _sel.get("category") or None,
+                              "selection_sources": _sel.get("selection_sources") or None})
+    try:
+        _log_case_activity(tid, case_id, user.get("username", ""), "govt_submitted", new_value=ref)
+    except Exception:
+        pass  # nosec B110
+
+    updated = _q_one("SELECT status FROM cases WHERE id = :cid AND tenant_id = :tid", {"cid": case_id, "tid": tid}) or {}
+    return {
+        "success": True,
+        "govt_status": "submitted",
+        "govt_reference_number": ref,
+        "status": updated.get("status") or "in_progress",
+        "filing_record_state": "staff_reported_filed",
+    }
+
+
+# ─── DELHI CM JAN SUNWAI: staff-assisted worksheet + tasks ────────────────────────────────────────
+# Facts: DELHI_CM_JAN_SUNWAI_CAPABILITY_MAP.md. Every citizen operation on this portal needs a human
+# to solve a CAPTCHA and an SMS OTP, and the portal's own department/category lists sit behind that OTP, so Needle:
+#   * drafts subject + description only (never a department),
+#   * opens the right official page with the exact inputs the portal asks for (staff-assisted tasks),
+#   * records the complaint number the portal shows (numeric, <= 14 digits),
+#   * holds a public-capture copy of those lists (modules/data/delhi_catalogue.json: 90 departments, 1,814 category
+#     rows; Delhi Police is PARTIAL - 19 rows are screenshot-repaired and not text-verified; location lists are NOT
+#     captured) used only for staff selection and for AI *suggestions* that staff must confirm,
+#   * never contacts the portal and never claims it read a Delhi status.
+# All of it is behind the same server-side switch as manual-reference recording.
+
+class DelhiTaskRequest(BaseModel):
+    task: str
+
+
+def _delhi_gate(tid: int) -> dict:
+    if not _delhi_manual_reference_enabled():
+        raise HTTPException(403, "Delhi staff-assisted filing isn't enabled.")
+    portal = _resolve_manual_reference_portal_for_tenant(tid)
+    if not portal:
+        raise HTTPException(400, "Delhi staff-assisted filing isn't available for this tenant's portal.")
+    return portal
+
+
+@router.post("/cases/{case_id}/govt/delhi/prepare-worksheet")
+def govt_delhi_prepare_worksheet(case_id: int, user=Depends(get_current_user)):
+    """AI-draft the portal-independent text (subject + description) for a Delhi case and link the case
+    to the Delhi portal, server-resolved from the tenant. No department is chosen, no portal request is made."""
+    from modules.govt_sync import delhi_portal as _delhi
+    from modules.govt_sync.translator import translate_subject_description_only
+    tid = get_tenant_or_fail(user)
+    portal = _delhi_gate(tid)
+    case = _q_one(
+        "SELECT id, category, raw_message, location, assembly, ward, govt_portal_id, govt_status, govt_reference_number, "
+        "govt_submission_worksheet "
+        "FROM cases WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    if _govt_already_filed(case.get("govt_status"), case.get("govt_reference_number")):
+        raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), case.get("govt_reference_number")))
+    if case.get("govt_portal_id") and case.get("govt_portal_id") != portal["id"]:
+        raise HTTPException(409, "This case is already linked to a different government portal.")
+
+    submission = translate_subject_description_only(
+        raw_grievance=case.get("raw_message") or "",
+        category=case.get("category") or "",
+        district=case.get("assembly") or "",
+        ulb=case.get("ward") or case.get("location") or "",
+        portal_name=portal["portal_name"],
+        subject_max_chars=_delhi.SOFT_SUBJECT_CHARS,
+        description_max_chars=_delhi.SOFT_DESCRIPTION_CHARS,
+    )
+    if not submission:
+        raise HTTPException(502, "AI drafting failed — try again in a moment")
+    # Redrafting the subject/description must not erase what staff already selected in the filing worksheet.
+    _prev_ws = _parse_meta(case.get("govt_submission_worksheet"))
+    if isinstance(_prev_ws, dict) and isinstance(_prev_ws.get("delhi_filing"), dict):
+        submission = {**submission, "delhi_filing": _prev_ws["delhi_filing"]}
+
+    ws_expr = ":worksheet" if getattr(getattr(engine, "dialect", None), "name", "") == "sqlite" else "CAST(:worksheet AS JSONB)"
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                "UPDATE cases SET govt_portal_id = :pid, govt_department = NULL, "
+                f"govt_submission_worksheet = {ws_expr}, "
+                "govt_status = CASE WHEN govt_status IS NULL OR govt_status = 'not_forwarded' THEN 'pending_staff_submit' ELSE govt_status END, "
+                "govt_status_updated_at = :now "
+                "WHERE id = :cid AND tenant_id = :tid "
+                "AND (govt_reference_number IS NULL OR govt_reference_number = '') "
+                "AND (govt_portal_id IS NULL OR govt_portal_id = :pid) "
+                "AND (govt_status IS NULL OR govt_status IN ('not_forwarded', 'pending_staff_submit'))"
+            ),
+            {"pid": portal["id"], "worksheet": json.dumps(submission), "now": _utcnow(), "cid": case_id, "tid": tid},
+        )
+        if res.rowcount != 1:
+            raise HTTPException(409, "This case was just filed or linked by someone else - refresh and check the reference on record.")
+    # Audit: who/when/which portal and the SIZE of the draft - never the draft text (it is derived from the grievance)
+    # and never the saved filing worksheet (applicant name, address, grievance details). Explicit allow-list, not **submission.
+    _log_govt_action(tid, case_id, "ai_translated", user.get("username"), payload={
+        "portal": portal["portal_name"], "portal_id": portal["id"],
+        "subject_chars": len(submission.get("subject") or ""),
+        "description_chars": len(submission.get("description") or ""),
+        "kept_staff_filing_selections": isinstance(submission.get("delhi_filing"), dict),
+    })
+    try:
+        _log_case_activity(tid, case_id, user.get("username", ""), "govt_delhi_worksheet_drafted")
+    except Exception:
+        pass  # nosec B110
+    return {
+        "success": True,
+        "worksheet": submission,
+        "portal": {"id": portal["id"], "portal_name": portal["portal_name"], "base_url": portal["base_url"]},
+        "portal_contact_number": _get_portal_contact_number(tid),
+        "portal_filer_name": _get_portal_filer_name(tid),
+        "task": _delhi.task_by_key("file"),
+    }
+
+
+@router.post("/cases/{case_id}/govt/delhi/task")
+def govt_delhi_log_task(case_id: int, body: DelhiTaskRequest, user=Depends(get_current_user)):
+    """Audit that staff opened an official Delhi task page (file / status / reminder / feedback) and return
+    its verified instructions. It records WHO opened WHICH task WHEN - never an outcome: Needle cannot
+    see what happens on the portal and does not pretend to."""
+    from modules.govt_sync import delhi_portal as _delhi
+    tid = get_tenant_or_fail(user)
+    portal = _delhi_gate(tid)
+    key = (body.task or "").strip().lower()
+    task = _delhi.task_by_key(key)   # verified official URLs only, never a database value
+    if not task:
+        raise HTTPException(400, f"Unknown Delhi task '{key[:30]}'. Allowed: {', '.join(_delhi.TASK_KEYS)}.")
+    case = _q_one(
+        "SELECT id, govt_portal_id, govt_status, govt_reference_number FROM cases "
+        "WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    ref = _govt_stored_reference(case.get("govt_reference_number"))
+    if key == "file":
+        if _govt_already_filed(case.get("govt_status"), ref):
+            raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), ref))
+    else:
+        if not ref or case.get("govt_portal_id") != portal["id"]:
+            raise HTTPException(409, "Record the Delhi complaint number on this case first - this task needs it.")
+    _log_govt_action(tid, case_id, "staff_assisted_task", user.get("username"), payload={"task": key, "portal": portal["portal_name"]})
+    try:
+        _log_case_activity(tid, case_id, user.get("username", ""), "govt_delhi_task", new_value=key)
+    except Exception:
+        pass  # nosec B110
+    return {"success": True, "task": task}
+
+
+# ─── DELHI: catalogue + filing worksheet (staff selects; Needle never submits) ────────────────────
+# Catalogue = modules/data/delhi_catalogue.json (portal text verbatim, completeness metadata, no invented IDs).
+# Rules   = modules/govt_sync/delhi_filing.py (verified portal limits only; unknown limits are warnings).
+# Same server-side switch and tenant gate as the rest of the Delhi staff-assisted flow.
+
+@router.get("/govt/delhi/catalogue")
+def govt_delhi_catalogue(user=Depends(get_current_user)):
+    from modules.govt_sync import delhi_filing as _df
+    _delhi_gate(get_tenant_or_fail(user))
+    return {"meta": _df.catalogue_meta(), "departments": _df.list_departments(), "field_rules": _df.field_rules()}
+
+
+@router.get("/govt/delhi/catalogue/categories")
+def govt_delhi_catalogue_categories(department: str = Query(..., max_length=300), user=Depends(get_current_user)):
+    from modules.govt_sync import delhi_filing as _df
+    _delhi_gate(get_tenant_or_fail(user))
+    info = _df.get_categories(department)
+    if not info:
+        raise HTTPException(404, "Unknown Delhi department. Use the exact department name from the catalogue.")
+    return info
+
+
+class DelhiFilingWorksheetRequest(BaseModel):
+    group_grievance: bool = False
+    applicant_name: str | None = Field(default=None, max_length=300)
+    father_husband_name: str | None = Field(default=None, max_length=300)
+    gender: str | None = Field(default=None, max_length=50)
+    residential_address: str | None = Field(default=None, max_length=2000)
+    mobile_2: str | None = Field(default=None, max_length=30)
+    email: str | None = Field(default=None, max_length=200)
+    department: str | None = Field(default=None, max_length=300)
+    category: str | None = Field(default=None, max_length=1000)
+    location: str | None = Field(default=None, max_length=300)
+    # Sanity cap on request size only - NOT a portal limit (the portal's maximum is unknown).
+    grievance_details: str | None = Field(default=None, max_length=20000)
+    grievance_area_address: str | None = Field(default=None, max_length=2000)
+    old_reference_number: str | None = Field(default=None, max_length=100)
+    attachment: dict | None = None            # {filename, size_bytes, content_type}: metadata only, never the file
+    selection_sources: dict | None = None     # what the client says about each selection; re-derived server-side
+
+
+_DELHI_FILING_KEYS = (
+    "group_grievance", "applicant_name", "father_husband_name", "gender", "residential_address", "mobile_2", "email",
+    "department", "category", "location", "grievance_details", "grievance_area_address", "old_reference_number",
+)
+
+
+def _delhi_unfiled_case_or_error(tid: int, case_id: int, portal: dict) -> dict:
+    case = _q_one(
+        "SELECT id, raw_message, category, govt_portal_id, govt_status, govt_reference_number, govt_submission_worksheet "
+        "FROM cases WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    if _govt_already_filed(case.get("govt_status"), case.get("govt_reference_number")):
+        raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), case.get("govt_reference_number")))
+    if case.get("govt_portal_id") and case.get("govt_portal_id") != portal["id"]:
+        raise HTTPException(409, "This case is already linked to a different government portal.")
+    return case
+
+
+@router.post("/cases/{case_id}/govt/delhi/filing-worksheet")
+def govt_delhi_save_filing_worksheet(case_id: int, body: DelhiFilingWorksheetRequest, user=Depends(get_current_user)):
+    """Save staff's filing worksheet (applicant, department/category/location, grievance text) for a Delhi case.
+    Drafts are always saved; the response says whether the VERIFIED portal rules are satisfied. Saving never
+    contacts the portal and never marks anything as filed."""
+    from modules.govt_sync import delhi_filing as _df
+    tid = get_tenant_or_fail(user)
+    portal = _delhi_gate(tid)
+    case = _delhi_unfiled_case_or_error(tid, case_id, portal)
+
+    data = body.model_dump() if hasattr(body, "model_dump") else body.dict()
+    sources = _df.normalise_selection_sources(data)          # provenance is decided here, not by the client
+    check_input = {**data, "selection_sources": sources}
+    validation = _df.validate_filing(check_input)
+
+    block = {k: data.get(k) for k in _DELHI_FILING_KEYS}
+    block["selection_sources"] = sources
+    block["attachment"] = data.get("attachment") if isinstance(data.get("attachment"), dict) else None
+    block["saved_by"] = user.get("username")
+    block["saved_at"] = _utcnow().isoformat()
+    block["ready_to_file"] = validation["ready_to_file"]
+
+    ws = _parse_meta(case.get("govt_submission_worksheet"))
+    ws = dict(ws) if isinstance(ws, dict) else {}
+    prev = ws.get("delhi_filing") if isinstance(ws.get("delhi_filing"), dict) else {}
+    if isinstance(prev.get("ai_suggestions"), dict):
+        block["ai_suggestions"] = prev["ai_suggestions"]
+    ws["delhi_filing"] = block
+
+    dept_value = (data.get("department") or "").strip() if sources.get("department") == _df.SOURCE_STAFF_CONFIRMED else None
+    ws_expr = ":worksheet" if getattr(getattr(engine, "dialect", None), "name", "") == "sqlite" else "CAST(:worksheet AS JSONB)"
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                "UPDATE cases SET govt_portal_id = :pid, govt_department = :dept, "
+                f"govt_submission_worksheet = {ws_expr}, "
+                "govt_status = CASE WHEN govt_status IS NULL OR govt_status = 'not_forwarded' THEN 'pending_staff_submit' ELSE govt_status END, "
+                "govt_status_updated_at = :now "
+                "WHERE id = :cid AND tenant_id = :tid "
+                "AND (govt_reference_number IS NULL OR govt_reference_number = '') "
+                "AND (govt_portal_id IS NULL OR govt_portal_id = :pid) "
+                "AND (govt_status IS NULL OR govt_status IN ('not_forwarded', 'pending_staff_submit'))"
+            ),
+            {"pid": portal["id"], "dept": dept_value, "worksheet": json.dumps(ws, default=str), "now": _utcnow(),
+             "cid": case_id, "tid": tid},
+        )
+        if res.rowcount != 1:
+            raise HTTPException(409, "This case was just filed or linked by someone else - refresh and check the reference on record.")
+    # Audit: who/when/portal and WHAT was selected - never the applicant's personal data or the grievance text.
+    # The location is staff-typed free text that can be an address, so only whether one was supplied and where it
+    # came from (staff_confirmed = picked from the catalogue, staff_typed_unverified = typed) are recorded.
+    _log_govt_action(tid, case_id, "delhi_filing_worksheet_saved", user.get("username"), payload={
+        "portal": portal["portal_name"], "department": data.get("department"), "category": data.get("category"),
+        "location_supplied": bool((data.get("location") or "").strip()), "location_source": sources.get("location"),
+        "selection_sources": sources, "ready_to_file": validation["ready_to_file"],
+        "error_codes": [e["code"] for e in validation["errors"]], "warning_codes": [w["code"] for w in validation["warnings"]],
+    })
+    try:
+        _log_case_activity(tid, case_id, user.get("username", ""), "govt_delhi_filing_saved")
+    except Exception:
+        pass  # nosec B110
+    return {"success": True, "saved": block, "validation": validation}
+
+
+@router.post("/cases/{case_id}/govt/delhi/suggest")
+def govt_delhi_suggest(case_id: int, user=Depends(get_current_user)):
+    """AI SUGGESTS a department (and a category, where Needle holds that department's list), chosen only from
+    the portal catalogue. Stored as ai_suggestions; it never becomes a selection until staff confirm it."""
+    from modules.govt_sync.delhi_ai import suggest_department_and_category
+    tid = get_tenant_or_fail(user)
+    portal = _delhi_gate(tid)
+    case = _delhi_unfiled_case_or_error(tid, case_id, portal)
+    suggestion = suggest_department_and_category(case.get("raw_message") or "")
+    if suggestion is None:
+        raise HTTPException(502, "AI suggestion failed - choose the department yourself or try again in a moment")
+    record = {**suggestion, "source": "ai_suggested", "suggested_at": _utcnow().isoformat(), "suggested_by": user.get("username")}
+    ws = _parse_meta(case.get("govt_submission_worksheet"))
+    ws = dict(ws) if isinstance(ws, dict) else {}
+    block = dict(ws.get("delhi_filing") or {})
+    block["ai_suggestions"] = record
+    ws["delhi_filing"] = block
+    ws_expr = ":worksheet" if getattr(getattr(engine, "dialect", None), "name", "") == "sqlite" else "CAST(:worksheet AS JSONB)"
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                f"UPDATE cases SET govt_portal_id = :pid, govt_submission_worksheet = {ws_expr}, "
+                "govt_status = CASE WHEN govt_status IS NULL OR govt_status = 'not_forwarded' THEN 'pending_staff_submit' ELSE govt_status END "
+                "WHERE id = :cid AND tenant_id = :tid "
+                "AND (govt_reference_number IS NULL OR govt_reference_number = '') "
+                "AND (govt_portal_id IS NULL OR govt_portal_id = :pid) "
+                "AND (govt_status IS NULL OR govt_status IN ('not_forwarded', 'pending_staff_submit'))"
+            ),
+            {"pid": portal["id"], "worksheet": json.dumps(ws, default=str), "cid": case_id, "tid": tid},
+        )
+        if res.rowcount != 1:
+            raise HTTPException(409, "This case was just filed or linked by someone else - refresh and check the reference on record.")
+    _log_govt_action(tid, case_id, "delhi_ai_suggested", user.get("username"),
+                     payload={"portal": portal["portal_name"], "department": suggestion.get("department"), "category": suggestion.get("category")})
+    return {"success": True, "suggestion": record}
+
+
 @router.post("/cases/{case_id}/govt/poll")
 def govt_poll_case(case_id: int, user=Depends(get_current_user)):
     """On-demand status check against the portal (read-only, public reference lookup only)."""
@@ -4180,6 +4655,11 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
         raise HTTPException(404, "Case not found or not yet forwarded to a govt portal")
     if not case.get("govt_reference_number"):
         raise HTTPException(400, "No reference number recorded yet — submit the case first")
+    if case.get("status_check_adapter") == "delhi_staff_assisted":
+        # Nothing would be checked: Delhi's tracker needs a human CAPTCHA + OTP and its result page is not
+        # modelled. Say so instead of answering "no status change", which would imply a check happened.
+        raise HTTPException(409, "Needle can't check Delhi status: the official tracker needs a CAPTCHA and an OTP each time. "
+                                 "Use the staff-assisted 'Check status on the portal' task.")
 
     from modules.govt_sync.adapters import get_adapter
     adapter = get_adapter(case)

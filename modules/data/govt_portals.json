@@ -992,5 +992,34 @@
     "active": true,
     "verification_status": "confirmed",
     "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+  },
+  {
+    "state": "Delhi",
+    "portal_name": "Delhi CM Jan Sunwai",
+    "portal_type": "state_branded",
+    "base_url": "https://cmjansunwai.delhi.gov.in/",
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": null,
+      "description_max_chars": null,
+      "fields": [
+        "subject",
+        "description"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": "^[0-9]{1,14}$",
+      "post_login_entry_path": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "verify",
+    "source_note": "Delhi CM Jan Sunwai - staff-assisted integration; row stays INACTIVE (active=false) until an administrator enables it. Verified 2026-10-31 from the official public pages (see DELHI_CM_JAN_SUNWAI_CAPABILITY_MAP.md): every citizen operation (registration, status, reminder, feedback) needs an image CAPTCHA and an SMS/e-mail OTP; the complaint number is numeric, max 14 digits. The department/category lists were captured separately from the public selection controls (modules/data/delhi_catalogue.json: 90 departments, 1,814 category rows; Delhi Police is partial; location lists are not captured) and are used only for staff selection and AI suggestions that staff must confirm. UNKNOWN (behind the OTP): the full complaint-form field limits, the status/details page layout, history, disposal fields, OTP scope/reuse. Hence: no status adapter, no polling, and department_taxonomy stays empty (no automated department mapping); Needle drafts subject+description, offers catalogue-based staff selection, and offers staff-assisted tasks. Delhi tenants must never fall back to CPGRAMS while GOVT_DELHI_MANUAL_REFERENCE_ENABLED=true.",
+    "status_check_adapter": "delhi_staff_assisted"
   }
 ]

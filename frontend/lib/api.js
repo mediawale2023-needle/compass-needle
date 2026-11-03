@@ -92,6 +92,13 @@ async function fetchWithTimeout(url, options, timeout) {
     }
 }
 
+// Additive: lets callers branch on the HTTP status (e.g. 403 vs 409) instead of
+// parsing the message. Message text and retry behaviour are unchanged.
+function withStatus(error, status) {
+    error.status = status;
+    return error;
+}
+
 export async function api(path, options = {}) {
     const token = getAuthToken();
 
@@ -135,15 +142,15 @@ export async function api(path, options = {}) {
                     sessionStorage.setItem('needle_force_reset_required', '1');
                     window.location.href = '/force-password-reset';
                 }
-                throw new Error(err.detail || `HTTP ${res.status}`);
+                throw withStatus(new Error(err.detail || `HTTP ${res.status}`), res.status);
             }
 
             if (!res.ok) {
                 const err = await res.json().catch(() => ({ detail: 'Request failed' }));
                 if (res.status < 500 && res.status !== 408 && res.status !== 429) {
-                    throw new Error(err.detail || `HTTP ${res.status}`);
+                    throw withStatus(new Error(err.detail || `HTTP ${res.status}`), res.status);
                 }
-                throw new Error(err.detail || `HTTP ${res.status}`);
+                throw withStatus(new Error(err.detail || `HTTP ${res.status}`), res.status);
             }
 
             return res.json();

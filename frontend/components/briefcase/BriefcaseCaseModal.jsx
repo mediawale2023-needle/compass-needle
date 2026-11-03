@@ -13,6 +13,7 @@ import BriefcaseSourceMediaViewer from '@/components/briefcase/BriefcaseSourceMe
 import { STATUS_OPTIONS } from '@/components/briefcase/briefcase-shared';
 import { isPrimaryAccount } from '@/lib/account';
 import CitizenReplyDialog from './CitizenReplyDialog';
+import DelhiManualReferencePanel, { isDelhiPortalState, isDelhiGovtCase, openDelhiPortal } from './DelhiManualReferencePanel';
 import './case-detail.css';
 
 const GOVT_FILING_WORKSPACE_SPIKE = process.env.NEXT_PUBLIC_GOVT_FILING_WORKSPACE_SPIKE === 'true';
@@ -1137,7 +1138,7 @@ function StatusActions({ currentStatus, onStatusChange, updating }) {
 }
 
 // ─── Activity timeline (case-level; shows the selected complaint's history) ─
-function ActivityTimeline({ activities, loading, bare }) {
+export function ActivityTimeline({ activities, loading, bare }) {
     // Human-readable copy for actions whose raw name shouldn't be shown as-is.
     // Everything else keeps the existing underscores→spaces + "→ value" style.
     const describe = (act) => {
@@ -1145,6 +1146,12 @@ function ActivityTimeline({ activities, loading, bare }) {
             return act.new_value === 'continue_follow_up'
                 ? 'Government resolution reviewed — follow-up continued'
                 : 'Government resolution reviewed';
+        }
+        if (act.action === 'govt_delhi_worksheet_drafted') return 'Delhi complaint worksheet drafted (AI) — nothing sent to the portal';
+        if (act.action === 'govt_delhi_filing_saved') return 'Delhi filing worksheet saved by staff — nothing sent to the portal';
+        if (act.action === 'govt_delhi_task') {
+            const label = { file: 'file the complaint', status: 'check status', reminder: 'send a reminder', feedback: 'give feedback' }[act.new_value];
+            return `Staff opened the official Delhi portal to ${label || 'complete a task'}`;
         }
         return `${(act.action || '').replace(/_/g, ' ')}${act.new_value ? ` → ${act.new_value}` : ''}`;
     };
@@ -1424,7 +1431,7 @@ function JourneyStepper({ steps, activeIndex, narrow }) {
 // number, or a submitted / under_review / escalated / resolved / rejected
 // govt_status) it shows the existing filed journey with the real portal data
 // and the status-check control — unchanged.
-function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshing, narrow }) {
+export function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshing, narrow, statusNotIntegrated = false }) {
     const govtStatus = String(current.govt_status || 'not_forwarded').toLowerCase();
     const alreadyFiled = isGovtAlreadyFiled(current);
 
@@ -1466,7 +1473,7 @@ function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshi
     const steps = [
         { label: 'Complaint received', date: formatShortDate(current.created_at) || filedDate },
         { label: 'Registered with Government portal', date: activeIndex >= 2 ? filedDate : 'Pending' },
-        { label: 'Department action', date: activeIndex >= 4 ? filedDate : 'Pending' },
+        { label: statusNotIntegrated ? 'Awaiting government response (not independently verified)' : 'Department action', date: activeIndex >= 4 ? filedDate : 'Pending' },
         { label: 'Resolved', date: activeIndex >= 4 ? filedDate : 'Pending' },
     ];
     const portalName = current.portal_name || current.govt_portal_name || 'Government portal';
@@ -1506,7 +1513,10 @@ function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshi
 
             <div style={gridStyle}>
                 <div><div style={metaLbl}>Department</div><div style={metaVal}>{dept}</div></div>
-                <div><div style={metaLbl}>Currently with</div><div style={metaVal}>{owner}</div></div>
+                {statusNotIntegrated
+                    ? <div><div style={metaLbl}>Government department status</div><div style={metaVal}>Not verified by Needle</div></div>
+                    : <div><div style={metaLbl}>Currently with</div><div style={metaVal}>{owner}</div></div>}
+                {!statusNotIntegrated && (
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                     <div style={{ minWidth: 0 }}><div style={metaLbl}>Last checked</div><div style={metaVal}>{lastChecked}</div></div>
                     {onRefresh && (
@@ -1518,6 +1528,7 @@ function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshi
                         </button>
                     )}
                 </div>
+                )}
             </div>
         </div>
     );
@@ -1796,7 +1807,7 @@ export function scopeLiveSessionToCase(session, caseId) {
     return String(session.case_id) === String(caseId) ? session : null;
 }
 
-const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted, onGovtStateChange }, ref) {
+export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted, onGovtStateChange }, ref) {
     const toast = useToast();
     // The portal a tenant can use is derived server-side from tenant -> constituency
     // -> state (tenant_profiles.state) — never a staff choice. This is a read-only
@@ -1915,6 +1926,13 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     // handlePrepare()'s network round trip.
     async function handleEscalateManualRedirect() {
         const data = resolvedPortal != null ? resolvedPortal : await portalFetchRef.current;
+        // Delhi is staff-assisted: official Delhi portal only (covers the locked Escalate button and the
+        // Action Panel's openLiveSession). Nothing changes for any other portal. If this lookup failed the
+        // backend still refuses to prepare a Delhi tenant against the generic fallback (flag on).
+        if (isDelhiPortalState(data?.state)) {
+            openDelhiPortal();
+            return;
+        }
         const entryUrl = data?.portal?.entry_url || data?.portal?.base_url;
         if (entryUrl) {
             window.open(entryUrl, '_blank', 'noopener,noreferrer');
@@ -1931,6 +1949,11 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         ref,
         () => ({
             openLiveSession: async () => {
+                // Delhi is staff-assisted only: open the official portal and nothing
+                // else - no worksheet translation, no live session. Awaits the portal
+                // fetch so a fast click can't slip into the generic flow.
+                const portalData = resolvedPortal != null ? resolvedPortal : await portalFetchRef.current;
+                if (isDelhiPortalState(portalData?.state)) { openDelhiPortal(); return; }
                 const mode = await resolveEscalateMode();
                 if (mode === 'live') return handleOpenLive();
                 if (mode === 'manual_redirect') return handleEscalateManualRedirect();
@@ -1942,6 +1965,40 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     );
 
     if (!caseId) return null;
+
+    if (isDelhiPortalState(resolvedPortal?.state)) {
+        const delhiFiled = isGovtAlreadyFiled(govtState?.case);
+        return (
+            <div style={sec}>
+                <SectionHeading
+                    n={3}
+                    label="Government portal filing"
+                    trailing={(
+                        <span style={{
+                            fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                            padding: '3px 10px', background: C.surface, border: `1px solid ${C.saffron}`, color: C.saffron,
+                        }}>
+                            {delhiFiled ? (GOVT_STATUS_LABEL[govtState?.case?.govt_status] || 'Submitted') : 'Manual filing'}
+                        </span>
+                    )}
+                />
+                <DelhiManualReferencePanel
+                    caseId={caseId}
+                    govtCase={govtState?.case}
+                    manualReferenceEnabled={resolvedPortal?.manual_reference_enabled === true}
+                    tasks={resolvedPortal?.staff_assisted_tasks || null}
+                    portalContactNumber={resolvedPortal?.portal_contact_number || null}
+                    onRecorded={async (outcome) => {
+                        await refreshGovtViews().catch(() => {});
+                        // Only a fresh save is a new filing event; an idempotent
+                        // repeat must not re-notify the parent or duplicate UI events.
+                        if (outcome.kind === 'saved') onSubmitted?.(caseId, outcome.status || 'in_progress');
+                    }}
+                />
+            </div>
+        );
+    }
+
     const status = govtState?.case?.govt_status || 'not_forwarded';
     const hasPortal = !!govtState?.case?.govt_portal_id;
     const alreadyFiled = isGovtAlreadyFiled(govtState?.case);
@@ -2248,6 +2305,11 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     }
 
     function handleGovernmentStatusCheck() {
+        // Delhi is staff-assisted only - Needle never checks Delhi status.
+        if (isDelhiPortalState(resolvedPortal?.state)) {
+            toast.info('Needle cannot read Delhi status (CAPTCHA + OTP on every lookup). Use “Check status on the portal” in the Government submission section.');
+            return undefined;
+        }
         const isTamilNadu = isTamilNaduPortal();
         const action = resolveGovtStatusCheckAction({
             isTamilNadu,
@@ -2910,6 +2972,17 @@ function ResolutionReviewCard({
     );
 }
 
+// Filed-case callout for a Delhi case. Delhi is staff-assisted, so the Action Panel must neither offer nor imply
+// an automatic status check. Used only when the case itself is linked to the Delhi portal
+// (isDelhiGovtCase); every other portal keeps the original callout (inline in the modal below), untouched.
+export function delhiFiledCallout({ onOpenTasks } = {}) {
+    return {
+        bg: C.slateTint, border: C.slate, accent: C.slate, icon: 'external', tag: 'MANUAL FILING',
+        text: 'Delhi status is checked by staff on the official portal (a CAPTCHA and an OTP are needed each time). Needle cannot read it.',
+        ...(onOpenTasks ? { cta: 'Open Delhi status steps', onAction: onOpenTasks } : {}),
+    };
+}
+
 function ComplaintNextAction({ callout }) {
     if (!callout) return null;
     return <section aria-label="Next action" style={{ background: callout.bg, borderRadius: 12, padding: '1rem', marginBottom: '1.125rem' }}>
@@ -3115,27 +3188,33 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         if (!targetId) return;
         const nextStatus = govtCase?.govt_status ?? null;
         const nextRef = govtCase?.govt_reference_number ?? null;
+        // Portal identity (from the /govt response this section already fetched - no extra request). Only merged when
+        // the response carries it, so a response without it leaves the case exactly as before.
+        const portal = govtCase && govtCase.portal_state != null
+            ? { govt_portal_id: govtCase.govt_portal_id ?? null, govt_portal_name: govtCase.portal_name ?? null, govt_portal_state: govtCase.portal_state }
+            : null;
+        const samePortal = (item) => !portal || item.govt_portal_state === portal.govt_portal_state;
         setFullCase((existing) => {
             if (!existing) return existing;
             const sameRoot = existing.id !== targetId
-                || (existing.govt_status === nextStatus && existing.govt_reference_number === nextRef);
+                || (existing.govt_status === nextStatus && existing.govt_reference_number === nextRef && samePortal(existing));
             const thread = existing.thread_cases;
             if (!Array.isArray(thread) || thread.length === 0) {
                 if (sameRoot) return existing;
-                return { ...existing, govt_status: nextStatus, govt_reference_number: nextRef };
+                return { ...existing, govt_status: nextStatus, govt_reference_number: nextRef, ...(portal || {}) };
             }
             let changed = !sameRoot;
             const nextThread = thread.map((item) => {
                 if (item.id !== targetId) return item;
-                if (item.govt_status === nextStatus && item.govt_reference_number === nextRef) return item;
+                if (item.govt_status === nextStatus && item.govt_reference_number === nextRef && samePortal(item)) return item;
                 changed = true;
-                return { ...item, govt_status: nextStatus, govt_reference_number: nextRef };
+                return { ...item, govt_status: nextStatus, govt_reference_number: nextRef, ...(portal || {}) };
             });
             if (!changed) return existing;
             return {
                 ...existing,
                 thread_cases: nextThread,
-                ...(existing.id === targetId ? { govt_status: nextStatus, govt_reference_number: nextRef } : {}),
+                ...(existing.id === targetId ? { govt_status: nextStatus, govt_reference_number: nextRef, ...(portal || {}) } : {}),
             };
         });
     }, []);
@@ -3151,6 +3230,10 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         ...(selectedThreadCase || {}),
         case_metadata: selectedThreadCase?.case_metadata || fullCase?.case_metadata || caseItem.case_metadata || {},
     };
+    // Delhi is derived from the case's own portal link (already on the case row) - no extra request. A case that
+    // is not linked to the Delhi portal (or has no link yet) keeps the original presentation for every state.
+    const isDelhiFiledCase = isDelhiGovtCase(current);
+
     const meta = current.case_metadata || {};
     const createdAt = current.created_at ? new Date(current.created_at) : null;
     const updatedAt = current.updated_at ? new Date(current.updated_at) : null;
@@ -3235,6 +3318,11 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         aiSectionRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     }
 
+    function openGovtSection() {
+        setGovtOpenSignal((n) => n + 1);
+        govtSectionRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    }
+
     // Per-complaint contextual callout for the action panel (mirrors
     // Main.dc.html calloutFor) — every CTA maps to a real handler.
     const contextCallout = (() => {
@@ -3244,6 +3332,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         // "Check government status" callout.
         if (showResolutionReview) return null;
         if (alreadyFiledFlag) {
+            if (isDelhiFiledCase) return delhiFiledCallout({ onOpenTasks: openGovtSection });
             return {
                 bg: C.amberTint, border: C.amber, accent: C.amber, icon: 'clock',
                 tag: 'ACTION REQUIRED',
@@ -3629,6 +3718,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                         narrow={isMobile}
                                         onViewSubmission={() => { setGovtOpenSignal((n) => n + 1); govtSectionRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); }}
                                         onRefresh={handleGovernmentStatusClick}
+                                        statusNotIntegrated={isDelhiFiledCase}
                                     />
 
                                     {isMobile && !isResolved && !showResolutionReview && <ComplaintNextAction callout={contextCallout} />}

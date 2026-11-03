@@ -149,3 +149,99 @@ def translate_for_portal(
         "description": description,
         "priority_category": priority_category,
     }
+
+
+# ─── Portals whose department/category list is NOT verified (currently Delhi CM Jan Sunwai) ───
+# translate_for_portal() above deliberately refuses to run without a hand-verified taxonomy: a
+# guessed department sends a grievance nowhere. For a portal whose categories are not public
+# (Delhi: they sit behind the registration OTP) the honest alternative is to draft ONLY the
+# portal-independent text and leave department/category to the staff member, who sees the real
+# options on the portal. Nothing here ever fills in, guesses or validates a department.
+SUBJECT_DESCRIPTION_ONLY_PROMPT = """You are formatting a constituent grievance for submission to {portal_name}, a
+government grievance-redressal portal. Output ONLY a single JSON object, no markdown,
+matching this exact shape:
+
+{{
+  "subject": "<plain factual summary, at most {subject_max_chars} characters>",
+  "description": "<formal register description, at most {description_max_chars} characters>"
+}}
+
+Rules:
+- Write in clear, formal English even if the grievance is in another language.
+- "subject": plain factual summary, no salutation.
+- "description": formal register, third person; state what is wrong, where, and since when if known.
+  Do NOT include the constituent's phone number or personal identifiers beyond what is needed to
+  describe the issue and its location. Do not include the constituent's name unless it appeared in
+  the location description itself.
+- Do NOT choose or mention a department, ministry or category: the staff member picks it on the portal.
+- Do not add facts that are not in the grievance.
+
+Resolved location: district={district}, sub-district/ULB={ulb}
+Needle's own category (for context only, not for the portal): {category}
+
+<constituent_grievance>
+{raw_grievance}
+</constituent_grievance>
+"""
+
+
+def translate_subject_description_only(
+    raw_grievance: str,
+    category: str,
+    district: str,
+    ulb: str,
+    portal_name: str,
+    subject_max_chars: int,
+    description_max_chars: int,
+) -> dict | None:
+    """Draft subject + description for a portal with an UNVERIFIED department list.
+
+    Returns a dict shaped like translate_for_portal()'s result but with department=None, or None on
+    any failure (no client, bad JSON, empty text). The character limits passed in are SOFT drafting
+    targets, not portal limits (the portal's own limits are unknown) and are reported as such.
+    """
+    client = get_gemini_client()
+    if not client:
+        logger.error("Gemini client unavailable — GEMINI_API_KEY missing, cannot draft worksheet")
+        return None
+
+    prompt = SUBJECT_DESCRIPTION_ONLY_PROMPT.format(
+        portal_name=portal_name,
+        subject_max_chars=int(subject_max_chars),
+        description_max_chars=int(description_max_chars),
+        district=district or "unknown",
+        ulb=ulb or "unknown",
+        category=category or "unknown",
+        raw_grievance=sanitize_prompt_input(raw_grievance or ""),
+    )
+    try:
+        from google.genai import types as genai_types
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt],
+            config=genai_types.GenerateContentConfig(temperature=0.1, response_mime_type="application/json"),
+        )
+        result = json.loads(response.text.strip())
+    except json.JSONDecodeError:
+        logger.exception(f"Gemini returned invalid JSON for worksheet drafting (portal={portal_name})")
+        return None
+    except Exception as e:
+        logger.error(f"Worksheet drafting failed (portal={portal_name}): {e}")
+        return None
+
+    subject = str(result.get("subject") or "").strip()[: int(subject_max_chars)]
+    description = str(result.get("description") or "").strip()[: int(description_max_chars)]
+    if not subject or not description:
+        logger.error(f"Worksheet drafting produced empty subject/description (portal={portal_name})")
+        return None
+    return {
+        "department": None,
+        "district": district,
+        "subdistrict_or_ulb": ulb,
+        "subject": subject,
+        "description": description,
+        "priority_category": None,
+        "department_note": "Department/category not chosen by Needle in this draft: staff select them in the filing worksheet and check them against the portal's own lists.",
+        "limits_note": f"Soft drafting targets only (subject ≤ {int(subject_max_chars)}, description ≤ {int(description_max_chars)} characters); the portal's real limits are unknown — trim if the form rejects the text.",
+    }
