@@ -44,16 +44,17 @@ WHERE override_type = 'system_migration' AND (key ILIKE '%geograph%' OR key ILIK
 ORDER BY created_at;
 
 \echo
-\echo '=== 3. Shared geography inventory: seats that HAVE geography (any seat)'
-SELECT split_part(key, '/', 1)                         AS seat_key,
-       COUNT(*)                                        AS assemblies,
-       SUM((length(value) - length(replace(value, '"station_number"', ''))) / length('"station_number"')) AS station_rows,
-       bool_and(value ~ '^\s*\[')                      AS all_payloads_are_lists,
-       bool_or(tenant_id IS NOT NULL)                  AS any_tenant_bound
+\echo '=== 3. Platform-wide geography shape (AGGREGATE ONLY - no seat names are listed)'
+SELECT COUNT(DISTINCT split_part(key, '/', 1))                              AS seats_with_geography,
+       COUNT(*)                                                             AS assembly_rows,
+       COUNT(*) FILTER (WHERE key LIKE 'mp:%')                              AS keyed_mp,
+       COUNT(*) FILTER (WHERE key LIKE 'mla:%')                             AS keyed_mla,
+       COUNT(*) FILTER (WHERE key NOT LIKE 'mp:%' AND key NOT LIKE 'mla:%') AS keyed_legacy_no_prefix,
+       COUNT(*) FILTER (WHERE split_part(key, '/', 2) ~ '\((SC|ST)\)')       AS names_with_reservation_suffix,
+       COUNT(*) FILTER (WHERE split_part(key, '/', 2) ~ '\.')                AS names_with_dots,
+       COUNT(*) FILTER (WHERE value !~ '^\s*\[')                              AS non_list_payloads
 FROM tenant_overrides
-WHERE override_type = 'geography_data' AND position('/' IN key) > 0
-GROUP BY 1 ORDER BY 1
-LIMIT 200;
+WHERE override_type = 'geography_data' AND position('/' IN key) > 0;
 
 \echo
 \echo '=== 4. Any Delhi-looking geography row, under ANY seat key (mis-keyed rows would show here)'
@@ -98,9 +99,11 @@ SELECT locs.name AS locality,
 FROM locs ORDER BY 1;
 
 \echo
-\echo '=== 7. Delhi-related tenants (id, seat, flags only; no names)'
+\echo '=== 7. Delhi-related tenants (id, seat and yes/no flags only; no names, no phone numbers)'
 SELECT id, constituency, seat_type, tenant_type, is_active,
-       onboarding_state->>'geography' AS onboarding_geography_flag
+       whatsapp_number IS NOT NULL                 AS has_whatsapp_number,
+       onboarding_state->>'geography'              AS onboarding_geography_flag,
+       onboarding_state->>'live'                   AS onboarding_live_flag
 FROM tenants WHERE constituency ILIKE '%delhi%' ORDER BY id;
 
 \echo
