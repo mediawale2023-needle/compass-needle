@@ -20,8 +20,9 @@ def run_clustering(tenant_id=None):
     """
     from sansadx_backend.db import engine
     from sqlalchemy import text
+    from modules.synthetic_cases import sql_is_live
 
-    conditions = ["(c.is_deleted = false OR c.is_deleted IS NULL)"]
+    conditions = ["(c.is_deleted = false OR c.is_deleted IS NULL)", sql_is_live("c")]
     params = {}
 
     if tenant_id:

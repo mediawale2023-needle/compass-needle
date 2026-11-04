@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from core.db_helpers import _q_one
 from sansadx_backend.db import engine, get_tenant_phone_number_id
 from sqlalchemy import text
+from modules.synthetic_cases import SyntheticCaseActionBlocked, require_operational_case
 
 logger = logging.getLogger("needle.govt_sync.forward")
 
@@ -38,12 +39,16 @@ def forward_status_to_citizen(case_id: int, tenant_id: int, staff_username: str)
     HTTPExceptions without this module importing FastAPI.
     """
     case = _q_one(
-        "SELECT id, tenant_id, user_phone, govt_status, govt_department, govt_reference_number "
+        "SELECT id, tenant_id, user_phone, govt_status, govt_department, govt_reference_number, case_metadata "
         "FROM cases WHERE id = :cid AND tenant_id = :tid",
         {"cid": case_id, "tid": tenant_id},
     )
     if not case:
         raise ValueError("Case not found")
+    try:
+        require_operational_case(case, "send citizen notifications")
+    except SyntheticCaseActionBlocked as exc:
+        raise ValueError(str(exc)) from exc
 
     phone = case.get("user_phone")
     if not phone:

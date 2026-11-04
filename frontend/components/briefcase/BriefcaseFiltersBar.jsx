@@ -31,6 +31,7 @@ export default function BriefcaseFiltersBar(props) {
         criticalOnly,
         dateFrom,
         dateTo,
+        dataScope,
         filterOptions,
         onAssemblyChange,
         onAssignedChange,
@@ -39,6 +40,7 @@ export default function BriefcaseFiltersBar(props) {
         onCriticalOnlyChange,
         onDateFromChange,
         onDateToChange,
+        onDataScopeChange,
         onExport,
         onLocationChange,
         onPageSizeChange,
@@ -149,6 +151,19 @@ export default function BriefcaseFiltersBar(props) {
                     }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: T.control, color: P.ink2 }}>
+                            Data
+                            <select
+                                aria-label="Case data scope"
+                                value={dataScope}
+                                onChange={(event) => onDataScopeChange(event.target.value)}
+                                style={{ minHeight: 30, border: `1px solid ${P.hairStrong}`, background: P.surface, color: P.ink, padding: '4px 8px' }}
+                            >
+                                <option value="live">Live cases</option>
+                                <option value="test">Test cases</option>
+                                <option value="all">All cases</option>
+                            </select>
+                        </label>
                         <span
                             style={{
                                 fontFamily: MONO,

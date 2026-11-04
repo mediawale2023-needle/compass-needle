@@ -28,6 +28,7 @@ def run_morning_digest(tenant_id: int | None = None) -> dict:
     """
     from sansadx_backend.db import SessionLocal, Tenant, IncidentCluster
     from sqlalchemy import text
+    from modules.synthetic_cases import sql_is_live
 
     cutoff = datetime.utcnow() - timedelta(hours=24)
     results = {"tenants_processed": 0, "digests_sent": 0, "errors": []}
@@ -102,9 +103,10 @@ def _run_digest_for_tenant(db, tenant, cutoff: datetime, results: dict):
                   AND (status = 'emergency' OR is_critical = true)
                   AND created_at >= :cutoff
                   AND (is_deleted = false OR is_deleted IS NULL)
+                  AND {live}
                 ORDER BY created_at DESC
                 LIMIT 50
-            """),
+            """.format(live=sql_is_live("cases"))),
             {"tid": tenant.id, "cutoff": cutoff},
         ).mappings().all()
 

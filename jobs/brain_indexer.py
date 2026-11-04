@@ -429,13 +429,15 @@ def index_zero_hour_for_tenant(tenant_id: int) -> dict:
 
 
 def index_cases_for_tenant(tenant_id: int) -> dict:
+    from modules.synthetic_cases import sql_is_live
     with engine.connect() as conn:
         rows = conn.execute(text("""
             SELECT * FROM cases
              WHERE tenant_id = :tid
                AND (is_deleted IS NULL OR is_deleted = false)
                AND raw_message IS NOT NULL AND raw_message <> ''
-        """), {"tid": tenant_id}).mappings().all()
+               AND {live}
+        """.format(live=sql_is_live("cases"))), {"tid": tenant_id}).mappings().all()
     chunks: list[dict] = []
     for r in rows:
         chunks.extend(chunk_case_row(dict(r)))

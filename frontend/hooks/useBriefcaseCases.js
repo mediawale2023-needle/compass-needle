@@ -36,6 +36,7 @@ export default function useBriefcaseCases(user) {
     const [categoryFilter, setCategoryFilter] = useState(() => searchParams.get('category') || '');
     const [locationFilter, setLocationFilter] = useState(() => searchParams.get('location') || '');
     const [assemblyFilter, setAssemblyFilter] = useState(() => searchParams.get('assembly') || '');
+    const [dataScope, setDataScope] = useState(() => searchParams.get('data_scope') || 'live');
     const [filterOptions, setFilterOptions] = useState({ statuses: [], categories: [], locations: [], assemblies: [] });
     const [selected, setSelected] = useState(null);
     const [downloading, setDownloading] = useState(false);
@@ -82,6 +83,7 @@ export default function useBriefcaseCases(user) {
         setCategoryFilter(searchParams.get('category') || '');
         setLocationFilter(searchParams.get('location') || '');
         setAssemblyFilter(searchParams.get('assembly') || '');
+        setDataScope(searchParams.get('data_scope') || 'live');
         setPage(1);
     }, [searchParams]);
 
@@ -100,7 +102,7 @@ export default function useBriefcaseCases(user) {
     }, []);
 
     useEffect(() => {
-        apiGet('/api/cases/filter-options')
+        apiGet(`/api/cases/filter-options?data_scope=${encodeURIComponent(dataScope)}`)
             .then((result) => setFilterOptions({
                 statuses: result.statuses || [],
                 categories: result.categories || [],
@@ -108,7 +110,7 @@ export default function useBriefcaseCases(user) {
                 assemblies: result.assemblies || [],
             }))
             .catch(() => setFilterOptions({ statuses: [], categories: [], locations: [], assemblies: [] }));
-    }, [refreshToken]);
+    }, [dataScope, refreshToken]);
 
     useEffect(() => {
         fetchClusters();
@@ -129,6 +131,7 @@ export default function useBriefcaseCases(user) {
     }
 
     function applyCaseFilters(params) {
+        params.set('data_scope', dataScope);
         if (statusFilter === 'others') {
             params.set('bucket', 'other');
         } else if (statusFilter === 'all_cases') {
@@ -213,7 +216,7 @@ export default function useBriefcaseCases(user) {
         return () => {
             cancelled = true;
         };
-    }, [statusFilter, categoryFilter, locationFilter, assemblyFilter, page, user?.username, search, pageSize, assignedFilter, dateFrom, dateTo, criticalOnly, sortOrder, refreshToken, toast]);
+    }, [statusFilter, categoryFilter, locationFilter, assemblyFilter, dataScope, page, user?.username, search, pageSize, assignedFilter, dateFrom, dateTo, criticalOnly, sortOrder, refreshToken, toast]);
 
     useEffect(() => {
         if (statusFilter === 'deleted') {
@@ -537,6 +540,7 @@ export default function useBriefcaseCases(user) {
         criticalOnly,
         dateFrom,
         dateTo,
+        dataScope,
         deletedCases,
         downloading,
         downloadReport,
@@ -565,6 +569,7 @@ export default function useBriefcaseCases(user) {
         setCriticalOnly,
         setDateFrom,
         setDateTo,
+        setDataScope,
         setHasNewCases,
         setLocationFilter,
         setPage,

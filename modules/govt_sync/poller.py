@@ -18,6 +18,7 @@ from sansadx_backend.db import engine
 from sqlalchemy import text
 
 from modules.govt_sync.adapters import get_adapter
+from modules.synthetic_cases import sql_is_live
 from modules.govt_sync.orchestrator import persist_successful_status_result
 
 logger = logging.getLogger("needle.govt_sync.poller")
@@ -81,8 +82,9 @@ def poll_all_pending() -> dict:
         WHERE c.govt_status = ANY(:statuses)
           AND c.govt_reference_number IS NOT NULL
           AND (c.is_deleted = false OR c.is_deleted IS NULL)
+          AND {live_case_predicate}
         ORDER BY c.tenant_id, p.id
-        """,
+        """.format(live_case_predicate=sql_is_live("c")),
         {"statuses": list(_PENDING_STATUSES)},
     )
 

@@ -62,6 +62,12 @@ function BriefcaseInner() {
             >
                 <BriefcaseFiltersBar
                     statusFilter={briefcase.statusFilter}
+                    dataScope={briefcase.dataScope}
+                    onDataScopeChange={(value) => {
+                        briefcase.setDataScope(value);
+                        briefcase.setUrlFilter('data_scope', value === 'live' ? '' : value);
+                        briefcase.setPage(1);
+                    }}
                     color={briefcase.color}
                     onTabChange={briefcase.switchTab}
                     searchInput={briefcase.searchInput}

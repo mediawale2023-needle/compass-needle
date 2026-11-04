@@ -31,6 +31,7 @@ def run():
         from sqlalchemy import text
         from modules.csr_pipeline import get_grievance_clusters, CATEGORY_SECTOR_MAP, CSR_MONITOR_THRESHOLD
         from core.db_helpers import _q
+        from modules.synthetic_cases import sql_is_live
     except ImportError as e:
         logger.error(f"Import failed: {e}")
         return
@@ -71,14 +72,16 @@ def run():
                         WHERE tenant_id = :tid AND category = :cat
                           AND status NOT IN ('irrelevant', 'offensive')
                           AND created_at >= :cutoff
-                    """), {"tid": tid, "cat": category, "cutoff": cutoff_7d}).fetchone()[0] or 0
+                          AND {live}
+                    """.format(live=sql_is_live("cases"))), {"tid": tid, "cat": category, "cutoff": cutoff_7d}).fetchone()[0] or 0
 
                     v30 = conn.execute(text("""
                         SELECT COUNT(*) as cnt FROM cases
                         WHERE tenant_id = :tid AND category = :cat
                           AND status NOT IN ('irrelevant', 'offensive')
                           AND created_at >= :cutoff
-                    """), {"tid": tid, "cat": category, "cutoff": cutoff_30d}).fetchone()[0] or 0
+                          AND {live}
+                    """.format(live=sql_is_live("cases"))), {"tid": tid, "cat": category, "cutoff": cutoff_30d}).fetchone()[0] or 0
             except Exception:
                 v7, v30 = 0, 0
 
