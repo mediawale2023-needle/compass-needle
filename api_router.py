@@ -45,6 +45,13 @@ from modules.ack_composer import compose_status_update
 from modules.ack_validator import ack_policy_mode, validate_citizen_message, violation_codes
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
 from modules import case_lifecycle
+from modules.synthetic_cases import (
+    SyntheticCaseActionBlocked,
+    append_data_scope_condition,
+    is_synthetic_case,
+    require_operational_case,
+    sql_is_live,
+)
 from core.gemini_client import get_gemini_client
 from modules.parliament_context import build_parliament_context
 from google.genai import types as genai_types
@@ -76,6 +83,24 @@ except ImportError:
     log_security_event = None
 
 logger = logging.getLogger("needle.api")
+
+
+def _require_operational_case(case: dict | None, action: str) -> None:
+    try:
+        require_operational_case(case, action)
+    except SyntheticCaseActionBlocked as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+def _require_operational_case_id(tenant_id: int, case_id: int, action: str) -> dict:
+    case = _q_one(
+        "SELECT id, case_metadata FROM cases WHERE id = :cid AND tenant_id = :tid",
+        {"cid": case_id, "tid": tenant_id},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    _require_operational_case(case, action)
+    return case
 
 
 def _utcnow():
@@ -960,22 +985,23 @@ def end_support_access(request: Request, user=Depends(get_current_user)):
 @router.get("/dashboard/summary")
 def dashboard_summary(user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
+    live = sql_is_live("c")
 
     cats = _q(
-        "SELECT category, COUNT(*) as count FROM cases WHERE tenant_id = :tid GROUP BY category ORDER BY count DESC",
+        f"SELECT category, COUNT(*) as count FROM cases c WHERE tenant_id = :tid AND {live} GROUP BY category ORDER BY count DESC",
         {"tid": tid}
     )
     category_breakdown = {c["category"]: c["count"] for c in cats if c["category"]}
 
     statuses = _q(
-        "SELECT status, COUNT(*) as count FROM cases WHERE tenant_id = :tid GROUP BY status",
+        f"SELECT status, COUNT(*) as count FROM cases c WHERE tenant_id = :tid AND {live} GROUP BY status",
         {"tid": tid}
     )
     status_breakdown = {s["status"]: s["count"] for s in statuses if s["status"]}
     total = sum(status_breakdown.values())
 
     critical = _q_one(
-        "SELECT COUNT(*) as cnt FROM cases WHERE tenant_id = :tid AND is_critical = true",
+        f"SELECT COUNT(*) as cnt FROM cases c WHERE tenant_id = :tid AND is_critical = true AND {live}",
         {"tid": tid}
     )
 
@@ -985,13 +1011,14 @@ def dashboard_summary(user=Depends(get_current_user)):
             SELECT location as area, COUNT(*) as cnt
             FROM cases
             WHERE tenant_id = :tid
+              AND {live}
               AND location IS NOT NULL
               AND location != ''
             GROUP BY location
             HAVING COUNT(*) >= 3
             ORDER BY cnt DESC
             LIMIT 10
-        """, {"tid": tid})
+        """.format(live=live), {"tid": tid})
     except Exception:
         red_zones = []
 
@@ -1242,7 +1269,7 @@ def dashboard_overview(user=Depends(get_current_user)):
     tenant_constituency = tenant_row.get("constituency")
 
     raw_cases = _q(
-        """
+        f"""
         SELECT c.id, c.case_ref, c.user_phone, c.category, c.problem_domain,
                c.problem_subdomain, c.convergence_program_type, c.status, c.raw_message,
                COALESCE(c.location, c.case_metadata->>'matched_value') AS location,
@@ -1256,6 +1283,7 @@ def dashboard_overview(user=Depends(get_current_user)):
         LEFT JOIN govt_portals p ON p.id = c.govt_portal_id
         WHERE c.tenant_id = :tid
           AND (c.is_deleted = false OR c.is_deleted IS NULL)
+          AND {sql_is_live("c")}
         ORDER BY c.created_at DESC, c.id DESC
         """,
         {"tid": tid},
@@ -1883,6 +1911,7 @@ def _prepare_briefcase_list_case(case: dict, tenant_constituency: str | None, te
             pass
 
     parsed_meta = _parse_meta(meta)
+    prepared["is_synthetic_test_data"] = is_synthetic_case(prepared)
     if not prepared.get("problem_domain"):
         prepared["problem_domain"] = parsed_meta.get("problem_domain")
     if not prepared.get("problem_subdomain"):
@@ -1912,6 +1941,7 @@ def get_cases(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     critical: Optional[bool] = None,
+    data_scope: str = Query("live", pattern="^(live|test|all)$"),
     sort: str = Query("newest", pattern="^(newest|oldest|updated|critical)$"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
@@ -1920,6 +1950,7 @@ def get_cases(
     tenant_row = _q_one("SELECT constituency FROM tenants WHERE id = :tid", {"tid": tid}) or {}
     tenant_constituency = tenant_row.get("constituency")
     conditions = ["c.tenant_id = :tid", "(c.is_deleted = false OR c.is_deleted IS NULL)"]
+    append_data_scope_condition(conditions, data_scope, "c")
     params = {"tid": tid}
 
     if bucket == "other":
@@ -2122,10 +2153,15 @@ def get_cases(
 
 
 @router.get("/cases/filter-options")
-def get_case_filter_options(user=Depends(get_current_user)):
+def get_case_filter_options(
+    data_scope: str = Query("live", pattern="^(live|test|all)$"),
+    user=Depends(get_current_user),
+):
     """Tenant-scoped distinct values used by the Briefcase filters."""
     tid = get_tenant_or_fail(user)
-    base_where = "tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)"
+    conditions = ["tenant_id = :tid", "(is_deleted = false OR is_deleted IS NULL)"]
+    append_data_scope_condition(conditions, data_scope, "cases")
+    base_where = " AND ".join(conditions)
     params = {"tid": tid}
 
     def rows_for(expression: str, limit: int = 200):
@@ -2198,9 +2234,10 @@ def get_summary(
     base_where = """
         c.tenant_id = :tid
         AND (c.is_deleted = false OR c.is_deleted IS NULL)
+        AND {live}
         AND c.status NOT IN ('awaiting_location', 'Spam', 'Spam (Offensive)')
         AND c.created_at >= :since
-    """
+    """.format(live=sql_is_live("c"))
     base_params = {"tid": tid, "since": since}
 
     # Total + status breakdown
@@ -2295,9 +2332,11 @@ def export_cases(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     critical: Optional[bool] = None,
+    data_scope: str = Query("live", pattern="^(live|test|all)$"),
 ):
     tid = get_tenant_or_fail(user)
     conditions = ["tenant_id = :tid", "(is_deleted = false OR is_deleted IS NULL)"]
+    append_data_scope_condition(conditions, data_scope, "cases")
     params = {"tid": tid}
 
     if bucket == "other":
@@ -2435,6 +2474,7 @@ def get_case(case_id: int, user=Depends(get_current_user)):
 
     if not case:
         raise HTTPException(404, "Case not found")
+    case["is_synthetic_test_data"] = is_synthetic_case(case)
 
     _apply_tenant_safe_case_geography(case, case.get("mp_constituency"), tid)
 
@@ -3204,6 +3244,7 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
     )
     if not case:
         raise HTTPException(404, "Case not found")
+    _require_operational_case(case, "send citizen notifications")
 
     phone = case.get("user_phone")
     wa_number = case.get("wa_number")
@@ -3295,24 +3336,28 @@ def get_similar_cases(case_id: int, user=Depends(get_current_user)):
     """Return cases from the same phone or same category+location within last 30 days."""
     tid = get_tenant_or_fail(user)
     source = _q_one(
-        "SELECT user_phone, category, location, assembly FROM cases WHERE id = :cid AND tenant_id = :tid",
+        "SELECT user_phone, category, location, assembly, case_metadata FROM cases WHERE id = :cid AND tenant_id = :tid",
         {"cid": case_id, "tid": tid}
     )
     if not source:
         raise HTTPException(404, "Case not found")
+    similar_scope = "test" if is_synthetic_case(source) else "live"
 
     thirty_days_ago = _utcnow() - timedelta(days=30)
     phone = source.get("user_phone")
     category = source.get("category")
     location = source.get("location") or ""
 
-    similar = _q("""
+    similar_conditions: list[str] = []
+    append_data_scope_condition(similar_conditions, similar_scope, "cases")
+    similar = _q(f"""
         SELECT id, case_ref, user_phone, category, status, location, assembly,
                raw_message, created_at
         FROM cases
         WHERE tenant_id = :tid
           AND id != :cid
           AND (is_deleted = false OR is_deleted IS NULL)
+          AND {similar_conditions[0]}
           AND created_at >= :since
           AND (
               user_phone = :phone
@@ -3351,6 +3396,7 @@ async def notify_citizen(case_id: int, request: Request, body: Optional[CitizenN
     )
     if not case:
         raise HTTPException(404, "Case not found")
+    _require_operational_case(case, "send citizen notifications")
 
     phone = case.get("user_phone")
     if not phone:
@@ -3916,6 +3962,7 @@ def govt_otp_send(user=Depends(get_current_user)):
     anchor = _q_one(
         "SELECT id, govt_reference_number FROM cases WHERE tenant_id = :tid AND govt_portal_id = :pid "
         "AND govt_reference_number IS NOT NULL AND govt_reference_number <> '' "
+        f"AND {sql_is_live('cases')} "
         "ORDER BY govt_status_updated_at DESC NULLS LAST LIMIT 1",
         {"tid": tid, "pid": portal["id"]},
     )
@@ -3965,6 +4012,7 @@ def govt_otp_verify(body: GovtOtpVerifyRequest, user=Depends(get_current_user)):
     anchor = _q_one(
         "SELECT id FROM cases WHERE tenant_id = :tid AND govt_portal_id = :pid "
         "AND govt_reference_number IS NOT NULL AND govt_reference_number <> '' "
+        f"AND {sql_is_live('cases')} "
         "ORDER BY govt_status_updated_at DESC NULLS LAST LIMIT 1",
         {"tid": tid, "pid": portal["id"]},
     )
@@ -4066,6 +4114,7 @@ def govt_translate_case(case_id: int, user=Depends(get_current_user)):
     staff the worksheet to paste in by hand (see modules/govt_sync/__init__.py).
     """
     tid = get_tenant_or_fail(user)
+    _require_operational_case_id(tid, case_id, "start government filing")
     case = _q_one(
         "SELECT id, category, raw_message, location, assembly, ward FROM cases "
         "WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
@@ -4191,6 +4240,7 @@ def record_govt_resolution_review(case_id: int, body: GovtResolutionReviewReques
 def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_current_user)):
     """Staff confirms they filed the case on the real portal — records the reference number."""
     tid = get_tenant_or_fail(user)
+    _require_operational_case_id(tid, case_id, "record government submissions")
     ref = (body.reference_number or "").strip()
     if not ref:
         raise HTTPException(400, "Reference number is required")
@@ -4305,6 +4355,7 @@ def govt_record_manual_reference(case_id: int, body: GovtSubmitRequest, user=Dep
     (only the Delhi filing worksheet does, and only from a staff-confirmed catalogue
     pick). The portal is never taken from the request."""
     tid = get_tenant_or_fail(user)
+    _require_operational_case_id(tid, case_id, "record government references")
     if not _delhi_manual_reference_enabled():
         raise HTTPException(403, "Manual reference capture isn't enabled.")
     ref = (body.reference_number or "").strip()
@@ -4516,6 +4567,7 @@ def govt_delhi_log_task(case_id: int, body: DelhiTaskRequest, user=Depends(get_c
     see what happens on the portal and does not pretend to."""
     from modules.govt_sync import delhi_portal as _delhi
     tid = get_tenant_or_fail(user)
+    _require_operational_case_id(tid, case_id, "start government filing tasks")
     portal = _delhi_gate(tid)
     key = (body.task or "").strip().lower()
     task = _delhi.task_by_key(key)   # verified official URLs only, never a database value
@@ -4711,6 +4763,7 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
     """On-demand status check against the portal (read-only, public reference lookup only)."""
     diagnostic_started_at = time.monotonic()
     tid = get_tenant_or_fail(user)
+    _require_operational_case_id(tid, case_id, "check government status")
     logger.info("[GOVT_STATUS_DIAG] poll entry case_id=%s", case_id)
     case = _q_one(
         """SELECT c.id, c.govt_status, c.govt_reference_number, c.govt_portal_id, p.id AS portal_id,
@@ -4824,6 +4877,7 @@ def govt_status_check_start(case_id: int, user=Depends(get_current_user)):
     that can complete a check in one synchronous call. See
     modules/govt_sync/adapters/status_flow.py."""
     tid = get_tenant_or_fail(user)
+    _require_operational_case_id(tid, case_id, "check government status")
     case = _govt_status_check_case_row(case_id, tid)
     if not case:
         raise HTTPException(404, "Case not found or not yet forwarded to a govt portal")
@@ -4884,6 +4938,7 @@ class GovtStatusCheckAdvanceRequest(BaseModel):
 @router.post("/cases/{case_id}/govt/status-check/{attempt_id}/advance")
 def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusCheckAdvanceRequest, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
+    _require_operational_case_id(tid, case_id, "check government status")
     case = _govt_status_check_case_row(case_id, tid)
     if not case:
         raise HTTPException(404, "Case not found or not yet forwarded to a govt portal")
@@ -5006,6 +5061,7 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
 def govt_notify_citizen(case_id: int, user=Depends(get_current_user)):
     """Forward the current govt-portal status update to the citizen via WhatsApp. One click, primary account only."""
     tid = get_tenant_or_fail(user)
+    _require_operational_case_id(tid, case_id, "send citizen notifications")
     if not _is_primary_workspace_user(user):
         raise HTTPException(403, "Only the primary account can send citizen notifications")
 
@@ -5059,6 +5115,7 @@ async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, u
     form is auto-filled — the AI-drafted worksheet is returned separately for
     staff to read and type in themselves during the same session."""
     tid = get_tenant_or_fail(user)
+    _require_operational_case_id(tid, case_id, "start government portal sessions")
     case = _q_one(
         "SELECT id, category, raw_message, location, assembly, ward, govt_portal_id, "
         "govt_submission_worksheet, govt_status, govt_reference_number "
@@ -5218,6 +5275,7 @@ async def govt_capture_reference(case_id: int, session_id: str, user=Depends(get
     Doesn't save anything — the frontend prefills the existing govt/submit form
     with whatever this finds so staff can confirm before it's recorded."""
     tid = get_tenant_or_fail(user)
+    _require_operational_case_id(tid, case_id, "record government references")
     from modules.govt_sync.browser_session import get_session_meta, capture_reference
     meta = get_session_meta(session_id)
     if not meta or meta["tenant_id"] != tid or meta["case_id"] != case_id:
@@ -5243,12 +5301,13 @@ def _get_tamil_nadu_live_status_context(case_id: int, session_id: str, user: dic
         raise HTTPException(404, "Live session not found")
 
     case = _q_one(
-        "SELECT id, govt_status, govt_reference_number "
+        "SELECT id, govt_status, govt_reference_number, case_metadata "
         "FROM cases WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
         {"cid": case_id, "tid": tid},
     )
     if not case:
         raise HTTPException(404, "Case not found")
+    _require_operational_case(case, "check government status")
     reference_number = _govt_stored_reference(case.get("govt_reference_number"))
     if not reference_number:
         raise HTTPException(400, "No reference number recorded yet — record it first, then check status.")
@@ -5271,6 +5330,7 @@ async def govt_start_tn_status_check_session(case_id: int, user=Depends(get_curr
     My Petitions and reads. See modules/govt_sync/status/.
     """
     tid = get_tenant_or_fail(user)
+    _require_operational_case_id(tid, case_id, "check government status")
     case = _q_one(
         "SELECT id, govt_status, govt_reference_number, govt_portal_id "
         "FROM cases WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
@@ -5670,12 +5730,13 @@ def _get_tamil_nadu_live_status_context_for_case(case_id: int, user: dict):
         raise HTTPException(404, "Live session not found")
 
     case = _q_one(
-        "SELECT id, govt_status, govt_reference_number "
+        "SELECT id, govt_status, govt_reference_number, case_metadata "
         "FROM cases WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
         {"cid": case_id, "tid": tid},
     )
     if not case:
         raise HTTPException(404, "Case not found")
+    _require_operational_case(case, "check government status")
     reference_number = _govt_stored_reference(case.get("govt_reference_number"))
     if not reference_number:
         raise HTTPException(400, "No reference number recorded yet — record it first, then check status.")
@@ -7526,7 +7587,7 @@ def get_my_questions(
     limit = min(limit, 100)
     offset = (page - 1) * limit
 
-    conditions = ["tenant_id = :tid"]
+    conditions = ["c.tenant_id = :tid", sql_is_live("c")]
     params: dict = {"tid": tid, "lim": limit, "off": offset}
     if session:
         conditions.append("session_name = :session")
@@ -8026,7 +8087,7 @@ def get_live_gaps(tenant_id: int):
     """
     try:
         # Try PostgreSQL JSON syntax
-        rows = _q("""
+        rows = _q(f"""
             SELECT category, COUNT(*) as volume,
                    COALESCE(
                        case_metadata::json->>'assembly_constituency',
@@ -8036,6 +8097,7 @@ def get_live_gaps(tenant_id: int):
             FROM cases
             WHERE tenant_id = :tid
               AND status NOT IN ('irrelevant', 'offensive')
+              AND {sql_is_live("cases")}
             GROUP BY category, area
             HAVING COUNT(*) >= 100
             ORDER BY volume DESC
@@ -8044,7 +8106,7 @@ def get_live_gaps(tenant_id: int):
     except Exception:
         try:
             # SQLite fallback — use json_extract to pull location from case_metadata
-            rows = _q("""
+            rows = _q(f"""
                 SELECT category, COUNT(*) as volume,
                        COALESCE(
                            json_extract(case_metadata, '$.assembly_constituency'),
@@ -8055,6 +8117,7 @@ def get_live_gaps(tenant_id: int):
                 FROM cases
                 WHERE tenant_id = :tid
                   AND status NOT IN ('irrelevant', 'offensive')
+                  AND {sql_is_live("cases")}
                 GROUP BY category, area
                 HAVING COUNT(*) >= 100
                 ORDER BY volume DESC
@@ -8215,12 +8278,13 @@ CONVERGENCE CONTEXT:
         # ── RAG: Pull up to 5 real grievance text samples for this cluster ──
         grievance_samples = []
         try:
-            sample_rows = _q("""
+            sample_rows = _q(f"""
                 SELECT raw_message FROM cases
                 WHERE tenant_id = :tid
                   AND category = :cat
                   AND status NOT IN ('irrelevant', 'offensive')
                   AND raw_message IS NOT NULL
+                  AND {sql_is_live("cases")}
                 ORDER BY created_at DESC
                 LIMIT 5
             """, {"tid": tid, "cat": req.category})
@@ -8375,12 +8439,13 @@ def _get_velocity(tenant_id: int, category: str, days: int) -> int:
     """Count complaints for a category in the last N days (constituency-wide)."""
     cutoff = _utcnow() - timedelta(days=days)
     try:
-        row = _q_one("""
+        row = _q_one(f"""
             SELECT COUNT(*) as cnt FROM cases
             WHERE tenant_id = :tid
               AND category = :cat
               AND status NOT IN ('irrelevant', 'offensive')
               AND created_at >= :cutoff
+              AND {sql_is_live("cases")}
         """, {"tid": tenant_id, "cat": category, "cutoff": cutoff})
         return row["cnt"] if row else 0
     except Exception:
@@ -9058,9 +9123,10 @@ def get_report_card(user=Depends(get_current_user)):
     """, {"tid": tid, "start": month_start})
     type_counts = {row["activity_type"]: row["cnt"] for row in type_rows}
 
-    cases_row = _q_one("""
+    cases_row = _q_one(f"""
         SELECT COUNT(*) as cnt FROM cases
         WHERE tenant_id = :tid AND updated_at >= :start AND status != 'new'
+          AND {sql_is_live("cases")}
     """, {"tid": tid, "start": month_start})
 
     return {
@@ -9105,16 +9171,16 @@ def download_grievance_report(
     conditions = ["tenant_id = :tid"]
     params: dict = {"tid": tid}
     if status and status.lower() != "all":
-        conditions.append("status = :status")
+        conditions.append("c.status = :status")
         params["status"] = status.lower()
     if category:
-        conditions.append("category = :category")
+        conditions.append("c.category = :category")
         params["category"] = category
     if location:
-        conditions.append("COALESCE(location, case_metadata->>'matched_value') = :location")
+        conditions.append("COALESCE(c.location, c.case_metadata->>'matched_value') = :location")
         params["location"] = location
     if assembly:
-        conditions.append("COALESCE(assembly, case_metadata->>'assembly_constituency') = :assembly")
+        conditions.append("COALESCE(c.assembly, c.case_metadata->>'assembly_constituency') = :assembly")
         params["assembly"] = assembly
 
     where = " AND ".join(conditions)
@@ -9123,22 +9189,22 @@ def download_grievance_report(
                COALESCE(location, case_metadata->>'matched_value') AS location,
                COALESCE(assembly, case_metadata->>'assembly_constituency') AS assembly,
                is_critical, created_at, updated_at
-        FROM cases WHERE {where}
+        FROM cases c WHERE {where}
         ORDER BY created_at DESC
         LIMIT 200
     """, params)
 
     # Status + category counts (full tenant, not filtered)
     status_rows = _q("""
-        SELECT status, COUNT(*) as cnt FROM cases
-        WHERE tenant_id = :tid GROUP BY status
-    """, {"tid": tid})
+        SELECT status, COUNT(*) as cnt FROM cases c
+        WHERE tenant_id = :tid AND {live} GROUP BY status
+    """.format(live=sql_is_live("c")), {"tid": tid})
     status_counts = {r["status"]: r["cnt"] for r in status_rows}
 
     cat_rows = _q("""
-        SELECT category, COUNT(*) as cnt FROM cases
-        WHERE tenant_id = :tid GROUP BY category ORDER BY cnt DESC LIMIT 10
-    """, {"tid": tid})
+        SELECT category, COUNT(*) as cnt FROM cases c
+        WHERE tenant_id = :tid AND {live} GROUP BY category ORDER BY cnt DESC LIMIT 10
+    """.format(live=sql_is_live("c")), {"tid": tid})
 
     tenant_row = _q_one("SELECT name, constituency FROM tenants WHERE id = :tid", {"tid": tid})
     mp_name = (tenant_row or {}).get("name", "MP")

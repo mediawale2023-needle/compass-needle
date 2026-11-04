@@ -9,6 +9,7 @@ All queries are tenant-scoped and use parameterized SQL (no injection risk).
 import logging
 from datetime import datetime, timedelta
 from core.db_helpers import _q, _q_one, _parse_meta
+from modules.synthetic_cases import sql_is_live
 
 logger = logging.getLogger("needle.case_query_engine")
 
@@ -37,6 +38,7 @@ def query_cases(filters: dict, tenant_id: int) -> dict:
     """
     where_clauses = [
         "c.tenant_id = :tid",
+        sql_is_live("c"),
         "(c.is_deleted = false OR c.is_deleted IS NULL)",
         # Exclude meta-statuses that are system states, not staff-visible
         "c.status NOT IN ('awaiting_location', 'Spam', 'Spam (Offensive)')",

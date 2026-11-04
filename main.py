@@ -2736,6 +2736,7 @@ def _save_spam_flag(tenant_id: int, phone: str, flag_type: str, reason: str, mes
 # META CLOUD API HELPER (shared module)
 # ─────────────────────────────────────────
 from modules.whatsapp import send_whatsapp_message  # noqa: E402
+from modules.synthetic_cases import sql_is_live  # noqa: E402
 from modules.letterbox import download_meta_media  # noqa: E402
 from modules.whatsapp_media_intake import normalize_media_complaint  # noqa: E402
 from modules.case_query_parser import parse_query
@@ -4502,6 +4503,7 @@ def _send_due_case_clarification_followups(case_id: int | None = None) -> None:
                       AND COALESCE(case_metadata::jsonb ->> 'clarification_follow_up_sent', 'false') <> 'true'
                       AND COALESCE((case_metadata::jsonb ->> 'clarification_follow_up_after_epoch')::bigint, 0) <= :now_epoch
                       AND (is_deleted = false OR is_deleted IS NULL)
+                      AND {sql_is_live("cases")}
                       {where_case}
                     ORDER BY created_at ASC
                     LIMIT 25

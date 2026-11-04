@@ -40,6 +40,7 @@ from modules.parliamentary_boundary_importer import (
     import_parliamentary_boundary_for_seat,
     load_parliamentary_geojson_from_upload,
 )
+from modules.synthetic_cases import append_data_scope_condition, sql_is_live
 
 logger = logging.getLogger("needle.admin_api")
 
@@ -2872,29 +2873,30 @@ def save_overrides(req: SaveOverridesRequest, admin_user=Depends(get_admin_user)
 def case_health(_=Depends(get_admin_user)):
     """Platform Health — top-line metrics, status breakdown, MP cases, activity, volume."""
 
-    total = _q_one("SELECT COUNT(*) AS cnt FROM cases") or {"cnt": 0}
+    live = sql_is_live("c")
+    total = _q_one(f"SELECT COUNT(*) AS cnt FROM cases c WHERE {live}") or {"cnt": 0}
     mps_row = _q_one("SELECT COUNT(*) AS cnt FROM tenants WHERE name != 'System Admin'") or {"cnt": 0}
-    resolved = _q_one("SELECT COUNT(*) AS cnt FROM cases WHERE status = 'resolved'") or {"cnt": 0}
-    critical = _q_one("SELECT COUNT(*) AS cnt FROM cases WHERE is_critical = true") or {"cnt": 0}
+    resolved = _q_one(f"SELECT COUNT(*) AS cnt FROM cases c WHERE status = 'resolved' AND {live}") or {"cnt": 0}
+    critical = _q_one(f"SELECT COUNT(*) AS cnt FROM cases c WHERE is_critical = true AND {live}") or {"cnt": 0}
 
-    status_data = _q("SELECT COALESCE(status, 'unknown') AS status, COUNT(*) AS count FROM cases GROUP BY status ORDER BY count DESC")
+    status_data = _q(f"SELECT COALESCE(status, 'unknown') AS status, COUNT(*) AS count FROM cases c WHERE {live} GROUP BY status ORDER BY count DESC")
 
     mp_data = _q("""
         SELECT t.name, t.constituency, COUNT(c.id) AS cases
         FROM tenants t LEFT JOIN cases c ON t.id = c.tenant_id
-        WHERE t.name != 'System Admin'
+        WHERE t.name != 'System Admin' AND ({live} OR c.id IS NULL)
         GROUP BY t.id, t.name, t.constituency ORDER BY cases DESC
-    """)
+    """.format(live=live))
 
     activity_data = _q("""
         SELECT u.display_name, u.username, u.last_login,
                t.constituency, t.name AS mp_name, COUNT(c.id) AS total_cases
         FROM users u JOIN tenants t ON u.tenant_id = t.id
         LEFT JOIN cases c ON t.id = c.tenant_id
-        WHERE u.role IN ('mp', 'owner', 'user') AND t.name != 'System Admin'
+        WHERE u.role IN ('mp', 'owner', 'user') AND t.name != 'System Admin' AND ({live} OR c.id IS NULL)
         GROUP BY u.id, u.display_name, u.username, u.last_login, t.constituency, t.name
         ORDER BY total_cases DESC
-    """)
+    """.format(live=live))
 
     activity = []
     for a in activity_data:
@@ -2913,9 +2915,9 @@ def case_health(_=Depends(get_admin_user)):
 
     volume_data = _q("""
         SELECT DATE(created_at) AS day, COUNT(*) AS count
-        FROM cases WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+        FROM cases c WHERE created_at >= CURRENT_DATE - INTERVAL '30 days' AND {live}
         GROUP BY DATE(created_at) ORDER BY day
-    """)
+    """.format(live=live))
     volume = []
     for v in volume_data:
         d = v.get("day")
@@ -3074,7 +3076,7 @@ def case_aggregates(
     """Read-only case analytics: open count (overall, by account and by
     category), ageing bands, weekly new vs resolved, and the open-case trend. Optional tenant_id scopes to one
     account (admin-only endpoint, same access as /cases/explorer)."""
-    conditions = ["(c.is_deleted IS NULL OR c.is_deleted = :not_deleted)"]
+    conditions = ["(c.is_deleted IS NULL OR c.is_deleted = :not_deleted)", sql_is_live("c")]
     params = {"not_deleted": False}
     if tenant_id is not None:
         conditions.append("c.tenant_id = :tid")
@@ -3099,6 +3101,7 @@ def case_explorer(
     status: Optional[str] = None,
     priority: Optional[str] = None,
     assignment: Optional[str] = None,
+    data_scope: str = Query("live", pattern="^(live|test|all)$"),
     _=Depends(get_admin_user),
 ):
     """Case Explorer with filters (read-only).
@@ -3107,6 +3110,7 @@ def case_explorer(
     standard | low); assignment is 'assigned' or 'unassigned' on
     cases.assigned_to. Both columns already exist; nothing is written."""
     conditions = ["1=1"]
+    append_data_scope_condition(conditions, data_scope, "c")
     params = {}
 
     if mp_id:
@@ -3401,25 +3405,26 @@ def case_analytics(_=Depends(get_admin_user)):
     """Grievance Analytics — categories, resolution times, assembly distribution."""
 
     # Top categories per constituency
+    live = sql_is_live("c")
     cat_data = _q("""
         SELECT COALESCE(c.category, 'Uncategorized') AS category,
                t.constituency, COUNT(*) AS count
         FROM cases c JOIN tenants t ON c.tenant_id = t.id
-        WHERE t.name != 'System Admin'
+        WHERE t.name != 'System Admin' AND {live}
         GROUP BY c.category, t.constituency ORDER BY count DESC LIMIT 30
-    """)
+    """.format(live=live))
 
     # Category volume
     cat_vol = _q("""
         SELECT COALESCE(category, 'Uncategorized') AS category, COUNT(*) AS count
-        FROM cases WHERE tenant_id != 1 GROUP BY category ORDER BY count DESC
-    """)
+        FROM cases c WHERE tenant_id != 1 AND {live} GROUP BY category ORDER BY count DESC
+    """.format(live=live))
 
     # Status distribution
     status_vol = _q("""
         SELECT COALESCE(status, 'unknown') AS status, COUNT(*) AS count
-        FROM cases WHERE tenant_id != 1 GROUP BY status ORDER BY count DESC
-    """)
+        FROM cases c WHERE tenant_id != 1 AND {live} GROUP BY status ORDER BY count DESC
+    """.format(live=live))
 
     # Resolution time
     resolution_data = _q("""
@@ -3427,9 +3432,9 @@ def case_analytics(_=Depends(get_admin_user)):
                COUNT(*) AS resolved_cases,
                AVG(EXTRACT(EPOCH FROM (c.resolved_at - c.created_at)) / 3600) AS avg_hours
         FROM cases c JOIN tenants t ON c.tenant_id = t.id
-        WHERE c.resolved_at IS NOT NULL AND c.created_at IS NOT NULL AND t.name != 'System Admin'
+        WHERE c.resolved_at IS NOT NULL AND c.created_at IS NOT NULL AND t.name != 'System Admin' AND {live}
         GROUP BY t.id, t.name, t.constituency ORDER BY avg_hours
-    """)
+    """.format(live=live))
 
     resolution = []
     for r in resolution_data:
@@ -3446,7 +3451,7 @@ def case_analytics(_=Depends(get_admin_user)):
         })
 
     # Assembly distribution
-    assembly_data = _q("SELECT case_metadata FROM cases WHERE case_metadata IS NOT NULL AND tenant_id != 1")
+    assembly_data = _q(f"SELECT case_metadata FROM cases c WHERE case_metadata IS NOT NULL AND tenant_id != 1 AND {live}")
     ac_counts = {}
     for row in assembly_data:
         meta = _parse_meta(row.get("case_metadata"))
@@ -3899,7 +3904,7 @@ def require_super_admin(user=Depends(get_admin_user)):
 @router.get("/tenant-health")
 def tenant_health(_=Depends(get_admin_user)):
     """Per-tenant health status: last case, last login, status bucket."""
-    rows = _q("""
+    rows = _q(f"""
         SELECT t.id, t.name, t.constituency, t.is_active,
                MAX(c.created_at)  AS last_case,
                MAX(u.last_login)  AS last_login,
@@ -3907,7 +3912,7 @@ def tenant_health(_=Depends(get_admin_user)):
                SUM(CASE WHEN c.status = 'new' THEN 1 ELSE 0 END) AS open_cases,
                SUM(CASE WHEN c.created_at >= CURRENT_DATE - INTERVAL '30 days' THEN 1 ELSE 0 END) AS cases_last_30d
         FROM tenants t
-        LEFT JOIN cases c  ON c.tenant_id  = t.id
+        LEFT JOIN cases c  ON c.tenant_id  = t.id AND {sql_is_live("c")}
         LEFT JOIN users u  ON u.tenant_id  = t.id AND u.role = 'user'
         WHERE t.name != 'System Admin'
         GROUP BY t.id, t.name, t.constituency, t.is_active
@@ -3945,8 +3950,8 @@ def usage_analytics(_=Depends(get_admin_user)):
     result = []
     for t in tenants:
         tid = t["id"]
-        cases_month = (_q_one("SELECT COUNT(*) AS c FROM cases WHERE tenant_id=:t AND created_at>=:m", {"t": tid, "m": month_start}) or {}).get("c", 0)
-        cases_total = (_q_one("SELECT COUNT(*) AS c FROM cases WHERE tenant_id=:t", {"t": tid}) or {}).get("c", 0)
+        cases_month = (_q_one(f"SELECT COUNT(*) AS c FROM cases WHERE tenant_id=:t AND created_at>=:m AND {sql_is_live('cases')}", {"t": tid, "m": month_start}) or {}).get("c", 0)
+        cases_total = (_q_one(f"SELECT COUNT(*) AS c FROM cases WHERE tenant_id=:t AND {sql_is_live('cases')}", {"t": tid}) or {}).get("c", 0)
         letters = (_q_one("SELECT COUNT(*) AS c FROM activity_history WHERE tenant_id=:t AND activity_type='draft_letter' AND created_at>=:m", {"t": tid, "m": month_start}) or {}).get("c", 0)
         questions = (_q_one("SELECT COUNT(*) AS c FROM activity_history WHERE tenant_id=:t AND activity_type='draft_question' AND created_at>=:m", {"t": tid, "m": month_start}) or {}).get("c", 0)
         analysis = (_q_one("SELECT COUNT(*) AS c FROM activity_history WHERE tenant_id=:t AND activity_type IN ('analysis','copilot_chat') AND created_at>=:m", {"t": tid, "m": month_start}) or {}).get("c", 0)
@@ -4899,13 +4904,13 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
     login_str = last_login.isoformat() if last_login and hasattr(last_login, "isoformat") else (str(last_login) if last_login else "Never")
 
     # Case volumes
-    case_stats = _q_one("SELECT COUNT(*) AS total, SUM(CASE WHEN status='new' THEN 1 ELSE 0 END) AS open_cases, SUM(CASE WHEN status='resolved' THEN 1 ELSE 0 END) AS resolved, MAX(created_at) AS last_case FROM cases WHERE tenant_id = :t", {"t": tenant_id}) or {}
+    case_stats = _q_one(f"SELECT COUNT(*) AS total, SUM(CASE WHEN status='new' THEN 1 ELSE 0 END) AS open_cases, SUM(CASE WHEN status='resolved' THEN 1 ELSE 0 END) AS resolved, MAX(created_at) AS last_case FROM cases WHERE tenant_id = :t AND {sql_is_live('cases')}", {"t": tenant_id}) or {}
 
     last_case_ts = case_stats.get("last_case")
     last_case_str = last_case_ts.isoformat() if last_case_ts and hasattr(last_case_ts, "isoformat") else None
 
     # Last WhatsApp message (approximated by last case)
-    last_wa = _q_one("SELECT MAX(created_at) AS ts FROM cases WHERE tenant_id = :t", {"t": tenant_id})
+    last_wa = _q_one(f"SELECT MAX(created_at) AS ts FROM cases WHERE tenant_id = :t AND {sql_is_live('cases')}", {"t": tenant_id})
     last_wa_ts = last_wa.get("ts") if last_wa else None
     last_wa_str = last_wa_ts.isoformat() if last_wa_ts and hasattr(last_wa_ts, "isoformat") else None
 
@@ -5412,9 +5417,9 @@ def get_alerts(_=Depends(get_admin_user)):
 
     # 1. Tenants that went inactive (no cases in 7+ days but had activity before)
     try:
-        stale_tenants = _q("""
+        stale_tenants = _q(f"""
             SELECT t.id, t.name, t.constituency, MAX(c.created_at) AS last_case
-            FROM tenants t LEFT JOIN cases c ON c.tenant_id = t.id
+            FROM tenants t LEFT JOIN cases c ON c.tenant_id = t.id AND {sql_is_live("c")}
             WHERE t.name != 'System Admin' AND t.is_active = true
             GROUP BY t.id, t.name, t.constituency
             HAVING MAX(c.created_at) IS NOT NULL

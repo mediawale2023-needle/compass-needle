@@ -357,6 +357,11 @@ function CaseThreadContent({ item }) {
                 <span style={{ fontFamily: MONO, fontSize: T.caseId, fontWeight: 600, color: C.ink }}>
                     {item.case_ref || `#${item.id}`}
                 </span>
+                {item.is_synthetic_test_data && (
+                    <span aria-label="Synthetic test case" style={{ fontFamily: MONO, fontSize: T.meta, fontWeight: 700, color: C.rust, border: `1px solid ${C.rust}`, padding: '1px 5px' }}>
+                        TEST CASE
+                    </span>
+                )}
                 {item.is_critical && (
                     <span
                         title="Critical"

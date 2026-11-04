@@ -3693,6 +3693,11 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         language={meta.detected_language || meta.language}
                         narrow={isMobile}
                     />
+                    {current.is_synthetic_test_data && (
+                        <div role="status" style={{ padding: '8px 20px', background: '#F7E8D8', borderBottom: `1px solid ${C.hair}`, color: C.rust, fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.06em' }}>
+                            TEST CASE · Synthetic data. Citizen messages and government actions are disabled
+                        </div>
+                    )}
                     <ComplaintTabStrip
                         threadCases={threadCases}
                         activeCaseId={activeCaseId}

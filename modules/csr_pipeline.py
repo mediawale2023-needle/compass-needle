@@ -7,6 +7,7 @@ any outreach to companies. Volume thresholds are internal signals only.
 import logging
 from sqlalchemy import text
 from sansadx_backend.unified_taxonomy import canonicalize_category, convergence_sector_for
+from modules.synthetic_cases import sql_is_live
 
 logger = logging.getLogger("needle.csr_pipeline")
 
@@ -49,10 +50,11 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
           AND status = 'completed'
           AND location IS NOT NULL
           AND location != ''
+          AND {live}
         GROUP BY category
         HAVING COUNT(*) >= :threshold
         ORDER BY volume DESC
-    """)
+    """.format(live=sql_is_live("cases")))
 
     # Per-area breakdown for the dropdown
     area_query = text("""
@@ -65,9 +67,10 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
           AND status = 'completed'
           AND location IS NOT NULL
           AND location != ''
+          AND {live}
         GROUP BY category, location
         ORDER BY category, area_volume DESC
-    """)
+    """.format(live=sql_is_live("cases")))
 
     sample_query = text("""
         SELECT category, raw_message, location, assembly
@@ -76,9 +79,10 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
           AND status = 'completed'
           AND raw_message IS NOT NULL
           AND raw_message != ''
+          AND {live}
         ORDER BY created_at DESC
         LIMIT 80
-    """)
+    """.format(live=sql_is_live("cases")))
 
     try:
         with engine.connect() as conn:

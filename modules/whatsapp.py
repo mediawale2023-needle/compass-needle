@@ -11,6 +11,7 @@ import requests as http_requests
 from datetime import datetime
 
 from sansadx_backend.db import SessionLocal, WAOutboundMessage
+from modules.synthetic_cases import SyntheticCaseActionBlocked, is_synthetic_recipient
 
 logger = logging.getLogger("needle.whatsapp")
 
@@ -137,7 +138,13 @@ def send_whatsapp_message(
         RuntimeError: if the Meta API returns an error or the request fails.
 
     Returns True on success.
+
+    Raises SyntheticCaseActionBlocked (a ValueError) before any log row or network
+    call when the recipient is a synthetic test contact.
     """
+    if is_synthetic_recipient(to_number):
+        logger.warning("Blocked WhatsApp send to a synthetic test contact (tenant=%s case=%s)", tenant_id, case_id)
+        raise SyntheticCaseActionBlocked("Synthetic test contacts cannot receive WhatsApp messages.")
     # Per-tenant ID takes priority; fall back to global env var
     phone_number_id = phone_number_id or os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID")
     access_token = os.getenv("META_ACCESS_TOKEN")
