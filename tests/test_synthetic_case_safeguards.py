@@ -127,7 +127,7 @@ def test_background_poller_query_excludes_all_synthetic_provenance(monkeypatch):
 def test_execute_and_rollback_paths_use_managed_transactions():
     source = (seed.ROOT / "scripts" / "tenant9_delhi_synthetic_cases.py").read_text(encoding="utf-8")
     assert "with engine.begin() as conn:" in source
-    assert "rollback_preflight(conn, manifest)" in source
+    assert "rollback_preflight(conn, manifest, args.allow_worksheet_artifacts)" in source
     assert "case_activity_log" in source and "govt_submission_log" in source
 
 
@@ -164,3 +164,33 @@ def test_follow_up_sweep_and_brain_indexer_select_live_cases_only():
     from jobs import brain_indexer
     assert 'sql_is_live("cases")' in inspect.getsource(main._send_due_case_clarification_followups)
     assert "sql_is_live" in inspect.getsource(brain_indexer.index_cases_for_tenant)
+
+
+def test_seeded_assembly_survives_the_read_path_even_when_the_resolver_disagrees(monkeypatch):
+    import api_router
+    item = next(c for c in seed.load_manifest()["cases"] if c["assembly"] == "R K Puram")
+    meta = seed._metadata(seed.load_manifest(), item, "mp:New Delhi/R K Puram")
+    # A resolver that would "correct" the assembly from the complaint text must not be consulted.
+    monkeypatch.setattr(api_router, "resolve_location", lambda *a, **k: {"location_resolved": True, "matched_value": "Elsewhere", "assembly_constituency": "Wrong Assembly"})
+    monkeypatch.setattr(api_router, "assembly_belongs_to_parliamentary", lambda *a, **k: False)
+    case = {"raw_message": item["description"], "location": item["locality"], "assembly": item["assembly"], "case_metadata": meta}
+    result = api_router._apply_tenant_safe_case_geography(case, "New Delhi", 9)
+    assert (result["assembly"], result["location"]) == ("R K Puram", item["locality"])
+
+
+def test_dry_run_report_contains_no_identifying_values():
+    report = seed.redacted_report({
+        "tenant": {"id": 9, "name": "Bansuri Swaraj"}, "geography_keys": {a: f"mp:New Delhi/{a}" for a in seed.EXPECTED_ASSEMBLIES},
+        "counts": {"total": 0, "active": 0, "deleted": 0, "government_linked": 0},
+    })
+    blob = json.dumps(report)
+    assert "Bansuri" not in blob and "mp:" not in blob and report["geography_segments_verified"] == 10
+
+
+def test_production_dry_run_workflow_can_only_ever_dry_run():
+    text_ = (seed.ROOT / ".github" / "workflows" / "tenant9-synthetic-dry-run.yml").read_text(encoding="utf-8")
+    code = "\n".join(line for line in text_.splitlines() if not line.lstrip().startswith("#"))
+    assert "--dry-run" in code
+    assert "--execute" not in code and "--rollback" not in code
+    assert "inputs:" not in code, "no workflow input may be able to change the mode"
+    assert code.count("tenant9_delhi_synthetic_cases.py") == 1

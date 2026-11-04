@@ -30,6 +30,18 @@ EXPECTED_ASSEMBLIES = {
     "Karol Bagh", "Patel Nagar", "Moti Nagar", "Delhi Cantt", "Rajinder Nagar",
     "New Delhi", "Kasturba Nagar", "Malviya Nagar", "R K Puram", "Greater Kailash",
 }
+# Audit rows the Delhi staff-assisted worksheet endpoints write on a case. They are the ONLY
+# dependent rows --rollback --allow-worksheet-artifacts will remove; anything else aborts.
+WORKSHEET_LOG_ACTIONS = {"ai_translated", "delhi_ai_suggested", "delhi_filing_worksheet_saved"}
+WORKSHEET_ACTIVITY_ACTIONS = {"govt_delhi_worksheet_drafted", "govt_delhi_filing_saved"}
+WORKSHEET_STATUSES = (None, "not_forwarded", "pending_staff_submit")
+REQUIRED_CASE_COLUMNS = {
+    "id", "tenant_id", "user_phone", "raw_message", "category", "problem_domain", "problem_subdomain",
+    "status", "location", "ward", "assembly", "is_critical", "priority", "response_to_citizen",
+    "notes_for_staff", "case_metadata", "created_at", "updated_at", "status_changed_at", "is_deleted",
+    "case_ref", "govt_portal_id", "govt_department", "govt_reference_number", "govt_status",
+    "govt_status_updated_at", "govt_last_forwarded_to_citizen_at", "govt_submission_worksheet", "resolved_at",
+}
 EXPECTED_DISTRIBUTION = {
     "municipal_services": 5, "water_and_sewerage": 4, "electricity": 3,
     "public_infrastructure": 3, "social_welfare": 3, "miscellaneous_civic": 2,
@@ -105,11 +117,11 @@ def _tenant_preflight(conn, manifest: dict) -> dict:
 
 
 def _geography_preflight(conn, manifest: dict) -> dict[str, str]:
+    # Mirrors sansadx_backend.db.get_geography_data(): geography_data rows are shared seat geography and are
+    # matched by seat, NOT by tenant_id (the app never filters them by tenant).
     rows = conn.execute(text("""
-        SELECT key, value FROM tenant_overrides
-        WHERE override_type = 'geography_data'
-          AND (tenant_id = :tid OR tenant_id IS NULL)
-    """), {"tid": manifest["tenant_id"]}).mappings().all()
+        SELECT key, value FROM tenant_overrides WHERE override_type = 'geography_data'
+    """)).mappings().all()
     mapped: dict[str, set[str]] = {}
     keys: dict[str, str] = {}
     for row in rows:
@@ -121,7 +133,9 @@ def _geography_preflight(conn, manifest: dict) -> dict[str, str]:
             payload = row["value"] if isinstance(row["value"], (list, dict)) else json.loads(row["value"])
         except (TypeError, ValueError):
             raise PreflightBlocked(f"Invalid geography JSON for {row['key']}")
-        entries = payload if isinstance(payload, list) else [payload]
+        if not isinstance(payload, list):
+            continue  # the app ignores non-list payloads, so they cannot verify anything
+        entries = payload
         mapped.setdefault(assembly, set()).update(
             _norm(entry.get("locality") or entry.get("building_name"))
             for entry in entries if isinstance(entry, dict) and (entry.get("locality") or entry.get("building_name"))
@@ -136,6 +150,28 @@ def _geography_preflight(conn, manifest: dict) -> dict[str, str]:
     if missing_localities:
         raise PreflightBlocked("NEEDLE geography does not verify localities: " + ", ".join(missing_localities))
     return keys
+
+
+def _schema_preflight(conn) -> list[tuple[str, str]]:
+    """Fail closed unless this is the PostgreSQL schema the script was written for. Returns every
+    (table, column) that holds a foreign key to cases(id), discovered from the catalogue."""
+    if conn.dialect.name != "postgresql":
+        raise PreflightBlocked("a PostgreSQL database is required")
+    columns = {r[0]: r[1] for r in conn.execute(text(
+        "SELECT column_name, data_type FROM information_schema.columns "
+        "WHERE table_schema = current_schema() AND table_name = 'cases'")).all()}
+    missing = sorted(REQUIRED_CASE_COLUMNS - set(columns))
+    if missing:
+        raise PreflightBlocked("cases table is missing columns: " + ", ".join(missing))
+    if columns["case_metadata"] not in {"json", "jsonb"}:
+        raise PreflightBlocked(f"cases.case_metadata is {columns['case_metadata']}, expected json/jsonb")
+    return [(r[0], r[1]) for r in conn.execute(text("""
+        SELECT cl.relname, a.attname
+        FROM pg_constraint c
+        JOIN pg_class cl ON cl.oid = c.conrelid
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+        WHERE c.contype = 'f' AND c.confrelid = 'cases'::regclass
+        ORDER BY 1, 2""")).all()]
 
 
 def _counts(conn, tenant_id: int) -> dict:
@@ -163,10 +199,27 @@ def run_preflight(conn, manifest: dict) -> dict:
     errors = validate_static_manifest(manifest)
     if errors:
         raise PreflightBlocked("; ".join(errors))
+    _schema_preflight(conn)
     tenant = _tenant_preflight(conn, manifest)
     geography_keys = _geography_preflight(conn, manifest)
     _collision_preflight(conn, manifest)
     return {"tenant": tenant, "geography_keys": geography_keys, "counts": _counts(conn, manifest["tenant_id"])}
+
+
+def redacted_report(preflight: dict) -> dict:
+    """What a dry-run may print. CI logs of this repository are public, so no tenant name, database name,
+    phone number, geography key or any other identifying value is included - only pass/fail and counts."""
+    tenant = preflight["tenant"]
+    return {
+        "tenant_id": tenant["id"],
+        "tenant_identity_verified": True,
+        "constituency_verified": True,
+        "geography_segments_verified": len(preflight["geography_keys"]),
+        "localities_verified": 20,
+        "taxonomy_and_departments_verified": True,
+        "reference_and_batch_collisions": 0,
+        "existing_case_counts": preflight["counts"],
+    }
 
 
 def _metadata(manifest: dict, item: dict, geography_key: str) -> dict:
@@ -185,6 +238,10 @@ def _metadata(manifest: dict, item: dict, geography_key: str) -> dict:
         "matched_value": item["locality"],
         "geography_key": geography_key,
         "location_resolved": True,
+        # Same mechanism staff use for a manual correction: stops _apply_tenant_safe_case_geography from
+        # re-resolving the assembly from the (synthetic) complaint text on read.
+        "geography_locked": True,
+        "geography_source": "synthetic_manifest",
         "user_intent": "complaint",
         "external_actions_disabled": True,
     }
@@ -223,10 +280,22 @@ def execute(conn, manifest: dict, preflight: dict) -> list[int]:
     return inserted
 
 
-def rollback_preflight(conn, manifest: dict) -> list[int]:
+def _worksheet_portal_id(conn):
+    from modules.govt_sync.delhi_portal import PORTAL_NAME
+    return conn.execute(text("SELECT id FROM govt_portals WHERE portal_name = :n"), {"n": PORTAL_NAME}).scalar()
+
+
+def rollback_preflight(conn, manifest: dict, allow_worksheet_artifacts: bool = False) -> tuple[list[int], dict]:
+    """Validate that exactly the 20 batch rows exist and nothing real depends on them.
+
+    Returns (case ids, removable worksheet-artifact row counts). By default ANY dependent row aborts.
+    With allow_worksheet_artifacts, only the audit rows the Delhi staff-assisted worksheet endpoints write
+    (see WORKSHEET_*) - plus the Delhi portal link and 'pending_staff_submit' they set - may be removed.
+    Anything else (government reference, citizen forward, other tables, other actions) still aborts.
+    """
     rows = conn.execute(text("""
         SELECT id, case_ref, govt_portal_id, govt_reference_number, govt_status,
-               govt_last_forwarded_to_citizen_at
+               govt_last_forwarded_to_citizen_at, resolved_at
         FROM cases
         WHERE tenant_id = :tid AND case_metadata::jsonb->>'synthetic_batch_id' = :batch
         ORDER BY case_ref
@@ -235,17 +304,40 @@ def rollback_preflight(conn, manifest: dict) -> list[int]:
     if [row["case_ref"] for row in rows] != expected:
         raise PreflightBlocked("rollback batch is partial, duplicated or has unexpected references")
     ids = [row["id"] for row in rows]
-    if any(row["govt_portal_id"] or row["govt_reference_number"] or row["govt_last_forwarded_to_citizen_at"] or row["govt_status"] not in (None, "not_forwarded") for row in rows):
-        raise PreflightBlocked("rollback aborted: a case acquired government or notification state")
-    activity = conn.execute(text("SELECT COUNT(*) FROM case_activity_log WHERE tenant_id = :tid AND case_id = ANY(:ids)"), {"tid": manifest["tenant_id"], "ids": ids}).scalar_one()
-    govt_logs = conn.execute(text("SELECT COUNT(*) FROM govt_submission_log WHERE tenant_id = :tid AND case_id = ANY(:ids)"), {"tid": manifest["tenant_id"], "ids": ids}).scalar_one()
-    if activity or govt_logs:
-        raise PreflightBlocked("rollback aborted: cases have staff or government activity")
-    return ids
+    delhi_portal_id = _worksheet_portal_id(conn) if allow_worksheet_artifacts else None
+    allowed_statuses = WORKSHEET_STATUSES if allow_worksheet_artifacts else (None, "not_forwarded")
+    for row in rows:
+        portal_ok = row["govt_portal_id"] is None or (allow_worksheet_artifacts and row["govt_portal_id"] == delhi_portal_id)
+        if (not portal_ok or row["govt_reference_number"] or row["govt_last_forwarded_to_citizen_at"]
+                or row["resolved_at"] or row["govt_status"] not in allowed_statuses):
+            raise PreflightBlocked("rollback aborted: a case acquired government or notification state")
+
+    artifacts: dict[str, int] = {}
+    unexpected: list[str] = []
+    for table, column in _schema_preflight(conn):
+        # Identifiers come from the PostgreSQL catalogue (not user input) and are quoted.
+        total = conn.execute(text(f'SELECT COUNT(*) FROM "{table}" WHERE "{column}" = ANY(:ids)'), {"ids": ids}).scalar_one()  # nosec B608
+        if not total:
+            continue
+        actions = {"govt_submission_log": WORKSHEET_LOG_ACTIONS, "case_activity_log": WORKSHEET_ACTIVITY_ACTIONS}.get(table)
+        removable = 0
+        if actions and column == "case_id":
+            removable = conn.execute(text(f'SELECT COUNT(*) FROM "{table}" WHERE case_id = ANY(:ids) AND tenant_id = :tid AND action = ANY(:actions)'),  # nosec B608
+                                     {"ids": ids, "tid": manifest["tenant_id"], "actions": sorted(actions)}).scalar_one()
+        if removable != total or not allow_worksheet_artifacts:
+            unexpected.append(f"{table}={total}")
+        else:
+            artifacts[table] = removable
+    if unexpected:
+        raise PreflightBlocked("rollback aborted: cases have dependent rows (" + ", ".join(unexpected) + ")"
+                               + ("" if allow_worksheet_artifacts else "; worksheet-only artifacts need --allow-worksheet-artifacts"))
+    return ids, artifacts
 
 
 def _environment_guard(args, conn) -> str:
     env = os.getenv("ENV", "development").strip().lower()
+    if conn.dialect.name != "postgresql":
+        raise PreflightBlocked("a PostgreSQL database is required")
     db_name = conn.execute(text("SELECT current_database()")) .scalar_one()
     if args.execute or args.rollback:
         if env == "production":
@@ -268,28 +360,42 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--rollback", action="store_true")
     parser.add_argument("--confirm-production", default="")
     parser.add_argument("--confirm-database-name", default="")
+    parser.add_argument("--allow-worksheet-artifacts", action="store_true",
+                        help="rollback only: also remove the Delhi worksheet audit rows/link written while testing the staff-assisted workflow")
     args = parser.parse_args(argv)
     manifest = load_manifest()
+    environment = os.getenv("ENV", "development").strip().lower()
     try:
         if args.rollback:
             with engine.begin() as conn:
-                db_name = _environment_guard(args, conn)
+                _environment_guard(args, conn)
                 _tenant_preflight(conn, manifest)
-                ids = rollback_preflight(conn, manifest)
-                conn.execute(text("DELETE FROM cases WHERE tenant_id = :tid AND id = ANY(:ids)"), {"tid": manifest["tenant_id"], "ids": ids})
-                print(json.dumps({"mode": "rollback", "database": db_name, "deleted_ids": ids}, default=str))
+                ids, artifacts = rollback_preflight(conn, manifest, args.allow_worksheet_artifacts)
+                for table in artifacts:
+                    conn.execute(text(f'DELETE FROM "{table}" WHERE case_id = ANY(:ids) AND tenant_id = :tid'),  # nosec B608
+                                 {"ids": ids, "tid": manifest["tenant_id"]})
+                deleted = conn.execute(text("DELETE FROM cases WHERE tenant_id = :tid AND id = ANY(:ids)"), {"tid": manifest["tenant_id"], "ids": ids})
+                if deleted.rowcount != len(ids):
+                    raise PreflightBlocked("rollback deleted an unexpected number of rows; transaction aborted")
+                print(json.dumps({"mode": "rollback", "environment": environment, "deleted_ids": ids, "removed_worksheet_artifacts": artifacts}, default=str))
         else:
             context = engine.begin() if args.execute else engine.connect()
             with context as conn:
-                db_name = _environment_guard(args, conn)
+                if not args.execute and conn.dialect.name == "postgresql":
+                    # Hard guarantee that a dry run cannot write, whatever the code below does.
+                    conn.execute(text("SET TRANSACTION READ ONLY"))
+                _environment_guard(args, conn)
                 preflight = run_preflight(conn, manifest)
-                result = {"mode": "execute" if args.execute else "dry-run", "database": db_name, "preflight": preflight, "manifest_count": 20}
+                result = {"mode": "execute" if args.execute else "dry-run", "environment": environment,
+                          "dialect": conn.dialect.name, "manifest_count": 20}
                 if args.execute:
                     result["inserted_ids"] = execute(conn, manifest, preflight)
+                else:
+                    result.update(status="OK", would_insert=20, **redacted_report(preflight))
                 print(json.dumps(result, default=str))
         return 0
     except PreflightBlocked as exc:
-        print(json.dumps({"status": "BLOCKED", "reason": str(exc)}), file=sys.stderr)
+        print(json.dumps({"status": "BLOCKED", "environment": environment, "reason": str(exc)}), file=sys.stderr)
         return 2
 
 

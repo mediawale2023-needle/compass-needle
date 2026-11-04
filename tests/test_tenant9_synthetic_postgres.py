@@ -16,10 +16,11 @@ import sys
 import pytest
 
 PG_URL = os.environ.get("NEEDLE_PG_TEST_URL", "")
-if not PG_URL.startswith("postgresql"):
-    pytest.skip("NEEDLE_PG_TEST_URL not set to a PostgreSQL URL", allow_module_level=True)
+# A mark (not a module-level skip): the file stays collectable so scripts/run_backend_tests.sh sees a
+# skip with exit code 0 instead of "no tests collected" (exit 5).
+pytestmark = pytest.mark.skipif(not PG_URL.startswith("postgresql"), reason="NEEDLE_PG_TEST_URL not set to a PostgreSQL URL")
 
-os.environ["DATABASE_URL"] = PG_URL
+os.environ["DATABASE_URL"] = PG_URL if PG_URL.startswith("postgresql") else os.environ.get("DATABASE_URL", "sqlite:///./test_tenant9_synthetic_postgres_unused.db")
 os.environ.setdefault("ENV", "test")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-32-characters-minimum-ok")
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-fake-key-for-testing")
@@ -31,17 +32,16 @@ import sansadx_backend.db as dbmod
 from modules.synthetic_cases import sql_is_live, sql_is_synthetic
 from scripts import tenant9_delhi_synthetic_cases as seed
 
-pg_engine = create_engine(PG_URL)
+pg_engine = create_engine(PG_URL) if PG_URL.startswith("postgresql") else None
 MANIFEST = seed.load_manifest()
-TABLES = ["case_activity_log", "govt_submission_log", "cases", "tenant_overrides", "tenant_profiles", "contacts", "tenants"]
+TABLES = ["case_activity_log", "govt_submission_log", "cases", "govt_portals", "tenant_overrides", "tenant_profiles", "contacts", "tenants"]
 
 
 @pytest.fixture(autouse=True)
 def database(monkeypatch):
     dbmod.Base.metadata.create_all(pg_engine)
     with pg_engine.begin() as conn:
-        for table in TABLES:
-            conn.execute(text(f"DELETE FROM {table}"))
+        conn.execute(text("TRUNCATE " + ", ".join(TABLES) + " RESTART IDENTITY CASCADE"))  # disposable DB; CASCADE also clears other suites' leftovers
         conn.execute(text("INSERT INTO tenants (id, name, constituency, tenant_type, account_stage, seat_type, is_active) "
                           "VALUES (9, 'Bansuri Swaraj', 'New Delhi', 'mp', 'elected', 'mp', true), "
                           "(10, 'Other MP', 'Elsewhere', 'mp', 'elected', 'mp', true)"))
@@ -56,6 +56,8 @@ def database(monkeypatch):
     monkeypatch.setattr(seed, "engine", pg_engine)
     monkeypatch.setenv("ENV", "test")
     yield
+    with pg_engine.begin() as conn:  # leave the disposable database empty for whatever runs next
+        conn.execute(text("TRUNCATE " + ", ".join(TABLES) + " RESTART IDENTITY CASCADE"))
 
 
 def _count(sql, **params):
@@ -68,6 +70,25 @@ def _insert_genuine_case(tenant_id, ref):
         conn.execute(text("INSERT INTO cases (tenant_id, user_phone, raw_message, status, case_ref, case_metadata, is_deleted) "
                           "VALUES (:t, '919800000001', 'Genuine complaint', 'new', :r, CAST('{}' AS JSONB), false)"),
                      {"t": tenant_id, "r": ref})
+
+
+def _delhi_portal_id():
+    from sqlalchemy.orm import Session
+    with Session(pg_engine) as session:  # the ORM applies the model's NOT NULL defaults
+        portal = dbmod.GovtPortal(state="Delhi", portal_name="Delhi CM Jan Sunwai", base_url="https://example.invalid/", active=False)
+        session.add(portal)
+        session.commit()
+        return portal.id
+
+
+def _simulate_worksheet_testing(portal_id, ref="SYN-T9-DL-003", log_action="ai_translated", activity_action="govt_delhi_worksheet_drafted"):
+    """What POST .../govt/delhi/prepare-worksheet writes on a case."""
+    with pg_engine.begin() as conn:
+        conn.execute(text("UPDATE cases SET govt_portal_id = :p, govt_status = 'pending_staff_submit' WHERE case_ref = :r"), {"p": portal_id, "r": ref})
+        cid = conn.execute(text("SELECT id FROM cases WHERE case_ref = :r"), {"r": ref}).scalar_one()
+        conn.execute(text("INSERT INTO govt_submission_log (tenant_id, case_id, action, actor_username, payload, created_at) VALUES (9, :c, :a, 'staff', CAST('{}' AS JSON), now())"), {"c": cid, "a": log_action})
+        conn.execute(text("INSERT INTO case_activity_log (tenant_id, case_id, username, action, created_at) VALUES (9, :c, 'staff', :a, now())"), {"c": cid, "a": activity_action})
+    return cid
 
 
 def _run(*argv, capsys):
@@ -194,3 +215,123 @@ def test_whatsapp_transport_refuses_synthetic_contacts(monkeypatch):
     monkeypatch.setattr(wa.http_requests, "post", no_network)
     with pytest.raises(SyntheticCaseActionBlocked):
         wa.send_whatsapp_message("synthetic:test:tenant9:001", "hello", "123", tenant_id=9)
+
+
+# ---- review hardening: redaction, read-only dry run, geography master, worksheet-aware rollback ----
+
+def test_dry_run_output_is_redacted_for_public_ci_logs(capsys):
+    code, out, err = _run("--dry-run", capsys=capsys)
+    assert code == 0, err
+    report = json.loads(out)
+    assert report["status"] == "OK" and report["would_insert"] == 20 and report["environment"] == "test"
+    for forbidden in ("Bansuri", "needle_t9", "New Delhi/", "mp:", "synthetic:"):
+        assert forbidden not in out, forbidden
+
+
+def test_dry_run_runs_in_a_read_only_transaction(capsys, monkeypatch):
+    from sqlalchemy.exc import InternalError
+    real = seed.run_preflight
+
+    def preflight_then_try_to_write(conn, manifest):
+        result = real(conn, manifest)
+        with pytest.raises(InternalError):  # ReadOnlySqlTransaction
+            conn.execute(text("INSERT INTO tenants (id, name) VALUES (99, 'x')"))
+        return result
+
+    monkeypatch.setattr(seed, "run_preflight", preflight_then_try_to_write)
+    code, _out, err = _run("--dry-run", capsys=capsys)
+    assert code == 0, err
+    assert _count("SELECT COUNT(*) FROM tenants WHERE id = 99") == 0
+
+
+def test_geography_rows_are_matched_by_seat_not_tenant_like_the_app(capsys):
+    with pg_engine.begin() as conn:  # shared seat geography owned by another tenant / by nobody
+        conn.execute(text("UPDATE tenant_overrides SET tenant_id = 10 WHERE key LIKE 'mp:New Delhi/%' AND key LIKE '%Karol Bagh'"))
+        conn.execute(text("UPDATE tenant_overrides SET tenant_id = NULL WHERE key LIKE 'mp:New Delhi/%' AND key LIKE '%Moti Nagar'"))
+    assert _run("--dry-run", capsys=capsys)[0] == 0
+
+
+def test_non_list_geography_payload_cannot_verify_a_locality(capsys):
+    with pg_engine.begin() as conn:
+        conn.execute(text("UPDATE tenant_overrides SET value = :v WHERE key = 'mp:New Delhi/Malviya Nagar'"), {"v": json.dumps({"locality": "Malviya Nagar"})})
+    code, _out, err = _run("--dry-run", capsys=capsys)
+    assert code == 2 and "Malviya Nagar" in err
+
+
+def test_unsupported_case_metadata_column_type_blocks(capsys):
+    with pg_engine.begin() as conn:
+        conn.execute(text("ALTER TABLE cases ALTER COLUMN case_metadata TYPE text USING case_metadata::text"))
+    try:
+        code, _out, err = _run("--dry-run", capsys=capsys)
+    finally:
+        with pg_engine.begin() as conn:
+            conn.execute(text("ALTER TABLE cases ALTER COLUMN case_metadata TYPE json USING case_metadata::json"))
+    assert code == 2 and "expected json/jsonb" in err
+
+
+def test_seeded_cases_are_geography_locked_so_reads_cannot_rewrite_the_assembly(capsys):
+    assert _run("--execute", capsys=capsys)[0] == 0
+    with pg_engine.connect() as conn:
+        metas = [r[0] for r in conn.execute(text("SELECT case_metadata FROM cases WHERE case_ref LIKE 'SYN-T9-DL-%'")).all()]
+    assert len(metas) == 20 and all(m["geography_locked"] is True for m in metas)
+
+
+def test_rollback_is_strict_by_default_when_worksheet_testing_happened(capsys):
+    assert _run("--execute", capsys=capsys)[0] == 0
+    _simulate_worksheet_testing(_delhi_portal_id())
+    code, _out, err = _run("--rollback", capsys=capsys)
+    assert code == 2 and "rollback aborted" in err
+    assert _count("SELECT COUNT(*) FROM cases WHERE case_ref LIKE 'SYN-T9-DL-%'") == 20
+
+
+def test_rollback_can_remove_exactly_the_worksheet_artifacts_when_allowed(capsys):
+    _insert_genuine_case(9, "GENUINE-1")
+    with pg_engine.begin() as conn:
+        conn.execute(text("INSERT INTO case_activity_log (tenant_id, case_id, username, action, created_at) "
+                          "SELECT 9, id, 'staff', 'govt_delhi_worksheet_drafted', now() FROM cases WHERE case_ref = 'GENUINE-1'"))
+    assert _run("--execute", capsys=capsys)[0] == 0
+    portal_id = _delhi_portal_id()
+    _simulate_worksheet_testing(portal_id, "SYN-T9-DL-003")
+    _simulate_worksheet_testing(portal_id, "SYN-T9-DL-004", "delhi_ai_suggested", "govt_delhi_filing_saved")
+    code, out, err = _run("--rollback", "--allow-worksheet-artifacts", capsys=capsys)
+    assert code == 0, err
+    assert json.loads(out)["removed_worksheet_artifacts"] == {"case_activity_log": 2, "govt_submission_log": 2}
+    assert _count("SELECT COUNT(*) FROM cases WHERE case_ref LIKE 'SYN-T9-DL-%'") == 0
+    assert _count("SELECT COUNT(*) FROM cases WHERE case_ref = 'GENUINE-1'") == 1
+    assert _count("SELECT COUNT(*) FROM case_activity_log") == 1  # the genuine case's row survived
+
+
+@pytest.mark.parametrize("tamper", [
+    "INSERT INTO case_activity_log (tenant_id, case_id, username, action, created_at) SELECT 9, id, 'staff', 'status_changed', now() FROM cases WHERE case_ref = 'SYN-T9-DL-003'",
+    "INSERT INTO govt_submission_log (tenant_id, case_id, action, actor_username, payload, created_at) SELECT 9, id, 'staff_submitted', 'staff', CAST('{}' AS JSON), now() FROM cases WHERE case_ref = 'SYN-T9-DL-003'",
+    "UPDATE cases SET govt_reference_number = '1234' WHERE case_ref = 'SYN-T9-DL-003'",
+    "UPDATE cases SET govt_status = 'submitted' WHERE case_ref = 'SYN-T9-DL-003'",
+    "UPDATE cases SET govt_last_forwarded_to_citizen_at = now() WHERE case_ref = 'SYN-T9-DL-003'",
+])
+def test_artifact_flag_never_excuses_genuine_activity(capsys, tamper):
+    assert _run("--execute", capsys=capsys)[0] == 0
+    _simulate_worksheet_testing(_delhi_portal_id(), "SYN-T9-DL-004")
+    with pg_engine.begin() as conn:
+        conn.execute(text(tamper))
+    activity_before = _count("SELECT COUNT(*) FROM case_activity_log")
+    logs_before = _count("SELECT COUNT(*) FROM govt_submission_log")
+    code, _out, err = _run("--rollback", "--allow-worksheet-artifacts", capsys=capsys)
+    assert code == 2 and "rollback aborted" in err
+    assert _count("SELECT COUNT(*) FROM cases WHERE case_ref LIKE 'SYN-T9-DL-%'") == 20
+    # nothing was deleted, not even the removable worksheet rows (single all-or-nothing transaction)
+    assert _count("SELECT COUNT(*) FROM case_activity_log") == activity_before
+    assert _count("SELECT COUNT(*) FROM govt_submission_log") == logs_before
+
+
+def test_rollback_aborts_on_rows_in_any_other_table_that_references_the_cases(capsys):
+    assert _run("--execute", capsys=capsys)[0] == 0
+    with pg_engine.begin() as conn:
+        conn.execute(text("CREATE TABLE t9_extra_dependency (case_id integer REFERENCES cases(id))"))
+        conn.execute(text("INSERT INTO t9_extra_dependency SELECT id FROM cases WHERE case_ref = 'SYN-T9-DL-001'"))
+    try:
+        code, _out, err = _run("--rollback", "--allow-worksheet-artifacts", capsys=capsys)
+    finally:
+        with pg_engine.begin() as conn:
+            conn.execute(text("DROP TABLE t9_extra_dependency"))
+    assert code == 2 and "t9_extra_dependency=1" in err
+    assert _count("SELECT COUNT(*) FROM cases WHERE case_ref LIKE 'SYN-T9-DL-%'") == 20

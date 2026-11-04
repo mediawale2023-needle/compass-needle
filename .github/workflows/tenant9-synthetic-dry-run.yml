@@ -1,0 +1,93 @@
+name: Tenant 9 Synthetic Cases Dry Run
+
+# Manually triggered, STRICTLY READ-ONLY. Runs
+#   scripts/tenant9_delhi_synthetic_cases.py --dry-run
+# inside the production backend container. The script opens a READ ONLY
+# transaction before it runs any check (so it cannot write even by mistake) and
+# verifies tenant identity, the New Delhi assembly geography, the case schema,
+# taxonomy, department catalogue and reference/batch collisions.
+#
+# There is deliberately no input that can change the mode: --execute and
+# --rollback are never invoked from this workflow and need a separate, explicit
+# production authorisation with their own confirmation phrase.
+#
+# Logs are public: only JSON lines produced by the script are echoed, and the
+# script's dry-run report is redacted (counts and pass/fail, never names, phone
+# numbers, geography keys or the database name). Any unexpected error is
+# replaced by a generic message.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    name: Report Tenant 9 synthetic-case readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions tenant9-synthetic-dry-run'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Run Read-Only Dry Run Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 8m
+          script: |
+            set -uo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            ERR=$(mktemp)
+            trap 'rm -f "$ERR"' EXIT
+            set +e
+            OUT=$(docker compose -f "$COMPOSE" exec -T backend \
+              python scripts/tenant9_delhi_synthetic_cases.py --dry-run 2>"$ERR")
+            RC=$?
+            set -e
+            # Echo ONLY the script's own redacted JSON lines; never raw tracebacks.
+            echo "$OUT" | grep '^{' || true
+            grep '^{' "$ERR" || true
+            if [ "$RC" -ne 0 ] && ! grep -q '^{' "$ERR"; then
+              echo '{"status":"ERROR","reason":"unexpected failure; details withheld because workflow logs are public"}'
+            fi
+            exit "$RC"
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true

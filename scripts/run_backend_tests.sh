@@ -12,7 +12,12 @@ PY="${PYTHON_BIN:-venv/bin/python}"
 failed=()
 for f in tests/test_*.py; do
   echo "── ${f}"
-  if ! "$PY" -m pytest "$f" -q; then
+  out=$("$PY" -m pytest "$f" -q 2>&1)
+  rc=$?
+  echo "$out"
+  # Exit 5 = "no tests collected". That is a failure, EXCEPT for an opt-in file that skipped itself at
+  # module level (e.g. real-PostgreSQL files without their NEEDLE_*_PG_URL), which reports "skipped".
+  if [ "$rc" -ne 0 ] && ! { [ "$rc" -eq 5 ] && grep -qE '[0-9]+ skipped' <<<"$out"; }; then
     failed+=("$f")
   fi
   # Per-file sqlite artifacts (test files create them in the repo root)
