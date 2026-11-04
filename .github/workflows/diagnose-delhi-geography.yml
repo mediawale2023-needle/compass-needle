@@ -1,0 +1,163 @@
+name: Diagnose Delhi Geography
+
+# Manually triggered, STRICTLY READ-ONLY. Runs
+# .github/diagnostics/diagnose_delhi_geography.sql against production: where (if
+# anywhere) the ten New Delhi assembly segments live in
+# tenant_overrides.geography_data, under which seat keys and spellings, whether
+# the payloads are lists, and the related tenant / seat-map / gazetteer state.
+#
+# Why this cannot run arbitrary SQL or commands:
+#   * no workflow inputs - nothing the dispatcher types reaches a shell or psql;
+#   * the SQL file is pinned by SHA-256 below and re-checked before any secret is
+#     touched, so any edit to it requires a reviewed edit to this file too;
+#   * the file must open a READ ONLY transaction, end in ROLLBACK, and use only an
+#     allow-list of psql meta-commands (no \! shell escapes, \copy, \i, \o, ...);
+#   * psql itself is started with default_transaction_read_only=on, so the server
+#     refuses writes even if the file were wrong.
+#
+# Writes nothing. Logs are public: the SQL selects only geography and seat names
+# (for Delhi-looking rows), counts and yes/no flags - never citizen data, phone
+# numbers, message text, tenant or MP names, or station payloads. The runner's IP
+# address is never printed.
+#
+# The SQL lives under .github/diagnostics/ (not scripts/) on purpose: pushes to
+# scripts/** trigger a production backend deploy, and a diagnostic must not.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+# Least privilege: checkout only reads repository contents. No write scopes, no
+# id-token, no package/issue/PR access.
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Report Delhi geography state
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+      SQL_FILE: .github/diagnostics/diagnose_delhi_geography.sql
+      EXPECTED_SQL_SHA256: "b8d5ffd39f89f13f820bc6fc658d88dc3d1b391012524c72f6420d7e866615e7"
+
+    steps:
+      # Third-party actions that receive the AWS keys / SSH key are pinned to commit SHAs.
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Validate Diagnostic SQL (pinned, read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL="$(sha256sum "$SQL_FILE" | cut -d' ' -f1)"
+          if [ "$ACTUAL" != "$EXPECTED_SQL_SHA256" ]; then
+            echo "::error::Diagnostic SQL does not match the reviewed, pinned version."
+            exit 1
+          fi
+          grep -q '^BEGIN TRANSACTION READ ONLY;' "$SQL_FILE"
+          tail -n 3 "$SQL_FILE" | grep -q '^ROLLBACK;'
+          # Only these psql meta-commands may appear (a command starts a line or follows whitespace/;).
+          BAD="$(grep -oE '(^|[[:space:];])\\[A-Za-z!?]+' "$SQL_FILE" | tr -d ' ;' | sort -u | grep -vE '^\\(echo|pset|gset|if|else|endif)$' || true)"
+          if [ -n "$BAD" ]; then
+            echo "::error::Disallowed psql meta-command(s) in diagnostic SQL."
+            exit 1
+          fi
+          echo "SQL_B64=$(base64 -w0 "$SQL_FILE")" >> "$GITHUB_ENV"
+          echo "Diagnostic SQL validated (sha256 matches the pinned version)."
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Opens port 22 to exactly this runner's /32 and nothing else.
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -fsS https://checkip.amazonaws.com | tr -d '[:space:]')"
+          if ! [[ "$RUNNER_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+            echo "::error::Could not determine a valid runner IPv4 address; refusing to open SSH."
+            exit 1
+          fi
+          # Recorded BEFORE the authorize call so the cleanup step always knows what to revoke.
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          set +e
+          OUT="$(aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions diagnose-delhi-geography'}]" 2>&1)"
+          RC=$?
+          set -e
+          if [ "$RC" -ne 0 ] && ! grep -q 'InvalidPermission.Duplicate' <<<"$OUT"; then
+            echo "::error::Failed to open SSH for the runner (details withheld; logs are public)."
+            exit 1
+          fi
+          echo "SSH opened for this runner only (/32, port 22)."
+
+      - name: Run Read-Only Diagnostic Over SSH
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 8m
+          envs: SQL_B64
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            SQLFILE="$(mktemp /tmp/diagnose_delhi_geography_XXXXXX.sql)"
+            trap 'rm -f "$SQLFILE"' EXIT
+            echo "$SQL_B64" | base64 -d > "$SQLFILE"
+            # default_transaction_read_only=on: the server rejects writes even if the file were wrong.
+            docker compose -f "$COMPOSE" exec -T postgres sh -c \
+              'PGOPTIONS="-c default_transaction_read_only=on" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' < "$SQLFILE"
+
+      # Unconditional (always()): runs on success, failure and cancellation. It must
+      # leave port 22 closed again or the job fails loudly.
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          set -uo pipefail
+          CIDR="${{ steps.ssh_ip.outputs.runner_ip }}/32"
+          set +e
+          OUT="$(aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${CIDR}}]" 2>&1)"
+          RC=$?
+          set -e
+          if [ "$RC" -ne 0 ] && ! grep -q 'InvalidPermission.NotFound' <<<"$OUT"; then
+            echo "::error::FAILED to revoke the runner's SSH rule - port 22 may still be open to it. Revoke it manually."
+            exit 1
+          fi
+          # Independent verification (needs ec2:DescribeSecurityGroups).
+          if J="$(aws ec2 describe-security-groups --region "$AWS_REGION" --group-ids "$EC2_SECURITY_GROUP_ID" --output json 2>/dev/null)"; then
+            LEFT="$(jq --arg c "$CIDR" '[.SecurityGroups[0].IpPermissions[]? | select(.FromPort==22) | .IpRanges[]? | select(.CidrIp==$c)] | length' <<<"$J")"
+            if [ "$LEFT" != "0" ]; then
+              echo "::error::The runner's SSH rule is STILL PRESENT after revoke."
+              exit 1
+            fi
+            echo "Verified: this runner's SSH rule is gone."
+            # Report-only: leftovers from earlier runs of any diagnostic workflow (never auto-revoked here).
+            STALE="$(jq '[.SecurityGroups[0].IpPermissions[]? | select(.FromPort==22) | .IpRanges[]? | select((.Description // "") | startswith("GitHub Actions"))] | length' <<<"$J")"
+            echo "Other lingering 'GitHub Actions' SSH rules on this security group: ${STALE}"
+            if [ "$STALE" != "0" ]; then
+              echo "::warning::${STALE} other GitHub-Actions-created SSH rule(s) remain on the security group. Review and revoke them."
+            fi
+          else
+            echo "::warning::Could not describe the security group; the revoke call succeeded but removal was not independently verified."
+          fi
