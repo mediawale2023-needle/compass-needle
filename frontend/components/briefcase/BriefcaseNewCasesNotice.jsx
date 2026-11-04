@@ -1,6 +1,7 @@
 'use client';
 
 import { briefcasePalette as P } from '@/components/briefcase/briefcase-shared';
+import { gen2Type as T } from '@/lib/briefcase-tokens';
 
 export default function BriefcaseNewCasesNotice({ onRefresh }) {
     return (
@@ -14,7 +15,7 @@ export default function BriefcaseNewCasesNotice({ onRefresh }) {
                 border: `1px solid ${P.green}`,
                 background: P.greenTint,
                 color: P.greenDeep,
-                fontSize: 12,
+                fontSize: T.small,
                 fontWeight: 600,
             }}
         >
@@ -22,7 +23,7 @@ export default function BriefcaseNewCasesNotice({ onRefresh }) {
             <button
                 onClick={onRefresh}
                 style={{
-                    fontSize: 10.5,
+                    fontSize: T.label,
                     textTransform: 'uppercase',
                     letterSpacing: '0.12em',
                     border: 'none',

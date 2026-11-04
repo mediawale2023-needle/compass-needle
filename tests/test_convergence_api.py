@@ -3,6 +3,7 @@ import sys
 from datetime import datetime, timedelta
 
 import jwt
+from tests.auth_token_claims import credential_claims
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
@@ -244,7 +245,7 @@ def _insert_completed_cases(tenant_id: int, category: str, count: int, message: 
 
 def _make_token(username: str, tenant_id: int) -> str:
     now = datetime.utcnow()
-    payload = {
+    payload = {**credential_claims(test_engine, username),
         "sub": username,
         "tid": tenant_id,
         "role": "mp",

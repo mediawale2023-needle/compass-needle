@@ -85,6 +85,54 @@ def test_civic_drainage_message_overrides_silent_media_category(monkeypatch):
     assert enrichment["meta_data"]["is_silent_log_category"] is False
 
 
+def test_road_bad_condition_message_is_not_silenced_as_media(monkeypatch):
+    monkeypatch.setenv("CLASSIFICATION_MODE", "on")
+    msg = "Mahatma Phule Road is in very bad condition. Needs immediate attention"
+
+    monkeypatch.setattr("main.get_user_context", lambda _sender: "")
+    monkeypatch.setattr(
+        "main.ask_chatgpt_agent",
+        lambda _prompt, tenant_id: {
+            "status": "new",
+            "detected_language": "English",
+            "case_category": "Media / Press Outreach",
+            "political_response": "Thank you for reaching out.",
+            "grievance_data": {
+                "categories": [],
+                "problem_domain": None,
+                "problem_subdomain": None,
+                "convergence_program_type": None,
+                "location": "Mahatma Phule Road",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        "main._finalize_whatsapp_geography_decision",
+        lambda **kwargs: {
+            "grievance": kwargs["grievance"],
+            "status": kwargs["status"],
+            "political_reply": kwargs["political_reply"],
+            "location_name": "Mahatma Phule Road",
+            "final_constituency": "Belgaum South",
+        },
+    )
+
+    enrichment = _run_citizen_case_enrichment(
+        sender="919650787758",
+        message_body=msg,
+        resolver_message_body=msg,
+        resolver_fallback_message_body=None,
+        current_tenant=10,
+        language_hint="",
+    )
+
+    assert enrichment["category"] == "Infrastructure & Utilities"
+    assert enrichment["problem_domain"] == "Infrastructure & Utilities"
+    assert enrichment["problem_subdomain"] == "Roads & Bridges"
+    assert enrichment["citizen_ack_message"]
+    assert enrichment["meta_data"]["is_silent_log_category"] is False
+
+
 def test_civic_drainage_rescue_in_shadow_mode_keeps_taxonomy_null(monkeypatch):
     """Shadow mode: the civic rule still rescues the message from the silent
     lane (citizen gets an acknowledgement), but no taxonomy is written -- the

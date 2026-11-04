@@ -1,388 +1,213 @@
 'use client';
-import { useState, useEffect } from 'react';
+
+import { Suspense, useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api';
-import { AdminPageHeader } from '@/components/admin-ui/AdminPrimitives';
+import { caseStatusMeta } from '@/lib/admin-data';
+import {
+    Badge,
+    BarList,
+    Card,
+    DataState,
+    DataTable,
+    LoadingSkeleton,
+    LocalTabs,
+    Metric,
+    MetricGroup,
+    PageBand,
+    Sparkline,
+} from '@/components/admin-ui';
+import { CASE_OPERATIONS_ITEMS } from '@/components/admin-ui/DomainNavs';
+import CaseExplorer from './CaseExplorer';
+import '@/app/styles/admin-cases.css';
+
+const VIEWS = [
+    { key: 'explorer', label: 'Cases' },
+    { key: 'analytics', label: 'Analytics' },
+    { key: 'health', label: 'Case health' },
+];
+
+const VIEW_COPY = {
+    explorer: 'Investigate citizen grievances across every account. Admin is read-only here; cases are worked by MP staff.',
+    analytics: 'Category, status and resolution patterns across all accounts.',
+    health: 'Case volume and account activity across the platform.',
+};
 
 export default function CaseIntelligencePage() {
     const [view, setView] = useState('explorer');
 
     return (
-        <>
-            <AdminPageHeader context="Operations / Cases" title="Case Explorer" description="Find a grievance, preserve tenant context, and investigate the complete case record from one operational workspace." />
-            <div className="case-workspace-switcher" role="group" aria-label="Case workspace view">
-                <span>Workspace view</span>
-                {[
-                    { key: 'explorer', label: 'Case Explorer' },
-                    { key: 'analytics', label: 'Grievance Analytics' },
-                    { key: 'health', label: 'Platform Health' },
-                ].map(v => (
-                    <button key={v.key} type="button" className={view === v.key ? 'active' : ''} aria-pressed={view === v.key} onClick={() => setView(v.key)}>
-                        {v.label}
-                    </button>
-                ))}
-            </div>
-
-            {view === 'health' && <PlatformHealth />}
-            {view === 'explorer' && <CaseExplorer />}
-            {view === 'analytics' && <GrievanceAnalytics />}
-        </>
-    );
-}
-
-/* ═══ Platform Health ═══ */
-function PlatformHealth() {
-    const [data, setData] = useState(null);
-    useEffect(() => { apiGet('/api/admin/cases/health').then(setData).catch(() => { }); }, []);
-
-    if (!data) return <LoadingGrid count={4} />;
-
-    const maxStatus = Math.max(...(data.status_breakdown?.map(x => x.count) || [1]), 1);
-    const maxMp = Math.max(...(data.mp_cases?.map(x => x.cases) || [1]), 1);
-    const maxVol = Math.max(...(data.volume_30d?.map(x => x.count) || [1]), 1);
-
-    return (
-        <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: '1.5rem' }}>
-                <MetricCard value={data.total_cases?.toLocaleString()} label="Total Cases" accent="#006a4d" bg="#f0fdf4" />
-                <MetricCard value={data.active_mps} label="Active MPs" accent="#2563eb" bg="#eff6ff" />
-                <MetricCard value={data.resolved?.toLocaleString()} label="Resolved" accent="#059669" bg="#f0fdf4" />
-                <MetricCard value={data.critical} label="Critical" accent="#dc2626" bg="#fff1f2" />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: '1.5rem' }}>
-                <div className="glass-panel">
-                    <div style={{ fontWeight: 600, color: '#1a2e28', fontSize: '0.9rem', marginBottom: 14 }}>Cases by Status</div>
-                    {data.status_breakdown?.length > 0 ? data.status_breakdown.map(s => (
-                        <div key={s.status} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                            <div style={{ width: 90, fontSize: '0.78rem', fontWeight: 500, color: '#4a635a', flexShrink: 0 }}>{s.status}</div>
-                            <div className="bar-track">
-                                <div className="bar-fill" style={{ width: `${(s.count / maxStatus) * 100}%`, background: 'linear-gradient(90deg, #006a4d, #059669)' }}>
-                                    {s.count}
-                                </div>
-                            </div>
-                        </div>
-                    )) : <EmptyMsg />}
-                </div>
-                <div className="glass-panel">
-                    <div style={{ fontWeight: 600, color: '#1a2e28', fontSize: '0.9rem', marginBottom: 14 }}>Cases per MP (Top 10)</div>
-                    {data.mp_cases?.length > 0 ? data.mp_cases.slice(0, 10).map(m => (
-                        <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                            <div style={{ width: 110, fontSize: '0.78rem', fontWeight: 500, color: '#4a635a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</div>
-                            <div className="bar-track">
-                                <div className="bar-fill" style={{ width: `${(m.cases / maxMp) * 100}%`, background: 'linear-gradient(90deg, #0891b2, #06b6d4)' }}>
-                                    {m.cases}
-                                </div>
-                            </div>
-                        </div>
-                    )) : <EmptyMsg />}
-                </div>
-            </div>
-
-            <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                <div style={{ fontWeight: 600, color: '#1a2e28', fontSize: '0.9rem', marginBottom: 14 }}>MP Activity</div>
-                {data.activity?.length > 0 ? (
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>MP</th><th>Constituency</th><th>Cases</th><th>Last Login</th><th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.activity.map((a, i) => (
-                                <tr key={i}>
-                                    <td style={{ fontWeight: 600 }}>{a.mp}</td>
-                                    <td style={{ color: '#6b7f76' }}>{a.constituency}</td>
-                                    <td style={{ fontWeight: 600 }}>{a.cases}</td>
-                                    <td style={{ color: '#6b7f76', fontSize: '0.8rem' }}>{a.last_login}</td>
-                                    <td>
-                                        <span className={`badge badge-dot ${a.active ? 'badge-green' : 'badge-slate'}`}>
-                                            {a.active ? 'Active' : 'Never logged in'}
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                ) : <EmptyMsg />}
-            </div>
-
-            <div className="glass-panel">
-                <div style={{ fontWeight: 600, color: '#1a2e28', fontSize: '0.9rem', marginBottom: 14 }}>Case Volume — Last 30 Days</div>
-                {data.volume_30d?.length > 0 ? (
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 100 }}>
-                        {data.volume_30d.map((v, i) => (
-                            <div key={i} title={`${v.day}: ${v.count} cases`} style={{
-                                flex: 1,
-                                background: `linear-gradient(180deg, #006a4d, #059669)`,
-                                borderRadius: '3px 3px 0 0',
-                                height: `${Math.max(2, (v.count / maxVol) * 100)}%`,
-                                cursor: 'pointer',
-                                transition: 'opacity 0.15s',
-                                opacity: 0.85,
-                            }}
-                                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                onMouseLeave={e => e.currentTarget.style.opacity = '0.85'}
-                            />
+        <div className="nx-cases" data-view={view}>
+            <PageBand
+                title="Case Explorer"
+                description={VIEW_COPY[view]}
+                tabs={<LocalTabs label="Case Operations" items={CASE_OPERATIONS_ITEMS} />}
+                actions={(
+                    <div className="nx-seg nx-cases-views" role="group" aria-label="Case view">
+                        {VIEWS.map((item) => (
+                            <button
+                                key={item.key}
+                                type="button"
+                                className="nx-seg-option"
+                                aria-pressed={view === item.key}
+                                data-selected={view === item.key ? 'true' : undefined}
+                                onClick={() => setView(item.key)}
+                            >
+                                {item.label}
+                            </button>
                         ))}
                     </div>
-                ) : <EmptyMsg />}
-            </div>
-        </>
-    );
-}
-
-/* ═══ Case Explorer ═══ */
-function CaseExplorer() {
-    const [data, setData] = useState(null);
-    const [filters, setFilters] = useState({ mp_id: '', period: '', category: '', status: '' });
-    const [detail, setDetail] = useState(null);
-    const [detailLoading, setDetailLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(true);
-
-    const fetchCases = () => {
-        setLoading(true);
-        setError('');
-        const params = new URLSearchParams();
-        Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
-        const qs = params.toString();
-        apiGet(`/api/admin/cases/explorer${qs ? '?' + qs : ''}`)
-            .then(d => { setData(d); setLoading(false); })
-            .catch(e => { setError(e.message || 'Failed to load cases'); setLoading(false); });
-    };
-
-    useEffect(() => { fetchCases(); }, [filters]);
-
-    const loadDetail = (id) => {
-        if (!id) return;
-        setDetailLoading(true);
-        apiGet(`/api/admin/cases/${id}`).then(setDetail).catch(() => setDetail(null)).finally(() => setDetailLoading(false));
-    };
-
-    return (
-        <>
-            <div className="case-filter-grid">
-                {[
-                    { key: 'mp_id', label: 'MP', options: data?.filter_options?.mps?.map(m => ({ value: m.id, label: `${m.name} (${m.constituency})` })) },
-                    { key: 'period', label: 'Period', options: [{ value: '7days', label: 'Last 7 Days' }, { value: '30days', label: 'Last 30 Days' }, { value: '90days', label: 'Last 90 Days' }] },
-                    { key: 'category', label: 'Category', options: data?.filter_options?.categories?.map(c => ({ value: c, label: c })) },
-                    { key: 'status', label: 'Status', options: data?.filter_options?.statuses?.map(s => ({ value: s, label: s })) },
-                ].map(f => (
-                    <div key={f.key}>
-                        <label className="form-label">{f.label}</label>
-                        <select className="form-input" value={filters[f.key]} onChange={e => setFilters({ ...filters, [f.key]: e.target.value })}>
-                            <option value="">All</option>
-                            {(f.options || []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                    </div>
-                ))}
-            </div>
-
-            {/* Error banner */}
-            {error && (
-                <div className="toast toast-error" style={{ position: 'relative', marginBottom: 12 }}>
-                    API Error: {error}
-                    <button onClick={fetchCases} style={{ marginLeft: 12, background: 'white', border: '1px solid #fca5a5', borderRadius: 6, padding: '2px 10px', fontSize: '0.74rem', cursor: 'pointer', color: '#be123c', fontWeight: 600 }}>
-                        Retry
-                    </button>
-                </div>
-            )}
-
-            {/* Loading */}
-            {loading && !data && <LoadingGrid count={1} />}
-
-            {data && (
-                <div style={{ color: '#6b7f76', fontSize: '0.76rem', marginBottom: 10 }}>
-                    Showing {Math.min(data.total, 200)} of <strong>{data.total?.toLocaleString()}</strong> cases
-                </div>
-            )}
-
-            {data?.cases?.length > 0 ? (
-                <div className="glass-panel" style={{ overflow: 'auto', marginBottom: '1.5rem', padding: 0 }}>
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th><th>MP</th><th>Contact</th><th>Category</th><th>Status</th>
-                                <th>Location</th><th>Assembly</th><th>Message</th><th>Created</th><th>!</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.cases.map(c => (
-                                <tr key={c.id} className={detail?.id === c.id ? 'case-row-selected' : 'case-row-clickable'} onClick={() => loadDetail(c.id)}>
-                                    <td style={{ fontWeight: 600, color: '#006a4d' }}>#{c.id}</td>
-                                    <td style={{ fontWeight: 500 }}>{c.mp}</td>
-                                    <td style={{ color: '#6b7f76', fontSize: '0.8rem' }}>{c.phone}</td>
-                                    <td>{c.category}</td>
-                                    <td>
-                                        <span className={`badge ${c.status === 'resolved' ? 'badge-green' : c.status === 'in_progress' ? 'badge-amber' : 'badge-slate'}`}>
-                                            {c.status}
-                                        </span>
-                                    </td>
-                                    <td style={{ color: '#6b7f76' }}>{c.location}</td>
-                                    <td style={{ color: '#6b7f76' }}>{c.assembly}</td>
-                                    <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#6b7f76', fontSize: '0.8rem' }}>{c.message}</td>
-                                    <td style={{ fontSize: '0.78rem', color: '#6b7f76' }}>{c.created}</td>
-                                    <td>{c.critical ? <span style={{ color: '#dc2626', fontSize: '0.75rem', fontWeight: 700 }}>●</span> : ''}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            ) : (
-                <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                    <div className="empty-state">
-                        <div className="empty-state-title">No cases match the selected filters</div>
-                        <div className="empty-state-desc">Try adjusting the filters above</div>
-                    </div>
-                </div>
-            )}
-
-            <div className="glass-panel case-investigation">
-                <div className="case-investigation-head">
-                    <div><strong>Case investigation</strong><small>Select any case above to inspect it directly. Manual ID lookup is no longer required.</small></div>
-                    {detail && <span className="badge badge-slate">Case #{detail.id}</span>}
-                </div>
-                {detailLoading ? <LoadingGrid count={1} /> : !detail ? (
-                    <div className="empty-state"><div className="empty-state-title">Select a case to investigate</div><div className="empty-state-desc">The complete case context will open here without leaving the operations queue.</div></div>
-                ) : (
-                    <div className="case-investigation-body">
-                        <div className="case-investigation-summary">
-                            {[
-                                ['Account', detail.mp_name], ['Constituency', detail.mp_constituency], ['Contact', detail.phone],
-                                ['Category', detail.category], ['Status', detail.status], ['Priority', detail.critical ? 'Critical' : 'Normal'],
-                                ['Location', detail.location], ['Assembly', detail.assembly], ['Confidence', detail.confidence],
-                            ].map(([l, v]) => <div key={l}><span>{l}</span><strong>{v || '—'}</strong></div>)}
-                        </div>
-                        <div className="case-investigation-copy"><span>Citizen message</span><p>{detail.raw_message || '—'}</p></div>
-                        {detail.response_to_citizen && <div className="case-investigation-copy"><span>Response to citizen</span><p>{detail.response_to_citizen}</p></div>}
-                        {detail.notes_for_staff && <div className="case-investigation-copy"><span>Staff notes</span><p>{detail.notes_for_staff}</p></div>}
-                        <div className="case-investigation-dates"><span>Created {detail.created_at || '—'}</span><span>Updated {detail.updated_at || '—'}</span><span>Resolved {detail.resolved_at || '—'}</span></div>
-                    </div>
                 )}
-            </div>
-        </>
+            />
+
+            {view === 'explorer' && (
+                <Suspense fallback={<LoadingSkeleton rows={8} label="Loading cases" />}>
+                    <CaseExplorer />
+                </Suspense>
+            )}
+            {view === 'analytics' && <GrievanceAnalytics />}
+            {view === 'health' && <CaseHealth />}
+        </div>
     );
 }
 
-/* ═══ Grievance Analytics ═══ */
+function useAdminData(path) {
+    const [state, setState] = useState({ data: null, error: '', loading: true });
+    const load = () => {
+        setState((current) => ({ ...current, loading: true, error: '' }));
+        apiGet(path)
+            .then((data) => setState({ data, error: '', loading: false }))
+            .catch((e) => setState({ data: null, error: e.message || 'Failed to load', loading: false }));
+    };
+    useEffect(load, [path]); // eslint-disable-line react-hooks/exhaustive-deps
+    return { ...state, reload: load };
+}
+
+function fmt(value) {
+    return value === null || value === undefined ? null : Number(value).toLocaleString('en-IN');
+}
+
+/* ═══ Case health (/api/admin/cases/health) ═══ */
+function CaseHealth() {
+    const { data, error, loading, reload } = useAdminData('/api/admin/cases/health');
+    return (
+        <DataState loading={loading} error={error} onRetry={reload} rows={6}>
+            {data && (
+                <div className="nx-cases-stack">
+                    <Card padded>
+                        <MetricGroup columns={4}>
+                            <Metric label="Total cases" value={fmt(data.total_cases)} unavailable={data.total_cases == null} />
+                            <Metric label="Active accounts" value={fmt(data.active_mps)} unavailable={data.active_mps == null} />
+                            <Metric label="Resolved" value={fmt(data.resolved)} tone="ok" unavailable={data.resolved == null} />
+                            <Metric label="Critical" value={fmt(data.critical)} tone={data.critical ? 'critical' : undefined} unavailable={data.critical == null} />
+                        </MetricGroup>
+                    </Card>
+                    <div className="nx-cases-grid">
+                        <Card title="Cases by status">
+                            <div className="nx-cases-pad">
+                                <DataState empty={!data.status_breakdown?.length} emptyTitle="No cases yet">
+                                    <BarList items={(data.status_breakdown || []).map((s) => ({ label: caseStatusMeta(s.status).label, value: s.count }))} />
+                                </DataState>
+                            </div>
+                        </Card>
+                        <Card title="Cases per account" description="Top 10 by volume">
+                            <div className="nx-cases-pad">
+                                <DataState empty={!data.mp_cases?.length} emptyTitle="No cases yet">
+                                    <BarList items={(data.mp_cases || []).slice(0, 10).map((m) => ({ label: m.name, value: m.cases }))} />
+                                </DataState>
+                            </div>
+                        </Card>
+                    </div>
+                    <Card title="Case volume" description="New cases per day, last 30 days">
+                        <div className="nx-cases-pad">
+                            <DataState empty={!data.volume_30d?.length} emptyTitle="No cases in the last 30 days">
+                                <Sparkline values={(data.volume_30d || []).map((v) => Number(v.count) || 0)} width={640} height={96} area label="New cases per day, last 30 days" />
+                            </DataState>
+                        </div>
+                    </Card>
+                    <Card title="Account activity">
+                        <DataTable
+                            label="Account activity"
+                            rows={data.activity || []}
+                            getRowKey={(row, index) => `${row.mp}-${index}`}
+                            empty={<div className="nx-cases-pad"><DataState empty emptyTitle="No accounts yet" /></div>}
+                            columns={[
+                                { key: 'mp', header: 'Account', render: (row) => <strong>{row.mp}</strong> },
+                                { key: 'constituency', header: 'Constituency', hideBelow: 'md' },
+                                { key: 'cases', header: 'Cases', align: 'right', render: (row) => fmt(row.cases) },
+                                { key: 'last_login', header: 'Last login', hideBelow: 'md' },
+                                { key: 'active', header: 'Status', render: (row) => <Badge tone={row.active ? 'ok' : 'neutral'}>{row.active ? 'Active' : 'Never logged in'}</Badge> },
+                            ]}
+                        />
+                    </Card>
+                </div>
+            )}
+        </DataState>
+    );
+}
+
+/* ═══ Grievance analytics (/api/admin/cases/analytics/data) ═══ */
 function GrievanceAnalytics() {
-    const [data, setData] = useState(null);
-    useEffect(() => { apiGet('/api/admin/cases/analytics/data').then(setData).catch(() => { }); }, []);
-    if (!data) return <LoadingGrid count={3} />;
-
-    const maxCat = Math.max(...(data.category_breakdown?.map(x => x.count) || [1]), 1);
-    const maxAsm = Math.max(...(data.assembly_distribution?.map(x => x.cases) || [1]), 1);
-
+    const { data, error, loading, reload } = useAdminData('/api/admin/cases/analytics/data');
     return (
-        <>
-            <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                <div style={{ fontWeight: 600, color: '#1a2e28', fontSize: '0.9rem', marginBottom: 14 }}>Most Common Grievance Categories</div>
-                {data.category_breakdown?.length > 0 ? data.category_breakdown.slice(0, 12).map((c, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
-                        <div style={{ width: 130, fontSize: '0.79rem', fontWeight: 500, color: '#4a635a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{c.category}</div>
-                        <div style={{ width: 90, fontSize: '0.72rem', color: '#6b7f76', flexShrink: 0 }}>{c.constituency}</div>
-                        <div className="bar-track">
-                            <div className="bar-fill" style={{ width: `${(c.count / maxCat) * 100}%`, background: 'linear-gradient(90deg, #d97706, #f59e0b)' }}>
-                                {c.count}
-                            </div>
+        <DataState loading={loading} error={error} onRetry={reload} rows={6}>
+            {data && (
+                <div className="nx-cases-stack">
+                    <Card title="Most common grievance categories" description="By account constituency">
+                        <div className="nx-cases-pad">
+                            <DataState empty={!data.category_breakdown?.length} emptyTitle="No categorised cases yet">
+                                <BarList items={(data.category_breakdown || []).slice(0, 12).map((c, i) => ({ label: `${c.category} · ${c.constituency}`, value: c.count, key: i }))} />
+                            </DataState>
                         </div>
+                    </Card>
+                    <div className="nx-cases-grid">
+                        <Card title="Category volume" description="All accounts">
+                            <DataTable
+                                label="Category volume"
+                                rows={data.category_volume || []}
+                                getRowKey={(row) => row.category}
+                                empty={<div className="nx-cases-pad"><DataState empty emptyTitle="No categories yet" /></div>}
+                                columns={[
+                                    { key: 'category', header: 'Category' },
+                                    { key: 'count', header: 'Cases', align: 'right', render: (row) => fmt(row.count) },
+                                ]}
+                            />
+                        </Card>
+                        <Card title="Status distribution">
+                            <DataTable
+                                label="Status distribution"
+                                rows={data.status_distribution || []}
+                                getRowKey={(row) => row.status}
+                                empty={<div className="nx-cases-pad"><DataState empty emptyTitle="No cases yet" /></div>}
+                                columns={[
+                                    { key: 'status', header: 'Status', render: (row) => { const meta = caseStatusMeta(row.status); return <Badge tone={meta.tone}>{meta.label}</Badge>; } },
+                                    { key: 'count', header: 'Cases', align: 'right', render: (row) => fmt(row.count) },
+                                ]}
+                            />
+                        </Card>
                     </div>
-                )) : <EmptyMsg />}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: '1.5rem' }}>
-                <div className="glass-panel">
-                    <div style={{ fontWeight: 600, color: '#1a2e28', fontSize: '0.9rem', marginBottom: 14 }}>Category Volume (All MPs)</div>
-                    {data.category_volume?.length > 0 ? (
-                        <table className="data-table">
-                            <thead><tr><th>Category</th><th>Count</th></tr></thead>
-                            <tbody>
-                                {data.category_volume.map(c => (
-                                    <tr key={c.category}>
-                                        <td>{c.category}</td>
-                                        <td style={{ fontWeight: 600 }}>{c.count}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    ) : <EmptyMsg />}
-                </div>
-                <div className="glass-panel">
-                    <div style={{ fontWeight: 600, color: '#1a2e28', fontSize: '0.9rem', marginBottom: 14 }}>Status Distribution</div>
-                    {data.status_distribution?.length > 0 ? (
-                        <table className="data-table">
-                            <thead><tr><th>Status</th><th>Count</th></tr></thead>
-                            <tbody>
-                                {data.status_distribution.map(s => (
-                                    <tr key={s.status}>
-                                        <td>
-                                            <span className={`badge ${s.status === 'resolved' ? 'badge-green' : s.status === 'in_progress' ? 'badge-amber' : 'badge-slate'}`}>
-                                                {s.status}
-                                            </span>
-                                        </td>
-                                        <td style={{ fontWeight: 600 }}>{s.count}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    ) : <EmptyMsg />}
-                </div>
-            </div>
-
-            <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                <div style={{ fontWeight: 600, color: '#1a2e28', fontSize: '0.9rem', marginBottom: 14 }}>Average Resolution Time</div>
-                {data.resolution_times?.length > 0 ? (
-                    <table className="data-table">
-                        <thead><tr><th>MP</th><th>Constituency</th><th>Resolved Cases</th><th>Avg Time</th></tr></thead>
-                        <tbody>
-                            {data.resolution_times.map((r, i) => (
-                                <tr key={i}>
-                                    <td style={{ fontWeight: 500 }}>{r.mp}</td>
-                                    <td style={{ color: '#6b7f76' }}>{r.constituency}</td>
-                                    <td style={{ fontWeight: 600 }}>{r.resolved_cases}</td>
-                                    <td style={{ color: '#6b7f76' }}>{r.avg_resolution_time}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                ) : <EmptyMsg text="No resolution data available yet." />}
-            </div>
-
-            <div className="glass-panel">
-                <div style={{ fontWeight: 600, color: '#1a2e28', fontSize: '0.9rem', marginBottom: 14 }}>Cases by Assembly Constituency</div>
-                {data.assembly_distribution?.length > 0 ? data.assembly_distribution.slice(0, 15).map((a, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
-                        <div style={{ width: 150, fontSize: '0.79rem', fontWeight: 500, color: '#4a635a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{a.assembly}</div>
-                        <div className="bar-track">
-                            <div className="bar-fill" style={{ width: `${(a.cases / maxAsm) * 100}%`, background: 'linear-gradient(90deg, #8d153a, #b91c50)' }}>
-                                {a.cases}
-                            </div>
+                    <Card title="Average resolution time" description="Per account, from resolved cases">
+                        <DataTable
+                            label="Average resolution time"
+                            rows={data.resolution_times || []}
+                            getRowKey={(row, index) => `${row.mp}-${index}`}
+                            empty={<div className="nx-cases-pad"><DataState empty emptyTitle="No resolution data available yet" /></div>}
+                            columns={[
+                                { key: 'mp', header: 'Account', render: (row) => <strong>{row.mp}</strong> },
+                                { key: 'constituency', header: 'Constituency', hideBelow: 'md' },
+                                { key: 'resolved_cases', header: 'Resolved', align: 'right', render: (row) => fmt(row.resolved_cases) },
+                                { key: 'avg_resolution_time', header: 'Average time', align: 'right' },
+                            ]}
+                        />
+                    </Card>
+                    <Card title="Cases by assembly constituency" description="Top 15">
+                        <div className="nx-cases-pad">
+                            <DataState empty={!data.assembly_distribution?.length} emptyTitle="No assembly data yet">
+                                <BarList items={(data.assembly_distribution || []).slice(0, 15).map((a) => ({ label: a.assembly, value: a.cases }))} />
+                            </DataState>
                         </div>
-                    </div>
-                )) : <EmptyMsg />}
-            </div>
-        </>
-    );
-}
-
-/* ═══ Shared sub-components ═══ */
-function MetricCard({ value, label, accent, bg }) {
-    return (
-        <div className="stat-card" style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: accent, lineHeight: 1, letterSpacing: '-1.5px' }}>{value ?? '—'}</div>
-            <div style={{ fontSize: '0.72rem', color: '#6b7f76', marginTop: 6, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.7px' }}>{label}</div>
-        </div>
-    );
-}
-
-function EmptyMsg({ text = 'No data available.' }) {
-    return <div style={{ color: '#6b7f76', fontSize: '0.82rem', padding: '0.5rem 0' }}>{text}</div>;
-}
-
-function LoadingGrid({ count = 4 }) {
-    return (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${count}, 1fr)`, gap: 12, marginBottom: '1.5rem' }}>
-            {[...Array(count)].map((_, i) => <div key={i} className="stat-card skeleton" style={{ height: 80 }} />)}
-        </div>
+                    </Card>
+                </div>
+            )}
+        </DataState>
     );
 }

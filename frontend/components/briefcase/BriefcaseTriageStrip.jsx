@@ -4,11 +4,12 @@
 // Only truthful counts computed by useBriefcaseCases: needsYou (new +
 // pending_review + awaiting_location), newToday, uncategorised. No SLA metric,
 // no fabricated scoring, no serif numerals, no icon grid.
-import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
+import { gen2, gen2Fonts, gen2Type } from '@/lib/briefcase-tokens';
 
 const C = { ...gen2, border: gen2.hair };
 const SANS = gen2Fonts.sans;
 const MONO = gen2Fonts.mono;
+const T = gen2Type;
 
 export default function BriefcaseTriageStrip({ triage }) {
     const counters = [
@@ -42,7 +43,7 @@ export default function BriefcaseTriageStrip({ triage }) {
                     <span
                         style={{
                             fontFamily: MONO,
-                            fontSize: 9.5,
+                            fontSize: T.label,
                             letterSpacing: '0.08em',
                             textTransform: 'uppercase',
                             color: C.muted,
@@ -50,7 +51,7 @@ export default function BriefcaseTriageStrip({ triage }) {
                     >
                         {c.label}
                     </span>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: '-0.01em' }}>
+                    <span style={{ fontSize: T.counter, fontWeight: 700, color: C.ink, letterSpacing: '-0.01em' }}>
                         {c.value.toLocaleString()}
                     </span>
                 </div>

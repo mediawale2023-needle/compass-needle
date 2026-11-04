@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AdminSectionNav } from './AdminPrimitives';
+import { LocalTabs } from './Layout';
 
-const CASE_OPERATIONS_ITEMS = [
+export const CASE_OPERATIONS_ITEMS = [
     { label: 'Case Explorer', href: '/dashboard/cases-intelligence/explorer' },
     { label: 'Knowledge', href: '/dashboard/cases-intelligence/knowledge' },
     { label: 'Constituency Profiles', href: '/dashboard/constituency' },
@@ -38,7 +37,12 @@ const CONSTITUENCY_ITEMS = [
     { label: 'Seat Maps', href: '/dashboard/seat-maps' },
 ];
 
-export function CaseOperationsNav() { return <AdminSectionNav label="Case Operations" items={CASE_OPERATIONS_ITEMS} />; }
+export function CaseOperationsNav() {
+    const pathname = usePathname();
+    // The explorer carries these tabs in its own page band (approved Cases board).
+    if (pathname === '/dashboard/cases-intelligence/explorer') return null;
+    return <AdminSectionNav label="Case Operations" items={CASE_OPERATIONS_ITEMS} />;
+}
 export function PlatformOperationsNav() {
     const pathname = usePathname();
     if (pathname.startsWith('/dashboard/system/whatsapp')) return null;
@@ -48,24 +52,9 @@ export function AdministrationNav() { return <AdminSectionNav label="Administrat
 export function ConstituencyNav() { return <AdminSectionNav label="Constituencies" items={CONSTITUENCY_ITEMS} />; }
 
 export function MessagingNav() {
-    const pathname = usePathname();
-    const [hash, setHash] = useState('');
-
-    useEffect(() => {
-        const syncHash = () => setHash(window.location.hash.slice(1));
-        syncHash();
-        window.addEventListener('hashchange', syncHash);
-        return () => window.removeEventListener('hashchange', syncHash);
-    }, [pathname]);
-
     return (
-        <nav className="admin-section-nav messaging-local-nav" aria-label="Messaging operations">
-            {MESSAGING_ITEMS.map((item) => {
-                const active = item.route
-                    ? pathname === item.route
-                    : pathname === '/dashboard/system/whatsapp' && (hash || 'overview') === item.section;
-                return <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined}>{item.label}</Link>;
-            })}
-        </nav>
+        <div className="nx-tabs-inline-wrap">
+            <LocalTabs label="Messaging operations" items={MESSAGING_ITEMS.map((item) => ({ ...item, route: item.section ? '/dashboard/system/whatsapp' : undefined }))} defaultSection="overview" />
+        </div>
     );
 }

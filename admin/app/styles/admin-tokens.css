@@ -1,0 +1,126 @@
+/* ═══════════════════════════════════════════════════════════════════════
+ * Needle Admin design tokens — approved design system (Oct 2026).
+ * Source of truth for colour, type, radius and elevation. Loaded after
+ * globals.css, so the legacy token names below are remapped onto the new
+ * palette and every unmigrated page inherits it coherently.
+ * ═══════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Type */
+  --nx-font: var(--font-geist), var(--font-devanagari), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --nx-font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Brand */
+  --nx-forest: #0E3B2E;
+  --nx-forest-hover: #0A2E23;
+  --nx-forest-2: #3F6E5C;
+  --nx-forest-3: #8DB5A2;
+  --nx-forest-4: #B9D2C5;
+  --nx-sage: #E9F2EC;
+  --nx-sage-2: #F1F7F3;
+  --nx-sage-line: #DCE9E1;
+
+  /* Neutrals */
+  --nx-bg: #F6F7F4;
+  --nx-surface: #FFFFFF;
+  --nx-surface-2: #FAFBF9;
+  --nx-surface-3: #F7F8F6;
+  --nx-fill: #F0F2EE;
+  --nx-line: #E6E8E3;
+  --nx-line-2: #EEF0EC;
+  --nx-line-3: #F0F2EE;
+  --nx-line-strong: #DCE0DA;
+  --nx-line-hover: #C9CEC7;
+  --nx-ink: #111A15;
+  --nx-ink-2: #232C27;
+  --nx-ink-3: #414B45;
+  --nx-muted: #6B746E;
+  --nx-muted-2: #7A847D;
+  --nx-faint: #8D958F;
+
+  /* Status (fg / solid / tint / line) */
+  --nx-critical: #B42318;  --nx-critical-solid: #E0473A; --nx-critical-tint: #FDECE9; --nx-critical-wash: #FFF8F6; --nx-critical-line: #F6D9D3; --nx-critical-tile: #FDE7E3; --nx-critical-icon: #C4321F;
+  --nx-warning: #93500A;   --nx-warning-solid: #E59A1A;  --nx-warning-tint: #FEF3DF;  --nx-warning-wash: #FFFBF3;  --nx-warning-line: #F5E6C8;  --nx-warning-tile: #FEF0D7;  --nx-warning-icon: #A35A06;
+  --nx-review: #1F4E8C;    --nx-review-solid: #3E7BD0;   --nx-review-tint: #E9F0FB;   --nx-review-wash: #F7F9FD;   --nx-review-line: #D6E2F5;   --nx-review-tile: #E5EEFA;   --nx-review-icon: #2860AE;
+  --nx-ok: #1A6440;        --nx-ok-solid: #2F9A63;       --nx-ok-tint: #E7F3EC;       --nx-ok-wash: #F4F9F6;       --nx-ok-line: #D5E6DB;       --nx-ok-tile: #E3F1E8;       --nx-ok-icon: #1A6440;
+  --nx-notice: #4F5953;    --nx-notice-solid: #8A948E;   --nx-notice-tint: #EEF0EE;   --nx-notice-wash: #F7F8F6;   --nx-notice-line: #E6E8E3;   --nx-notice-tile: #EEF0EC;   --nx-notice-icon: #56605A;
+
+  /* Geometry */
+  --nx-r-card: 14px;
+  --nx-r-block: 11px;
+  --nx-r-control: 9px;
+  --nx-r-chip: 8px;
+  --nx-r-badge: 6px;
+  --nx-shadow-card: 0 1px 2px rgba(17, 26, 21, .04);
+  --nx-shadow-control: 0 1px 1px rgba(17, 26, 21, .04);
+  --nx-shadow-pop: 0 12px 32px -8px rgba(17, 26, 21, .18), 0 2px 6px rgba(17, 26, 21, .06);
+  --nx-focus: 0 0 0 3px #CFE2D6;
+
+  /* Layout */
+  --nx-sidebar-w: 264px;
+  --nx-topbar-h: 64px;
+  --nx-gutter: 32px;
+  --nx-gap: 20px;
+  --nx-content-max: 1240px;
+
+  /* ── Legacy token remap (PR #146 names → approved palette) ───────── */
+  --font-sans: var(--nx-font);
+  --font-display: var(--nx-font);
+  --font-mono: var(--nx-font-mono);
+  --ink: var(--nx-ink);
+  --ink-2: var(--nx-muted);
+  --ink-3: var(--nx-muted);
+  --ink-4: var(--nx-faint);
+  --paper: var(--nx-bg);
+  --paper-2: var(--nx-fill);
+  --surface: var(--nx-surface);
+  --surface-2: var(--nx-surface-2);
+  --line: var(--nx-line);
+  --line-2: var(--nx-line-strong);
+  --sansad-green: var(--nx-forest);
+  --sansad-green-light: var(--nx-forest-2);
+  --sansad-green-deep: var(--nx-forest);
+  --sansad-green-soft: var(--nx-ok-tint);
+  --sansad-maroon: var(--nx-critical);
+  --saffron: var(--nx-warning-icon);
+  --saffron-soft: var(--nx-critical-tint);
+  --amber: var(--nx-warning-solid);
+  --amber-soft: var(--nx-warning-tint);
+  --steel: var(--nx-review);
+  --success-tint: var(--nx-ok-tint);
+  --warning-tint: var(--nx-warning-tint);
+  --danger-tint: var(--nx-critical-tint);
+  --info-tint: var(--nx-review-tint);
+  --neutral-soft: var(--nx-notice-tint);
+  --row-hover: var(--nx-surface-2);
+  --active-tint: var(--nx-sage-2);
+  --radius-sm: var(--nx-r-badge);
+  --radius-md: var(--nx-r-control);
+  --radius-lg: var(--nx-r-block);
+  --radius-xl: var(--nx-r-card);
+  --shadow-xs: var(--nx-shadow-control);
+  --shadow-sm: var(--nx-shadow-card);
+  --shadow-md: var(--nx-shadow-card);
+  --shadow-lg: var(--nx-shadow-pop);
+  --shadow-modal: var(--nx-shadow-pop);
+  --admin-gutter: var(--nx-gutter);
+  --admin-hero: var(--nx-surface);
+  --admin-critical: var(--nx-critical);
+  --admin-critical-soft: var(--nx-critical-tint);
+  --admin-warning: var(--nx-warning);
+  --admin-warning-soft: var(--nx-warning-tint);
+}
+
+html { background: var(--nx-bg); }
+body {
+  font-family: var(--nx-font);
+  background: var(--nx-bg);
+  color: var(--nx-ink);
+  font-size: 14px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+::selection { background: #CFE2D6; color: var(--nx-ink); }
+:focus-visible { outline: 2px solid var(--nx-forest); outline-offset: 2px; }
+
+@media (max-width: 1024px) { :root { --nx-gutter: 24px; } }
+@media (max-width: 640px)  { :root { --nx-gutter: 16px; --nx-gap: 16px; } }

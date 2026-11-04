@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import BriefcaseSourceMediaViewer from '@/components/briefcase/BriefcaseSourceMediaViewer';
 import { STATUS_OPTIONS } from '@/components/briefcase/briefcase-shared';
+import { gen2Type } from '@/lib/briefcase-tokens';
 import { isPrimaryAccount } from '@/lib/account';
 import CitizenReplyDialog from './CitizenReplyDialog';
 import DelhiManualReferencePanel, { isDelhiPortalState, isDelhiGovtCase, openDelhiPortal } from './DelhiManualReferencePanel';
@@ -94,6 +95,13 @@ const C = {
     grey:        '#807A69',
     greyTint:    '#ECE8DC',
 };
+
+// Type sizes follow the shared Briefcase scale (`gen2Type`, px). This
+// workspace already sat above that scale for labels, pills and the citizen's
+// complaint (all ≥12px), so only content that shared the 12px label size —
+// activity entries, filing details, explanatory copy, buttons — is lifted.
+// Uppercase labels and status pills deliberately stay at 0.75rem.
+const T = gen2Type;
 
 const sec = {
     padding: '14px 18px',
@@ -263,7 +271,7 @@ function ReviewReasonBanner({ current, meta, onViewSummary }) {
                 {onViewSummary && (
                     <button type="button" onClick={onViewSummary} style={{
                         padding: '6px 12px', background: C.surface, border: `1px solid ${C.hairStrong}`, color: C.ink,
-                        fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                        fontSize: T.control, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                     }}>
                         View AI summary
                     </button>
@@ -575,7 +583,7 @@ function ContactQueueNotice({ current }) {
                     )}
                 </div>
             </div>
-            <div style={{ fontSize: '0.75rem', color: C.ink2, marginBottom: 10, lineHeight: 1.5 }}>
+            <div style={{ fontSize: T.small, color: C.ink2, marginBottom: 10, lineHeight: 1.5 }}>
                 The AI intake pipeline flagged these as possibly separate from any complaint above, but hasn't promoted them into their own complaint yet.
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -591,7 +599,7 @@ function ContactQueueNotice({ current }) {
                         </div>
                         <div style={{ fontSize: '0.78125rem', color: C.ink, lineHeight: 1.55 }}>{item.raw_message || '—'}</div>
                         {(item.problem_subdomain || item.problem_domain) && (
-                            <div style={{ marginTop: 8, fontSize: '0.75rem', color: C.ink2 }}>{item.problem_subdomain || item.problem_domain}</div>
+                            <div style={{ marginTop: 8, fontSize: T.small, color: C.ink2 }}>{item.problem_subdomain || item.problem_domain}</div>
                         )}
                     </div>
                 ))}
@@ -746,7 +754,7 @@ function CitizenComplaintSection({ current, meta }) {
             <div style={{ fontSize: '0.90625rem', fontStyle: 'italic', color: C.ink, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
                 &ldquo;{current.raw_message || 'No message content.'}&rdquo;
             </div>
-            <div style={{ fontSize: '0.75rem', color: C.ink3, marginTop: 10 }}>
+            <div style={{ fontSize: T.small, color: C.ink3, marginTop: 10 }}>
                 Received via WhatsApp{createdAt ? ` · ${createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · ${createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} IST` : ''}
                 {lang ? ` · original language: ${lang}` : ''}
             </div>
@@ -757,7 +765,7 @@ function CitizenComplaintSection({ current, meta }) {
                         <span style={{ ...monoLbl, marginBottom: 0 }}>Citizen follow-ups · {events.length}</span>
                         {hiddenCount > 0 && !showAllFollowups && (
                             <button type="button" onClick={() => setShowAllFollowups(true)} style={{
-                                background: 'none', border: 'none', color: C.green, fontSize: '0.75rem',
+                                background: 'none', border: 'none', color: C.green, fontSize: T.control,
                                 fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0,
                             }}>
                                 View full conversation ({events.length})
@@ -802,7 +810,7 @@ function ComplaintActionRow({ onConfirm, confirmLabel, onReply, onEscalate, esca
                 )}
                 <button onClick={onReply} style={{
                     padding: '9px 16px', background: 'transparent', border: `1px solid ${C.hairStrong}`, color: C.ink,
-                    fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    fontSize: T.control, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                 }}>
                     <Icon name="chat" size={12} color={C.ink} /> Reply
@@ -818,7 +826,7 @@ function ComplaintActionRow({ onConfirm, confirmLabel, onReply, onEscalate, esca
                 </button>
             </div>
             {showEscalateHint && (
-                <div style={{ marginTop: 8, fontSize: '0.75rem', color: C.ink3 }}>
+                <div style={{ marginTop: 8, fontSize: T.small, color: C.ink3 }}>
                     Escalate to open government portal filing for this complaint.
                 </div>
             )}
@@ -867,7 +875,7 @@ function AISuggestionBanner({ suggestion, onAccept, accepting }) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={onAccept} disabled={accepting} style={{
                     background: C.saffron, color: '#fff', border: 'none',
-                    padding: '8px 16px', fontSize: '0.75rem', fontWeight: 700,
+                    padding: '8px 16px', fontSize: T.control, fontWeight: 700,
                     letterSpacing: '0.06em', textTransform: 'uppercase',
                     cursor: accepting ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                     display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -932,7 +940,7 @@ function AiUnderstandingSection({
                     </div>
                     <button onClick={onSaveGeo} disabled={savingGeo} style={{
                         padding: '8px 14px', background: C.ink, color: C.card, border: 'none', borderRadius: 8, flexShrink: 0,
-                        fontSize: '0.75rem', fontWeight: 600, cursor: savingGeo ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                        fontSize: T.control, fontWeight: 600, cursor: savingGeo ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                         display: 'inline-flex', alignItems: 'center', gap: 5, opacity: savingGeo ? 0.7 : 1,
                     }}>
                         {savingGeo && <Loader2 size={11} className="animate-spin" />}
@@ -958,16 +966,16 @@ function AiUnderstandingSection({
                     {translationState?.translation ? (
                         <>
                             <div style={{ fontSize: '0.84375rem', color: C.ink, lineHeight: 1.55 }}>{translationState.translation}</div>
-                            <div style={{ marginTop: 8, textAlign: 'right', fontSize: '0.75rem', color: C.ink3 }}>
+                            <div style={{ marginTop: 8, textAlign: 'right', fontSize: T.small, color: C.ink3 }}>
                                 <Icon name="check" size={9} color={C.green} stroke={2.5} /> AI confidence: <strong style={{ color: C.greenInk }}>High</strong>
                             </div>
                         </>
                     ) : translationState?.loading ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.75rem', color: C.ink2 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: T.small, color: C.ink2 }}>
                             <Loader2 size={13} className="animate-spin" /> Translating…
                         </div>
                     ) : translationState?.error ? (
-                        <div style={{ fontSize: '0.75rem', color: C.ink2 }}>
+                        <div style={{ fontSize: T.small, color: C.ink2 }}>
                             Translation unavailable right now.{' '}
                             <button type="button" onClick={onTranslate} style={{ background: 'none', border: 'none', color: C.green, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, padding: 0 }}>Try again</button>
                         </div>
@@ -990,7 +998,7 @@ function AiUnderstandingSection({
                 {rows.map(([label, value]) => (
                     <div key={label} style={{ minWidth: 0 }}>
                         <div style={{ fontSize: '0.75rem', color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', marginBottom: 2 }}>{label}</div>
-                        <div style={{ fontSize: '0.8125rem', color: C.ink, fontWeight: 500, overflowWrap: 'anywhere' }}>{value}</div>
+                        <div style={{ fontSize: T.title, color: C.ink, fontWeight: 500, overflowWrap: 'anywhere' }}>{value}</div>
                     </div>
                 ))}
             </div>
@@ -1006,7 +1014,7 @@ function AiUnderstandingSection({
                             <span style={{ fontSize: '0.75rem', color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>Based on {followupCount} citizen messages</span>
                         )}
                     </div>
-                    <div style={{ fontSize: '0.78125rem', color: C.ink2, lineHeight: 1.55 }}>{displaySummary}</div>
+                    <div style={{ fontSize: T.title, color: C.ink2, lineHeight: 1.55 }}>{displaySummary}</div>
                 </div>
             )}
         </>
@@ -1025,7 +1033,7 @@ function AttachmentsSection({ media, caseId }) {
             }}>
                 <Icon name="doc" size={16} color={C.ink3} />
                 <div style={{ fontSize: '0.78125rem', fontWeight: 600, color: C.ink2, marginTop: 4 }}>No attachments</div>
-                <div style={{ fontSize: '0.75rem', color: C.ink3 }}>If the citizen sends images/documents, they will appear here.</div>
+                <div style={{ fontSize: T.small, color: C.ink3 }}>If the citizen sends images/documents, they will appear here.</div>
             </div>
         )
     );
@@ -1175,7 +1183,7 @@ export function ActivityTimeline({ activities, loading, bare }) {
                     <Loader2 size={16} color={C.ink3} className="animate-spin" />
                 </div>
             ) : activities.length === 0 ? (
-                <p style={{ fontSize: '0.75rem', color: C.ink3 }}>No activity yet.</p>
+                <p style={{ fontSize: T.small, color: C.ink3 }}>No activity yet.</p>
             ) : (
                 <div>
                     {activities.map((act, i) => (
@@ -1191,7 +1199,7 @@ export function ActivityTimeline({ activities, loading, bare }) {
                             }}>
                                 <Icon name={iconFor(act.action)} size={11} color={C.green} stroke={1.8} />
                             </div>
-                            <div style={{ fontSize: '0.75rem', color: C.ink, lineHeight: 1.4 }}>
+                            <div style={{ fontSize: T.title, color: C.ink, lineHeight: 1.4 }}>
                                 <span style={{ fontWeight: 600 }}>{act.username || 'System'}</span>{' '}
                                 <span style={{ color: C.ink2 }}>{describe(act)}</span>
                             </div>
@@ -1222,6 +1230,26 @@ const GOVT_STATUS_LABEL = {
     resolved: 'Resolved by department',
     rejected: 'Rejected by department',
 };
+
+// Confirming the AI's suggested category is triage, not progress: it writes
+// only the taxonomy and never touches the case status. Progress starts on
+// verified external evidence (government filing / portal confirmation) or an
+// explicit staff status change. Exported so this contract is pinned by tests.
+export async function confirmSuggestedCategory(patch, caseId, suggestion) {
+    try {
+        await patch(`/api/cases/${caseId}`, {
+            problem_domain: suggestion.ai_category,
+            problem_subdomain: suggestion.ai_subcategory || null,
+        });
+    } catch (error) {
+        if (!suggestion.ai_subcategory) throw error;
+        // Stale/legacy subdomain suggestions can fail validation —
+        // the domain alone is still worth confirming.
+        await patch(`/api/cases/${caseId}`, {
+            problem_domain: suggestion.ai_category,
+        });
+    }
+}
 
 function isGovtAlreadyFiled(item) {
     if (!item) return false;
@@ -1330,7 +1358,7 @@ function GovtHistoryPanel({ history }) {
         ['Current position', latestKnown.current_position],
     ].filter(([, field]) => govtHistoryFieldValue(field));
     return (
-        <div style={{ fontSize: '0.75rem', color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: 10, marginBottom: 8 }}>
+        <div style={{ fontSize: T.small, color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: 10, marginBottom: 8 }}>
             <div style={{ fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
                 Government case now
                 {formatGovtCheckedAt(history.current_state?.latest_successful_check_at) ? ` · last checked ${formatGovtCheckedAt(history.current_state.latest_successful_check_at)}` : ''}
@@ -1409,7 +1437,7 @@ function JourneyStepper({ steps, activeIndex, narrow }) {
                                     {complete && <Icon name="check" size={13} color="#fff" stroke={2.5} />}
                                     {isCur && <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#fff' }} />}
                                 </div>
-                                <div style={{ fontSize: '0.75rem', fontWeight: isCur ? 700 : 400, color: complete || isCur ? C.ink : C.ink3, textAlign: 'center', width: 116, lineHeight: 1.25 }}>
+                                <div style={{ fontSize: T.small, fontWeight: isCur ? 700 : 400, color: complete || isCur ? C.ink : C.ink3, textAlign: 'center', width: 116, lineHeight: 1.25 }}>
                                     {step.label}
                                 </div>
                                 <div style={{ fontSize: '0.75rem', color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>{step.date}</div>
@@ -1629,7 +1657,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
     const canvas = (
         <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: '0.75rem', color: connected ? C.greenInk : C.saffron, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: T.small, color: connected ? C.greenInk : C.saffron, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: connected ? C.green : C.saffron, display: 'inline-block' }} />
                     {connected ? 'Live — staff input is relayed into the real portal session' : 'Connecting to live portal session…'}
                 </span>
@@ -1667,7 +1695,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
                     <div>
                         <div style={{ ...monoLbl, marginBottom: 4 }}>LOCAL/MOCK TEST · Experimental spike</div>
                         <div style={{ fontSize: '1.0625rem', fontWeight: 700, color: C.ink }}>Government Filing Workspace</div>
-                        <div style={{ fontSize: '0.75rem', color: C.ink2, marginTop: 3 }}>
+                        <div style={{ fontSize: T.small, color: C.ink2, marginTop: 3 }}>
                             {portalName || 'Government portal'} · real browser stream, no guessed autofill
                         </div>
                     </div>
@@ -1686,7 +1714,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
                         {canvas}
                         <div style={{
                             marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))',
-                            border: `1px solid ${C.hair}`, background: C.paper, fontSize: '0.75rem', color: C.ink2,
+                            border: `1px solid ${C.hair}`, background: C.paper, fontSize: T.small, color: C.ink2,
                         }}>
                             {[
                                 ['Clicks', interactionProof.clicks],
@@ -1700,7 +1728,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
                                 </div>
                             ))}
                         </div>
-                        <div style={{ marginTop: 6, fontSize: '0.75rem', color: C.ink3 }}>
+                        <div style={{ marginTop: 6, fontSize: T.small, color: C.ink3 }}>
                             Interaction proof: {interactionProof.last}
                         </div>
                     </div>
@@ -1708,7 +1736,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
                         <div style={{ border: `1px solid ${C.hair}`, background: C.paper, padding: 10 }}>
                             <div style={{ ...monoLbl, marginBottom: 7 }}>Current step</div>
                             <div style={{ fontSize: '0.8125rem', color: C.ink, fontWeight: 700 }}>{connected ? 'Government login / filing form' : 'Starting government session'}</div>
-                            <div style={{ fontSize: '0.75rem', color: C.ink3, lineHeight: 1.5, marginTop: 5 }}>
+                            <div style={{ fontSize: T.small, color: C.ink3, lineHeight: 1.5, marginTop: 5 }}>
                                 Staff completes login, CAPTCHA, OTP, navigation, field entry, review, and final submit manually inside this live session.
                             </div>
                         </div>
@@ -1720,10 +1748,10 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
                                     <div style={{ fontSize: '0.78125rem', color: C.ink, lineHeight: 1.45, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{value}</div>
                                 </div>
                             )) : (
-                                <div style={{ fontSize: '0.75rem', color: C.ink3 }}>No prepared fields available yet.</div>
+                                <div style={{ fontSize: T.small, color: C.ink3 }}>No prepared fields available yet.</div>
                             )}
                         </div>
-                        <div style={{ border: `1px solid ${C.saffron}`, background: C.saffronTint, padding: 10, fontSize: '0.75rem', color: C.ink2, lineHeight: 1.5 }}>
+                        <div style={{ border: `1px solid ${C.saffron}`, background: C.saffronTint, padding: 10, fontSize: T.small, color: C.ink2, lineHeight: 1.5 }}>
                             <strong style={{ color: C.saffron }}>Final-submit protection:</strong> Needle does not click Submit. Stop before any real government submission during this spike.
                         </div>
                     </div>
@@ -2487,14 +2515,14 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
                         <Icon name="lock" size={12} color={C.saffron} stroke={2.2} /> Escalate to proceed
                     </button>
                     {resolvedPortal?.portal && supported && (
-                        <div style={{ fontSize: '0.75rem', color: C.ink3, marginTop: 2 }}>
+                        <div style={{ fontSize: T.small, color: C.ink3, marginTop: 2 }}>
                             Will file via <strong style={{ color: C.ink2 }}>{resolvedPortal.portal.portal_name}</strong>
                             {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} once escalated.
                             {' '}Escalate opens the official portal in a new tab and prepares the AI worksheet here to copy from.
                         </div>
                     )}
                     {!supported && (
-                        <div style={{ fontSize: '0.75rem', color: C.ink3, fontStyle: 'italic', marginTop: 2 }}>
+                        <div style={{ fontSize: T.small, color: C.ink3, fontStyle: 'italic', marginTop: 2 }}>
                             No government portal configured yet for {resolvedPortal?.state ? `state "${resolvedPortal.state}"` : "this tenant's state (none on file)"}.
                             Ask an admin to add one under Government Portals settings.
                         </div>
@@ -2504,7 +2532,7 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
                 <>
                     {hostedSessions.length > 0 && showGovtVerificationWorkspace && (
                         <div style={{
-                            fontSize: '0.75rem', color: C.ink, background: C.saffronTint, border: `1px solid ${C.hair}`,
+                            fontSize: T.small, color: C.ink, background: C.saffronTint, border: `1px solid ${C.hair}`,
                             padding: '8px 10px', marginBottom: 10,
                         }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
@@ -2542,7 +2570,7 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
                     )}
 
                     {portalMismatch && (
-                        <div style={{ fontSize: '0.75rem', color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 10 }}>
+                        <div style={{ fontSize: T.small, color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 10 }}>
                             ⚠ This was prepared for <strong>{govtState?.case?.portal_name || 'a different portal'}</strong>, but
                             this tenant should now use <strong>{resolvedPortal.portal.portal_name}</strong>
                             {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} — nothing's been filed with the government
@@ -2568,7 +2596,7 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
                                 <GovtSyncCopyField label="Contact number to enter on portal" value={worksheet.portal_contact_number} />
                             )}
                             {worksheet?.staff_action_note && (
-                                <div style={{ fontSize: '0.75rem', color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
+                                <div style={{ fontSize: T.small, color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
                             )}
                             {(resolvedPortal?.portal?.entry_url || resolvedPortal?.portal?.base_url) && (
                                 // Filing is always external now (PR2) — Escalate already opened
@@ -2578,7 +2606,7 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
                                 <a
                                     href={resolvedPortal.portal.entry_url || resolvedPortal.portal.base_url}
                                     target="_blank" rel="noopener noreferrer"
-                                    style={{ fontSize: '0.75rem', color: C.green, display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 10 }}
+                                    style={{ fontSize: T.control, color: C.green, display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 10 }}
                                 >
                                     <Icon name="external" size={12} stroke={2.2} /> Reopen {resolvedPortal.portal.portal_name}
                                 </a>
@@ -2607,12 +2635,12 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
                             {isTamilNaduSession() && alreadyFiled && (
                                 <div style={{ border: `1px solid ${C.hair}`, background: C.surface, padding: 12, marginBottom: 10 }}>
                                     <div style={{ ...monoLbl, marginBottom: 8 }}>Tamil Nadu status check</div>
-                                    <div style={{ fontSize: '0.75rem', color: C.ink2, lineHeight: 1.5 }}>
+                                    <div style={{ fontSize: T.small, color: C.ink2, lineHeight: 1.5 }}>
                                         Staff signs in and clears any OTP/CAPTCHA in this browser. Needle then only opens My Petitions and reads this grievance — it never submits, edits, or replies to anything. Use "Verify access" once signed in to enable normal inboard status checks.
                                     </div>
                                     {tnStatusResult && (
                                         <div style={{
-                                            fontSize: '0.75rem', marginTop: 8, padding: '8px 10px',
+                                            fontSize: T.small, marginTop: 8, padding: '8px 10px',
                                             background: C.paper, border: `1px solid ${C.hair}`,
                                             color: tnStatusResult.checkpoint ? C.saffron : C.ink2,
                                         }}>
@@ -2644,7 +2672,7 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
 
                     {alreadyFiled && (
                         <div style={{ marginTop: 8 }}>
-                            <div style={{ fontSize: '0.75rem', color: C.ink2, marginBottom: 8 }}>
+                            <div style={{ fontSize: T.title, color: C.ink2, marginBottom: 8 }}>
                                 Ref: <strong style={{ color: C.ink }}>{govtState?.case?.govt_reference_number || '—'}</strong>
                                 {govtState?.case?.govt_status_updated_at && (
                                     <> · updated {new Date(govtState.case.govt_status_updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</>
@@ -2652,7 +2680,7 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
                             </div>
                             <GovtHistoryPanel history={govtHistory} />
                             {formatGovtPortalDetailRows(govtState?.latest_status_check).length > 0 && (
-                                <div style={{ fontSize: '0.75rem', color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
+                                <div style={{ fontSize: T.small, color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
                                     <div style={{ fontSize: '0.75rem', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
                                         Current portal position
                                         {formatGovtCheckedAt(govtState?.latest_status_check?.checked_at) ? ` · checked ${formatGovtCheckedAt(govtState.latest_status_check.checked_at)}` : ''}
@@ -2668,7 +2696,7 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
                                 </div>
                             )}
                             {needsGovtVerification && (
-                                <div style={{ fontSize: '0.75rem', color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 8 }}>
+                                <div style={{ fontSize: T.small, color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 8 }}>
                                     ⚠ {isTamilNaduPortal()
                                         ? 'Tamil Nadu access needs verification. Please sign in again.'
                                         : 'This portal needs a fresh access verification before status can be checked again.'}
@@ -2682,7 +2710,7 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
                                 </div>
                             )}
                             {interactiveStatusCheck && interactiveAttempt && (
-                                <div style={{ fontSize: '0.75rem', color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
+                                <div style={{ fontSize: T.small, color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
                                     <div style={{ marginBottom: 6 }}>Complete the verification below to check status:</div>
                                     {(interactiveAttempt.pending || []).map((req, idx) => {
                                         if (req.kind === 'captcha') {
@@ -2708,7 +2736,7 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
                                             return (
                                                 <div key={idx} style={{ marginBottom: 8 }}>
                                                     {req.challenge && (
-                                                        <div style={{ fontSize: '0.75rem', color: C.ink3, marginBottom: 4 }}>{req.challenge}</div>
+                                                        <div style={{ fontSize: T.small, color: C.ink3, marginBottom: 4 }}>{req.challenge}</div>
                                                     )}
                                                     <Input
                                                         placeholder="OTP"
@@ -2740,7 +2768,7 @@ export const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isM
                             )}
                             {isTamilNaduPortal() ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                    <div style={{ fontSize: '0.75rem', color: C.ink3, lineHeight: 1.5 }}>
+                                    <div style={{ fontSize: T.small, color: C.ink3, lineHeight: 1.5 }}>
                                         {isTamilNaduSession()
                                             ? 'A Tamil Nadu portal session is open above — sign in there, then verify access for future inboard checks.'
                                             : (tamilNaduCookieVerified
@@ -2816,7 +2844,7 @@ function NotesSection({ notes, setNotes, draftSaved, onSave, saving, responseSec
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={onSave} disabled={saving} style={{
                     padding: '8px 14px', background: C.ink, color: C.card, border: 'none', borderRadius: 8,
-                    fontSize: '0.75rem', fontWeight: 600,
+                    fontSize: T.control, fontWeight: 600,
                     cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                     display: 'inline-flex', alignItems: 'center', gap: 6, opacity: saving ? 0.7 : 1,
                 }}>
@@ -2875,7 +2903,7 @@ function ResolvedStateCard({ resolvedOn, citizenNotifiedOn, resolutionMessage, g
             {resolutionMessage && (
                 <>
                     <div style={monoLbl2}>Resolution message sent</div>
-                    <div style={{ fontSize: '0.75rem', color: C.ink2, lineHeight: 1.55, background: C.surface, border: `1px solid ${C.hair}`, padding: '8px 10px', whiteSpace: 'pre-wrap' }}>
+                    <div style={{ fontSize: T.title, color: C.ink2, lineHeight: 1.55, background: C.surface, border: `1px solid ${C.hair}`, padding: '8px 10px', whiteSpace: 'pre-wrap' }}>
                         {resolutionMessage}
                     </div>
                 </>
@@ -2912,7 +2940,7 @@ function ResolutionReviewCard({
     };
     const linkBtn = {
         background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
-        fontSize: '0.75rem', color: C.green, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+        fontSize: T.control, color: C.green, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
     };
 
     return (
@@ -2952,12 +2980,12 @@ function ResolutionReviewCard({
                         <div><div style={monoLbl2}>Grievance ID</div><div style={val}>{data.grievanceId || '—'}</div></div>
                     </div>
                     {data.portal && (
-                        <div style={{ fontSize: '0.75rem', color: C.ink3, marginBottom: 10 }}>Portal · {data.portal}</div>
+                        <div style={{ fontSize: T.small, color: C.ink3, marginBottom: 10 }}>Portal · {data.portal}</div>
                     )}
                     <button type="button" style={{ ...linkBtn, marginBottom: 12 }} onClick={onViewPortalDetail}>
                         View full portal position <Icon name="external" size={12} color={C.green} stroke={2} />
                     </button>
-                    <div style={{ fontSize: '0.75rem', color: C.ink3, lineHeight: 1.5, marginBottom: 12 }}>
+                    <div style={{ fontSize: T.small, color: C.ink3, lineHeight: 1.5, marginBottom: 12 }}>
                         Government resolution remarks and any portal documents appear under Government Submission below.
                     </div>
                     <div style={{ height: 1, background: C.hair, margin: '0 0 12px' }} />
@@ -3059,7 +3087,7 @@ function ActionPanel({
                             <option key={s.username} value={s.username}>{s.display_name || s.username}</option>
                         ))}
                     </select>
-                    <button type="button" onClick={onAssignToMe} style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: '0.75rem', color: C.green, cursor: 'pointer' }}>
+                    <button type="button" onClick={onAssignToMe} style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: T.control, color: C.green, cursor: 'pointer' }}>
                         Assign to me
                     </button>
 
@@ -3372,29 +3400,18 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         };
     })();
 
-    const acceptSuggestion = async () => {
+    // Function declaration (hoisted): contextCallout above references this
+    // during render, so a `const` arrow here would throw a TDZ ReferenceError
+    // for every uncategorised case that carries an AI triage suggestion.
+    async function acceptSuggestion() {
         if (!suggestedTriage?.ai_category || acceptingSuggestion) return;
         setAcceptingSuggestion(true);
         try {
-            try {
-                await apiPatch(`/api/cases/${current.id}`, {
-                    problem_domain: suggestedTriage.ai_category,
-                    problem_subdomain: suggestedTriage.ai_subcategory || null,
-                });
-            } catch (error) {
-                if (!suggestedTriage.ai_subcategory) throw error;
-                // Stale/legacy subdomain suggestions can fail validation —
-                // the domain alone is still worth confirming.
-                await apiPatch(`/api/cases/${current.id}`, {
-                    problem_domain: suggestedTriage.ai_category,
-                });
-            }
-            await apiPatch(`/api/cases/${current.id}/status`, { status: 'in_progress' });
+            await confirmSuggestedCategory(apiPatch, current.id, suggestedTriage);
             const patch = {
                 category: suggestedTriage.ai_category,
                 problem_domain: suggestedTriage.ai_category,
                 problem_subdomain: suggestedTriage.ai_subcategory || null,
-                status: 'in_progress',
             };
             setFullCase((existing) => {
                 if (!existing) return existing;
@@ -3404,14 +3421,14 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 const base = existing.id === current.id ? { ...existing, ...patch } : { ...existing };
                 return { ...base, thread_cases: nextThreadCases };
             });
-            onStatusChange(current.id, 'in_progress');
+            onStatusChange(current.id, currentStatus);
             toast.success(`Categorised as ${suggestedTriage.ai_category}`);
         } catch (error) {
             toast.error(error.message || 'Failed to apply category');
         } finally {
             setAcceptingSuggestion(false);
         }
-    };
+    }
 
     const handleStatusChange = async (newStatus, confirmed = false) => {
         if (newStatus === 'resolved' && !confirmed) { setResolveOpen(true); return; }
@@ -3888,7 +3905,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                             justifyContent: isMobile ? 'stretch' : 'flex-end',
                             ...(isMobile ? { position: 'sticky', bottom: 0, zIndex: 6 } : {}),
                         }}>
-                            <span style={{ flex: '1 1 auto', color: C.ink3, fontSize: '.75rem' }}>{!isMp ? 'Citizen replies are available to the primary account.' : 'Replying does not change complaint status.'}</span>
+                            <span style={{ flex: '1 1 auto', color: C.ink3, fontSize: T.small }}>{!isMp ? 'Citizen replies are available to the primary account.' : 'Replying does not change complaint status.'}</span>
                             {!isResolved && <button ref={resolveTriggerRef}
                                 disabled={!!updating}
                                 onClick={() => setResolveOpen(true)}

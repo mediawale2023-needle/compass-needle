@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt
+from tests.auth_token_claims import identity_claims
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, text
@@ -90,7 +91,7 @@ def _bind_engines():
 
 def _auth_headers(username: str = "mp_priya") -> dict[str, str]:
     token = jwt.encode(
-        {"sub": username, "exp": _utcnow() + timedelta(hours=8), "iat": _utcnow().timestamp()},
+        {"sub": username, **identity_claims(test_engine, username), "exp": _utcnow() + timedelta(hours=8), "iat": _utcnow().timestamp()},
         TEST_JWT_SECRET, algorithm="HS256",
     )
     return {"Authorization": f"Bearer {token}"}

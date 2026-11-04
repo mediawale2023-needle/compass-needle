@@ -13,6 +13,7 @@ import secrets
 import string
 import time
 import uuid
+import asyncio
 from datetime import datetime, timedelta, timezone, date
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, Response, Form, WebSocket, WebSocketDisconnect
@@ -38,9 +39,12 @@ from sansadx_backend.db import (
     validate_password,
 )
 from core.db_helpers import _q, _q_one, _parse_meta
+from core.session_auth import (token_revoked, revoke_in_transaction, require_active_account,
+                               validate_session, validate_support, utc_timestamp, credential_binding)
 from modules.ack_composer import compose_status_update
 from modules.ack_validator import ack_policy_mode, validate_citizen_message, violation_codes
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
+from modules import case_lifecycle
 from core.gemini_client import get_gemini_client
 from modules.parliament_context import build_parliament_context
 from google.genai import types as genai_types
@@ -226,9 +230,9 @@ def _require_feature_access(user: dict | None, feature: str) -> None:
 # ─────────────────────────────────────────
 # JWT HELPERS
 # ─────────────────────────────────────────
-def create_token(data: dict, expires_delta: timedelta | None = None) -> str:
+def create_token(data: dict, expires_delta: timedelta | None = None, *, credential_user: dict, issued_at: float | None = None) -> str:
     expiry = _utcnow() + (expires_delta or timedelta(hours=JWT_EXPIRE_HOURS))
-    payload = {**data, "iat": _utcnow().timestamp(), "exp": expiry}
+    payload = {**data, "credential_state": credential_binding(credential_user), "iat": issued_at if issued_at is not None else datetime.now(timezone.utc).timestamp(), "exp": expiry}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -343,49 +347,33 @@ def _clear_login_failures(username: str) -> None:
 
 
 def is_token_revoked(username: str, token_issued_at: float) -> bool:
-    """Check if a user's tokens were revoked after this token was issued."""
-    try:
-        row = _q_one(
-            "SELECT revoked_at FROM token_blocklist WHERE username = :u ORDER BY revoked_at DESC LIMIT 1",
-            {"u": username}
-        )
-        if row and row.get("revoked_at"):
-            revoked_at = row["revoked_at"]
-            if hasattr(revoked_at, 'timestamp'):
-                return token_issued_at < revoked_at.timestamp()
-    except Exception:
-        logger.error("Token revocation check failed — rejecting token for safety")
-        return True
-    return False
+    return token_revoked(_q_one, username, token_issued_at)
 
 
 def revoke_user_tokens(username: str):
-    """Revoke all existing tokens for a user (call on password change/logout)."""
-    try:
-        with engine.begin() as conn:
-            conn.execute(
-                text("INSERT INTO token_blocklist (username, revoked_at) VALUES (:u, :now)"),
-                {"u": username, "now": _utcnow()}
-            )
-        logger.info(f"Revoked all tokens for user: {username}")
-    except Exception as e:
-        logger.error(f"Token revocation failed for {username}: {e}")
+    """Fail closed: a failed revocation must never report successful logout."""
+    with engine.begin() as conn:
+        revoke_in_transaction(conn, username)
 
 
 def get_current_user(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM],
+                             options={"require": ["sub", "tid", "role", "iat", "exp", "credential_state"]})
         request.state.jwt_payload = payload
-        username = payload.get("sub")
-        if not username:
-            raise HTTPException(401, "Invalid token")
-        # Check if token was revoked (issued before last password change/logout)
-        token_iat = payload.get("iat", 0)
-        if is_token_revoked(username, token_iat):
-            raise HTTPException(401, "Token has been revoked. Please login again.")
-        user = _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
-        if not user:
-            raise HTTPException(401, "User not found")
+        user = validate_session(_q_one, payload)
+        if payload.get("support_access"):
+            from admin_api import ADMIN_ROLES
+            operator = validate_support(_q_one, payload, user, request.method, request.url.path, ADMIN_ROLES)
+            request.state.support_actor = operator
+            # Record the operator, never impersonate the owner in the audit trail.
+            with engine.begin() as conn:
+                conn.execute(text("""INSERT INTO admin_audit_log
+                    (admin_username, action, target_type, target_name, change_summary, created_at)
+                    VALUES (:actor, 'support_request', 'support_access', :key, :summary, :now)"""),
+                    {"actor": operator, "key": payload["support_access_request_key"],
+                     "summary": json.dumps({"tenant_id": user["tenant_id"], "method": request.method,
+                                            "path": request.url.path}), "now": _utcnow()})
         if user.get("must_change_password"):
             allowed_paths = {
                 "/api/auth/me",
@@ -443,6 +431,7 @@ class DashboardEngagementCreateRequest(BaseModel):
 @router.post("/auth/login")
 @_limit_login
 def login(req: LoginRequest, request: Request):
+    auth_started_at = datetime.now(timezone.utc).timestamp()
     user = _q_one("SELECT * FROM users WHERE username = :u", {"u": req.username})
     if not user:
         if log_security_event:
@@ -473,8 +462,7 @@ def login(req: LoginRequest, request: Request):
             raise HTTPException(423, f"Too many failed attempts. Try again after {newly_locked_until.isoformat()}")
         raise HTTPException(401, "Invalid credentials")
 
-    if user.get("is_active") is False:
-        raise HTTPException(403, "Account suspended. Contact your administrator.")
+    require_active_account(_q_one, user)
 
     _clear_login_failures(req.username)
 
@@ -489,7 +477,7 @@ def login(req: LoginRequest, request: Request):
 
     tid = get_tenant_or_fail(user)
     tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
-    token = create_token({"sub": user["username"], "tid": tid, "role": user.get("role", "user")})
+    token = create_token({"sub": user["username"], "tid": tid, "role": user.get("role", "user")}, credential_user=user, issued_at=auth_started_at)
 
     return {
         "token": token,
@@ -554,7 +542,7 @@ def change_password(req: ChangePasswordRequest, user=Depends(get_current_user)):
             },
         )
 
-    revoke_user_tokens(user["username"])
+        revoke_in_transaction(conn, user["username"])
     return {"success": True, "message": "Password changed. Please sign in again."}
 
 
@@ -593,11 +581,12 @@ def complete_forced_password_reset(req: CompleteForcedPasswordResetRequest, user
                 },
             )
 
-        revoke_user_tokens(user["username"])
+            revoke_in_transaction(conn, user["username"])
         refreshed_user = _q_one("SELECT * FROM users WHERE username = :u", {"u": user["username"]})
         tid = get_tenant_or_fail(refreshed_user)
         tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
-        token = create_token({"sub": refreshed_user["username"], "tid": tid, "role": refreshed_user.get("role", "user")})
+        token = create_token({"sub": refreshed_user["username"], "tid": tid, "role": refreshed_user.get("role", "user")},
+                             credential_user={**user, "password_hash": new_hash})
         return {
             "success": True,
             "token": token,
@@ -677,7 +666,7 @@ def approve_support_access(request_key: str, user=Depends(get_current_user)):
     launch_token = secrets.token_urlsafe(32)
     launch_expires = now + timedelta(minutes=15)
     with engine.begin() as conn:
-        conn.execute(
+        updated = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
@@ -687,7 +676,7 @@ def approve_support_access(request_key: str, user=Depends(get_current_user)):
                     launch_token = :launch_token,
                     launch_token_expires_at = :launch_expires,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status = 'pending'
                 """
             ),
             {
@@ -699,6 +688,8 @@ def approve_support_access(request_key: str, user=Depends(get_current_user)):
                 "request_key": request_key,
             },
         )
+    if updated.rowcount != 1:
+        raise HTTPException(409, "Support request changed; please reload")
     _append_admin_audit_log(
         user.get("username", "unknown"),
         "approved",
@@ -737,7 +728,7 @@ def reject_support_access(request_key: str, user=Depends(get_current_user)):
 
     now = _utcnow()
     with engine.begin() as conn:
-        conn.execute(
+        updated = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
@@ -745,7 +736,7 @@ def reject_support_access(request_key: str, user=Depends(get_current_user)):
                     approved_by_username = :approved_by,
                     rejected_at = :rejected_at,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status = 'pending'
                 """
             ),
             {
@@ -755,6 +746,8 @@ def reject_support_access(request_key: str, user=Depends(get_current_user)):
                 "request_key": request_key,
             },
         )
+    if updated.rowcount != 1:
+        raise HTTPException(409, "Support request changed; please reload")
     _append_admin_audit_log(
         user.get("username", "unknown"),
         "rejected",
@@ -784,7 +777,7 @@ def revoke_support_access(request_key: str, user=Depends(get_current_user)):
         raise HTTPException(400, "Support access request cannot be revoked in its current state")
     now = _utcnow()
     with engine.begin() as conn:
-        conn.execute(
+        updated = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
@@ -792,11 +785,13 @@ def revoke_support_access(request_key: str, user=Depends(get_current_user)):
                     revoked_at = :revoked_at,
                     session_ended_at = CASE WHEN status = 'active' THEN :revoked_at ELSE session_ended_at END,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status IN ('approved', 'active')
                 """
             ),
             {"revoked_at": now, "updated_at": now, "request_key": request_key},
         )
+    if updated.rowcount != 1:
+        raise HTTPException(409, "Support request changed; please reload")
     _append_admin_audit_log(
         user.get("username", "unknown"),
         "revoked",
@@ -825,7 +820,7 @@ def consume_support_access(req: SupportAccessConsumeRequest):
         raise HTTPException(401, "Invalid support launch token")
     if row.get("launch_token_consumed_at"):
         raise HTTPException(400, "Support launch token has already been used")
-    if row.get("launch_token_expires_at") and row["launch_token_expires_at"] < _utcnow():
+    if not row.get("launch_token_expires_at") or utc_timestamp(row["launch_token_expires_at"]) <= datetime.now(timezone.utc).timestamp():
         raise HTTPException(400, "Support launch token has expired")
 
     target_user = _q_one("SELECT * FROM users WHERE username = :u", {"u": row.get("target_username")})
@@ -835,10 +830,27 @@ def consume_support_access(req: SupportAccessConsumeRequest):
     if not tenant:
         raise HTTPException(404, "Tenant not found")
 
+    require_active_account(_q_one, target_user)
+    from admin_api import ADMIN_ROLES
+    operator = _q_one("SELECT * FROM users WHERE username = :u", {"u": row.get("requested_by_admin_username")})
+    require_active_account(_q_one, operator, require_tenant=False)
+    if (target_user.get("tenant_id") != row.get("tenant_id")
+            or not _is_primary_workspace_user(target_user)
+            or target_user.get("must_change_password")
+            or row.get("approved_by_username") != target_user.get("username")
+            or row.get("scope") != "full_view"
+            or operator.get("role") not in ADMIN_ROLES):
+        raise HTTPException(401, "Support access is unavailable")
+    # A revoked operator or owner must obtain a fresh approval; the launch
+    # credential is not a way to bypass session revocation.
+    for subject in (target_user["username"], operator["username"]):
+        if token_revoked(_q_one, subject, utc_timestamp(row["requested_at"])):
+            raise HTTPException(401, "Support approval must be renewed")
+
     now = _utcnow()
     session_expires_at = now + timedelta(minutes=int(row.get("duration_minutes") or 30))
     with engine.begin() as conn:
-        conn.execute(
+        claimed = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
@@ -847,11 +859,15 @@ def consume_support_access(req: SupportAccessConsumeRequest):
                     session_started_at = :started_at,
                     session_expires_at = :session_expires_at,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status = 'approved'
+                  AND launch_token = :launch_token AND launch_token_consumed_at IS NULL
+                  AND launch_token_expires_at > :consumed_at
+                  AND revoked_at IS NULL AND session_ended_at IS NULL
                 """
             ),
             {
                 "consumed_at": now,
+                "launch_token": req.launch_token,
                 "started_at": now,
                 "session_expires_at": session_expires_at,
                 "updated_at": now,
@@ -859,8 +875,13 @@ def consume_support_access(req: SupportAccessConsumeRequest):
             },
         )
 
+    if claimed.rowcount != 1:
+        raise HTTPException(409, "Support launch token is no longer available")
+
     support_context = {
         "support_access": True,
+        "support_operator_credential_state": credential_binding(operator),
+        "is_support_access_session": True,
         "support_access_request_key": req.request_key,
         "support_access_requested_by": row.get("requested_by_admin_username"),
         "support_access_approved_by": row.get("approved_by_username"),
@@ -875,6 +896,7 @@ def consume_support_access(req: SupportAccessConsumeRequest):
             "role": target_user.get("role", "user"),
             **support_context,
         },
+        credential_user=target_user,
         expires_delta=timedelta(minutes=int(row.get("duration_minutes") or 30)),
     )
     _append_admin_audit_log(
@@ -908,18 +930,20 @@ def end_support_access(request: Request, user=Depends(get_current_user)):
         return {"success": True}
     now = _utcnow()
     with engine.begin() as conn:
-        conn.execute(
+        updated = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
                 SET status = 'ended',
                     session_ended_at = :ended_at,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status = 'active'
                 """
             ),
             {"ended_at": now, "updated_at": now, "request_key": request_key},
         )
+    if updated.rowcount != 1:
+        raise HTTPException(409, "Support request changed; please reload")
     _append_admin_audit_log(
         claims.get("support_access_requested_by") or user.get("username") or "unknown",
         "session_ended",
@@ -2070,6 +2094,10 @@ def get_cases(
                 "govt_raw_portal_status": pl.get("raw_portal_status") or None,
             }
 
+    reviewed_cycles_map = _resolution_reviewed_cycles(
+        tid, set(filing_ids) | set(page_case_ids)
+    )
+
     def _with_govt_sync(case):
         prepared = _prepare_briefcase_list_case(
             case, tenant_constituency, tid, media_count_map.get(case.get("id"), 0)
@@ -2079,6 +2107,10 @@ def get_cases(
         sync = govt_sync_map.get(case.get("govt_filing_case_id") or case.get("id"))
         if sync:
             prepared.update(sync)
+        reviewed = reviewed_cycles_map.get(case.get("id"), set()) | reviewed_cycles_map.get(
+            case.get("govt_filing_case_id"), set()
+        )
+        prepared["resolution_verification"] = case_lifecycle.resolution_verification(prepared, reviewed)
         return prepared
 
     cases = [
@@ -2127,7 +2159,24 @@ def get_case_filter_options(user=Depends(get_current_user)):
     def format_rows(rows):
         return [{"value": r["value"], "count": r["count"]} for r in rows if r.get("value")]
 
+    # Derived (never stored) count: portal reports resolution for the current
+    # round and staff have not verified it. Same rule as the per-case flag.
+    resolution_candidates = _q(
+        f"""
+        SELECT id, status, govt_status, govt_reference_number, govt_status_updated_at
+        FROM cases
+        WHERE {base_where} AND LOWER(COALESCE(govt_status, '')) IN ('resolved', 'disposed')
+        """,
+        params,
+    )
+    reviewed_cycles = _resolution_reviewed_cycles(tid, [r["id"] for r in resolution_candidates])
+    resolution_pending = sum(
+        1 for r in resolution_candidates
+        if case_lifecycle.resolution_verification(r, reviewed_cycles.get(r["id"], set())) == "pending"
+    )
+
     return {
+        "resolution_verification_pending": resolution_pending,
         "statuses": format_rows(status_rows),
         "categories": format_rows(category_rows),
         "locations": format_rows(location_rows),
@@ -2520,7 +2569,25 @@ def get_case(case_id: int, user=Depends(get_current_user)):
         )
     case["suppressed_contact_messages"] = suppressed_messages
 
+    case["resolution_verification"] = case_lifecycle.resolution_verification(
+        case, _resolution_reviewed_cycles(tid, [case_id]).get(case_id, set())
+    )
     return case
+
+
+def _resolution_reviewed_cycles(tenant_id: int, case_ids) -> dict:
+    """{case_id: {cycle markers staff reviewed}} for govt-resolution reviews."""
+    ids = [cid for cid in case_ids if cid is not None]
+    if not ids:
+        return {}
+    placeholders = ", ".join(f":rv_id_{i}" for i in range(len(ids)))
+    params = {"tid": tenant_id, **{f"rv_id_{i}": cid for i, cid in enumerate(ids)}}
+    rows = _q(  # nosec B608 — placeholders generated; ids are bound params
+        f"SELECT case_id, details FROM case_activity_log "
+        f"WHERE tenant_id = :tid AND action = 'govt_resolution_reviewed' AND case_id IN ({placeholders})",
+        params,
+    )
+    return case_lifecycle.reviewed_cycles_by_case(rows)
 
 
 @router.get("/cases/{case_id}/media/{media_id}")
@@ -2548,10 +2615,7 @@ class StatusUpdate(BaseModel):
 
 
 def _normalize_case_status_value(status: str | None) -> str:
-    normalized = str(status or "").strip().lower()
-    if normalized == "escalated":
-        return "in_progress"
-    return normalized
+    return case_lifecycle.normalize_status(status)
 
 
 def _log_case_activity(tenant_id, case_id, username, action, old_value=None, new_value=None, details=None):
@@ -2622,7 +2686,10 @@ def update_case_status(case_id: int, body: StatusUpdate, user=Depends(get_curren
     if current is None:
         raise HTTPException(404, "Case not found")
     old_status = current["status"]
-    next_status = _normalize_case_status_value(body.status)
+    try:
+        next_status = case_lifecycle.validate_manual_status(body.status)
+    except ValueError:
+        raise HTTPException(400, "Unsupported case status")
 
     with engine.begin() as conn:
         _write_case_status(conn, tid, case_id, next_status, old_status=old_status,
@@ -4106,7 +4173,7 @@ def record_govt_resolution_review(case_id: int, body: GovtResolutionReviewReques
     if str(case.get("govt_status") or "").strip().lower() not in ("resolved", "disposed"):
         raise HTTPException(409, "The government portal has not marked this grievance resolved")
 
-    cycle_marker = _coerce_iso(case.get("govt_status_updated_at"))
+    cycle_marker = case_lifecycle.cycle_marker(case.get("govt_status_updated_at"))
     _log_case_activity(
         tid, case_id, user.get("username", ""),
         "govt_resolution_reviewed", new_value=decision,
@@ -4150,9 +4217,6 @@ def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_cur
             }
         raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), existing_ref))
 
-    _old_needle_status = str(case.get("status") or "")
-    _keep_terminal = _old_needle_status.strip().lower() in ("resolved", "completed", "closed")
-    _next_needle_status = _old_needle_status if _keep_terminal else "in_progress"
     _now = _utcnow()
     with engine.begin() as conn:
         conn.execute(
@@ -4163,12 +4227,17 @@ def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_cur
             ),
             {"ref": ref, "now": _now, "cid": case_id, "tid": tid},
         )
-        # Filing side-effect on the Needle status (never demotes a terminal case).
-        # _write_case_status advances status_changed_at + logs status_change only
-        # when the value actually moves.
-        _write_case_status(conn, tid, case_id, _next_needle_status,
-                           old_status=_old_needle_status,
-                           actor=user.get("username", ""), now=_now)
+        # A recorded filing reference is verified external evidence. The
+        # lifecycle module moves only eligible (open, not-yet-progressing)
+        # cases, in this same transaction, and logs the evidence.
+        case_lifecycle.apply_external_evidence(
+            conn,
+            tenant_id=tid,
+            case_id=case_id,
+            evidence=case_lifecycle.EVIDENCE_GOVT_FILING_RECORDED,
+            source={"recorded_by": user.get("username", "")},
+            now=_now,
+        )
     _log_govt_action(tid, case_id, "staff_submitted", user.get("username"), payload={"reference_number": ref})
     try:
         _log_case_activity(tid, case_id, user.get("username", ""), "govt_submitted", new_value=ref)
@@ -4904,12 +4973,16 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
         return {"success": True, "changed": False, "state": "complete", "note": _GOVT_NO_STATUS_CHANGE_NOTE}
 
     changed = result.status != case["govt_status"]
-    if changed:
-        with engine.begin() as conn:
+    with engine.begin() as conn:
+        if changed:
             conn.execute(
                 text("UPDATE cases SET govt_status = :status, govt_status_updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
                 {"status": result.status, "now": _utcnow(), "cid": case_id, "tid": tid},
             )
+        case_lifecycle.apply_portal_confirmation(
+            conn, tenant_id=tid, case_id=case_id, govt_status=result.status,
+            source={"check": "interactive_status_check"},
+        )
     _log_govt_action(
         tid,
         case_id,
@@ -4966,15 +5039,15 @@ def _get_ws_user(token: str) -> dict | None:
     if not token:
         return None
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        username = payload.get("sub")
-        if not username:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM],
+                             options={"require": ["sub", "tid", "role", "iat", "exp", "credential_state"]})
+        user = validate_session(_q_one, payload)
+        # A live browser supports input and cannot enforce the support read scope.
+        if payload.get("support_access") or user.get("must_change_password"):
             return None
-        if is_token_revoked(username, payload.get("iat", 0)):
-            return None
-        return _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
-    except JWTError:
-        return None
+        return user
+    except Exception:
+        return None  # DB outages also terminate access.
 
 
 @router.post("/cases/{case_id}/govt/session/start")
@@ -5111,12 +5184,24 @@ async def govt_live_session_stream(websocket: WebSocket, session_id: str, token:
     await websocket.send_json({"type": "ready", **meta})
 
     async def _send(payload: dict):
+        if not _get_ws_user(token):
+            await websocket.close(code=4401)
+            return
         await websocket.send_json(payload)
 
     await attach_stream(session_id, websocket, _send)
     try:
         while True:
-            msg = await websocket.receive_json()
+            if not _get_ws_user(token):
+                await websocket.close(code=4401)
+                break
+            try:
+                msg = await asyncio.wait_for(websocket.receive_json(), timeout=1.0)
+            except asyncio.TimeoutError:
+                continue
+            if not _get_ws_user(token):
+                await websocket.close(code=4401)
+                break
             if msg.get("type") == "input":
                 await relay_input(session_id, msg.get("event") or {})
     except WebSocketDisconnect:
@@ -5324,12 +5409,16 @@ async def govt_tamil_nadu_check_status(case_id: int, session_id: str, user=Depen
     old_status = case.get("govt_status")
     normalized = result.normalized_status
     changed = normalized != old_status
-    if changed:
-        with engine.begin() as conn:
+    with engine.begin() as conn:
+        if changed:
             conn.execute(
                 text("UPDATE cases SET govt_status = :status, govt_status_updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
                 {"status": normalized, "now": _utcnow(), "cid": case_id, "tid": tid},
             )
+        case_lifecycle.apply_portal_confirmation(
+            conn, tenant_id=tid, case_id=case_id, govt_status=normalized,
+            source={"check": "tamil_nadu_live_session"},
+        )
 
     portal_detail = {
         "status_text": result.raw_detail_status,
@@ -5946,11 +6035,9 @@ def delete_team_member(member_id: int, user=Depends(get_current_user)):
             text("UPDATE users SET is_active = false WHERE id = :mid AND tenant_id = :tid"),
             {"mid": member_id, "tid": tid},
         )
-
-    # Revoke all active tokens for the removed user so they're logged out immediately
-    revoke_user_tokens(
-        _q_one("SELECT username FROM users WHERE id = :mid", {"mid": member_id}).get("username", "")
-    )
+        conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+            SELECT username, :now FROM users WHERE id = :mid AND tenant_id = :tid"""),
+            {"now": _utcnow(), "mid": member_id, "tid": tid})
 
     logger.info("Team member deactivated: id=%s tenant=%s by=%s", member_id, tid, user.get("username"))
     return {"success": True}

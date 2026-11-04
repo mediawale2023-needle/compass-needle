@@ -14,7 +14,7 @@ import secrets
 import string
 import requests as http_requests
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 import uuid
 import threading
@@ -28,6 +28,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, TenantOverride, JobRun, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote, derive_account_stage, derive_seat_type, build_geography_key, parse_geography_key, get_all_geography_data, seat_label
 from core.db_helpers import _q, _q_one, _parse_meta
+from core.session_auth import (token_revoked, revoke_in_transaction, require_active_account, validate_session, credential_binding)
 from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
 from modules.seat_maps import list_all_seat_manifests, upsert_db_seat_manifest, get_db_seat_manifest, list_seat_map_workflows
@@ -170,39 +171,18 @@ def verify_password(password: str, stored_hash: str) -> bool:
     return False
 
 
-def create_admin_token(data: dict) -> str:
-    payload = {**data, "iat": datetime.utcnow().timestamp(), "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
+def create_admin_token(data: dict, *, credential_user: dict, issued_at: float | None = None) -> str:
+    payload = {**data, "credential_state": credential_binding(credential_user), "iat": issued_at if issued_at is not None else datetime.now(timezone.utc).timestamp(), "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
     return jwt.encode(payload, ADMIN_JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def _is_token_revoked(username: str, token_issued_at: float) -> bool:
-    """Check if a user's tokens were revoked after this token was issued."""
-    try:
-        row = _q_one(
-            "SELECT revoked_at FROM token_blocklist WHERE username = :u ORDER BY revoked_at DESC LIMIT 1",
-            {"u": username}
-        )
-        if row and row.get("revoked_at"):
-            revoked_at = row["revoked_at"]
-            if hasattr(revoked_at, 'timestamp'):
-                return token_issued_at < revoked_at.timestamp()
-    except Exception:
-        logger.error("Token revocation check failed — rejecting admin token for safety")
-        return True
-    return False
+    return token_revoked(_q_one, username, token_issued_at)
 
 
 def _revoke_user_tokens(username: str):
-    """Revoke all existing tokens for a user."""
-    try:
-        with engine.begin() as conn:
-            conn.execute(
-                text("INSERT INTO token_blocklist (username, revoked_at) VALUES (:u, :now)"),
-                {"u": username, "now": datetime.utcnow()}
-            )
-        logger.info(f"Revoked all tokens for user: {username}")
-    except Exception as e:
-        logger.error(f"Token revocation failed for {username}: {e}")
+    with engine.begin() as conn:
+        revoke_in_transaction(conn, username)
 
 
 def _record_failed_login(username: str) -> datetime | None:
@@ -254,19 +234,9 @@ def _clear_login_failures(username: str) -> None:
 def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verify JWT and ensure user has an admin role."""
     try:
-        payload = jwt.decode(credentials.credentials, ADMIN_JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        username = payload.get("sub")
-        role = payload.get("role", "")
-        if not username or role not in ADMIN_ROLES:
-            raise HTTPException(403, "Admin access required")
-        # Check blocklist
-        token_iat = payload.get("iat", 0)
-        if _is_token_revoked(username, token_iat):
-            raise HTTPException(401, "Token has been revoked. Please login again.")
-        user = _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
-        if not user or user.get("role") not in ADMIN_ROLES:
-            raise HTTPException(403, "Admin access required")
-        return user
+        payload = jwt.decode(credentials.credentials, ADMIN_JWT_SECRET, algorithms=[JWT_ALGORITHM],
+                             options={"require": ["sub", "tid", "role", "iat", "exp", "credential_state"]})
+        return validate_session(_q_one, payload, admin_roles=ADMIN_ROLES)
     except JWTError:
         raise HTTPException(401, "Invalid or expired token")
 
@@ -760,6 +730,7 @@ def _tenant_identity_dict(tenant: dict | Tenant | None, user: dict | User | None
 @router.post("/auth/login")
 @_limit_login
 def admin_login(req: AdminLoginRequest, request: Request):
+    auth_started_at = datetime.now(timezone.utc).timestamp()
     user = _q_one("SELECT * FROM users WHERE username = :u", {"u": req.username})
     if not user:
         raise HTTPException(401, "Invalid credentials")
@@ -775,19 +746,21 @@ def admin_login(req: AdminLoginRequest, request: Request):
         _record_failed_login(req.username)
         raise HTTPException(401, "Invalid credentials")
 
-    if user.get("is_active") is False:
-        raise HTTPException(403, "Account suspended. Contact your administrator.")
+    require_active_account(_q_one, user, require_tenant=False)
 
     _clear_login_failures(req.username)
 
     # Auto-upgrade plain text passwords to bcrypt
     stored_hash = user.get("password_hash", "")
+    credential_user = user
     if not (stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$")):
+        upgraded_hash = hash_password(req.password)
         with engine.begin() as conn:
             conn.execute(
                 text("UPDATE users SET password_hash = :h WHERE username = :u"),
-                {"h": hash_password(req.password), "u": req.username},
+                {"h": upgraded_hash, "u": req.username},
             )
+        credential_user = {**user, "password_hash": upgraded_hash}
 
     # Update last_login
     try:
@@ -804,7 +777,7 @@ def admin_login(req: AdminLoginRequest, request: Request):
         "sub": user["username"],
         "tid": admin_tid,
         "role": user.get("role", "admin"),
-    })
+    }, credential_user=credential_user, issued_at=auth_started_at)
 
     return {
         "token": token,
@@ -1027,6 +1000,9 @@ def delete_mp(tenant_id: int, _=Depends(get_admin_user)):
     ]
     try:
         with engine.begin() as conn:
+            conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+                SELECT username, :now FROM users WHERE tenant_id = :tid"""),
+                {"now": datetime.now(timezone.utc).replace(tzinfo=None), "tid": tenant_id})
             for table in _TENANT_TABLES_ORDERED:
                 conn.execute(
                     text(f"DELETE FROM {table} WHERE tenant_id = :tid"),  # nosec B608 — table names are hardcoded, not user input
@@ -1192,9 +1168,8 @@ def reset_mp_password(tenant_id: int, req: ResetPasswordRequest, _=Depends(get_a
         user.must_change_password = True
         user.password_reset_by_admin_at = datetime.utcnow()
         user.force_password_reason = "admin_reset"
+        revoke_in_transaction(db, user.username)
         db.commit()
-        # Revoke all existing tokens for this MP
-        _revoke_user_tokens(user.username)
         return {
             "success": True,
             "temporary_password": temporary_password,
@@ -2099,7 +2074,10 @@ def create_editor(req: CreateEditorRequest, _=Depends(get_admin_user)):
 def delete_editor(editor_id: int, _=Depends(get_admin_user)):
     db = SessionLocal()
     try:
-        db.query(User).filter(User.id == editor_id, User.role == "editor").delete()
+        editor = db.query(User).filter(User.id == editor_id, User.role == "editor").first()
+        if editor:
+            revoke_in_transaction(db, editor.username)
+            db.delete(editor)
         db.commit()
         return {"success": True}
     except Exception as e:
@@ -2126,9 +2104,8 @@ def reset_admin_password(req: AdminPasswordResetRequest, user=Depends(get_admin_
         u = db.query(User).filter(User.username == user["username"]).first()
         if u:
             u.password_hash = hash_password(req.new_password)
+            revoke_in_transaction(db, user["username"])
             db.commit()
-            # Revoke all existing tokens for this admin
-            _revoke_user_tokens(user["username"])
         return {"success": True}
     except Exception as e:
         db.rollback()
@@ -2959,15 +2936,176 @@ def case_health(_=Depends(get_admin_user)):
     }
 
 
+# ── Case aggregates (read-only) ───────────────────────────────────────────
+# Real case analytics for the Admin Command Centre / Account 360. Definitions
+# follow the existing MP-workspace vocabulary; nothing here is an SLA:
+#   * open      = status in CASE_OPEN_STATUSES (api_router's active set)
+#   * resolved  = status in CASE_RESOLVED_STATUSES; resolved_at is stamped on
+#                 entry into that family and cleared on exit (_write_case_status)
+#   * deleted cases are excluded everywhere
+# The open trend is reconstructed per week end from created_at/resolved_at for
+# cases whose current status is open or resolved, so its final point equals
+# the current open count. Prior resolve/reopen cycles are not replayed.
+CASE_OPEN_STATUSES = ("new", "pending", "pending_review", "awaiting_location", "in_progress")
+CASE_RESOLVED_STATUSES = ("resolved", "completed")
+CASE_AGE_BUCKETS = (  # (label, min_days, max_days or None) — display bands, not targets
+    ("0–3 days", 0, 3),
+    ("4–7 days", 4, 7),
+    ("8–14 days", 8, 14),
+    ("15–30 days", 15, 30),
+    ("Over 30 days", 31, None),
+)
+
+
+def _agg_dt(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None) if value.tzinfo else value
+    text_value = str(value).strip().replace("Z", "")
+    for candidate in (text_value, text_value.replace(" ", "T")):
+        try:
+            parsed = datetime.fromisoformat(candidate)
+            return parsed.replace(tzinfo=None) if parsed.tzinfo else parsed
+        except ValueError:
+            continue
+    return None
+
+
+def compute_case_aggregates(rows, now: datetime, weeks: int):
+    """Pure aggregation over rows of {status, created_at, resolved_at}."""
+    weeks = max(1, min(int(weeks), 52))
+    today = datetime(now.year, now.month, now.day)
+    # Weeks start Monday 00:00 UTC; the last bucket is the current, partial week.
+    current_week_start = today - timedelta(days=today.weekday())
+    starts = [current_week_start - timedelta(weeks=weeks - 1 - i) for i in range(weeks)]
+    ends = [start + timedelta(weeks=1) for start in starts]
+    window_start = starts[0]
+
+    weekly = [{"week_start": start.date().isoformat(), "new": 0, "resolved": 0, "open_at_end": 0} for start in starts]
+    ageing = [{"label": label, "min_days": lo, "max_days": hi, "count": 0} for label, lo, hi in CASE_AGE_BUCKETS]
+    open_now = 0
+    resolution_hours = []
+    by_tenant = {}
+    by_category = {}
+
+    def week_index(moment):
+        if moment is None or moment < window_start or moment >= ends[-1]:
+            return None
+        return min(int((moment - window_start).days // 7), weeks - 1)
+
+    for row in rows:
+        status = str(row.get("status") or "").strip().lower()
+        is_open = status in CASE_OPEN_STATUSES
+        is_resolved = status in CASE_RESOLVED_STATUSES
+        if not (is_open or is_resolved):
+            continue
+        created = _agg_dt(row.get("created_at"))
+        resolved_at = _agg_dt(row.get("resolved_at")) if is_resolved else None
+        if created is None:
+            continue
+
+        idx = week_index(created)
+        if idx is not None:
+            weekly[idx]["new"] += 1
+        if resolved_at is not None:
+            ridx = week_index(resolved_at)
+            if ridx is not None:
+                weekly[ridx]["resolved"] += 1
+                if resolved_at >= created:
+                    resolution_hours.append((resolved_at - created).total_seconds() / 3600)
+
+        if is_open:
+            open_now += 1
+            age_days = max(0, (now - created).days)
+            category = str(row.get("category") or "").strip() or "Uncategorised"
+            by_category[category] = by_category.get(category, 0) + 1
+            tid = row.get("tenant_id")
+            if tid is not None:
+                entry = by_tenant.setdefault(str(tid), {"open": 0, "open_over_14_days": 0})
+                entry["open"] += 1
+                if age_days > 14:
+                    entry["open_over_14_days"] += 1
+            for bucket in ageing:
+                if age_days >= bucket["min_days"] and (bucket["max_days"] is None or age_days <= bucket["max_days"]):
+                    bucket["count"] += 1
+                    break
+
+        for i, end in enumerate(ends):
+            boundary = min(end, now)
+            if created < boundary and (resolved_at is None or resolved_at >= boundary):
+                weekly[i]["open_at_end"] += 1
+
+    resolution_hours.sort()
+    median_hours = None
+    if resolution_hours:
+        mid = len(resolution_hours) // 2
+        median_hours = resolution_hours[mid] if len(resolution_hours) % 2 else (resolution_hours[mid - 1] + resolution_hours[mid]) / 2
+
+    return {
+        "generated_at": now.isoformat(),
+        "weeks": weeks,
+        "definitions": {
+            "open_statuses": list(CASE_OPEN_STATUSES),
+            "resolved_statuses": list(CASE_RESOLVED_STATUSES),
+            "week_starts": "Monday 00:00 UTC; the final week is in progress",
+        },
+        "open_now": open_now,
+        "open_by_tenant": by_tenant,
+        "open_by_category": [
+            {"category": name, "count": count}
+            for name, count in sorted(by_category.items(), key=lambda item: (-item[1], item[0]))
+        ],
+        "ageing": ageing,
+        "weekly": weekly,
+        "resolution": {
+            "resolved_in_window": len(resolution_hours),
+            "median_hours": round(median_hours, 1) if median_hours is not None else None,
+        },
+    }
+
+
+@router.get("/cases/aggregates")
+def case_aggregates(
+    weeks: int = Query(12, ge=1, le=52),
+    tenant_id: Optional[int] = None,
+    _=Depends(get_admin_user),
+):
+    """Read-only case analytics: open count (overall, by account and by
+    category), ageing bands, weekly new vs resolved, and the open-case trend. Optional tenant_id scopes to one
+    account (admin-only endpoint, same access as /cases/explorer)."""
+    conditions = ["(c.is_deleted IS NULL OR c.is_deleted = :not_deleted)"]
+    params = {"not_deleted": False}
+    if tenant_id is not None:
+        conditions.append("c.tenant_id = :tid")
+        params["tid"] = tenant_id
+    rows = _q(
+        f"SELECT c.tenant_id, c.status, c.category, c.created_at, c.resolved_at FROM cases c WHERE {' AND '.join(conditions)}",  # nosec B608 — fixed clauses, bound params
+        params,
+    )
+    result = compute_case_aggregates(rows, datetime.utcnow(), weeks)
+    result["tenant_id"] = tenant_id
+    return result
+
+
+CASE_PRIORITIES = ("critical", "high", "standard", "low")
+
+
 @router.get("/cases/explorer")
 def case_explorer(
     mp_id: Optional[int] = None,
     period: Optional[str] = None,
     category: Optional[str] = None,
     status: Optional[str] = None,
+    priority: Optional[str] = None,
+    assignment: Optional[str] = None,
     _=Depends(get_admin_user),
 ):
-    """Case Explorer with filters."""
+    """Case Explorer with filters (read-only).
+
+    priority filters on the staff-set cases.priority column (critical | high |
+    standard | low); assignment is 'assigned' or 'unassigned' on
+    cases.assigned_to. Both columns already exist; nothing is written."""
     conditions = ["1=1"]
     params = {}
 
@@ -2990,6 +3128,19 @@ def case_explorer(
         conditions.append("c.status = :st")
         params["st"] = status
 
+    if priority:
+        if priority not in CASE_PRIORITIES:
+            raise HTTPException(400, "Unknown priority")
+        conditions.append("LOWER(COALESCE(c.priority, 'standard')) = :prio")
+        params["prio"] = priority
+
+    if assignment == "unassigned":
+        conditions.append("(c.assigned_to IS NULL OR TRIM(c.assigned_to) = '')")
+    elif assignment == "assigned":
+        conditions.append("(c.assigned_to IS NOT NULL AND TRIM(c.assigned_to) <> '')")
+    elif assignment:
+        raise HTTPException(400, "assignment must be 'assigned' or 'unassigned'")
+
     where = " AND ".join(conditions)
 
     count_row = _q_one(f"SELECT COUNT(*) AS cnt FROM cases c WHERE {where}", params) or {"cnt": 0}  # nosec B608
@@ -2999,7 +3150,8 @@ def case_explorer(
         f"""SELECT c.id, c.tenant_id, t.name AS mp_name, t.constituency,
                c.user_phone, c.category, c.status, c.raw_message,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
-               c.response_to_citizen, c.notes_for_staff
+               c.response_to_citizen, c.notes_for_staff,
+               c.case_ref, c.priority, c.assigned_to, c.is_deleted
         FROM cases c JOIN tenants t ON c.tenant_id = t.id
         WHERE {where} ORDER BY c.created_at DESC LIMIT 200
     """, params)
@@ -3020,6 +3172,15 @@ def case_explorer(
             "message": (c.get("raw_message") or "-")[:80],
             "created": created_str,
             "critical": c.get("is_critical", False),
+            # Additive, read-only fields for the master/detail explorer.
+            "tenant_id": c.get("tenant_id"),
+            "constituency": c.get("constituency") or "",
+            "case_ref": c.get("case_ref") or None,
+            "priority": (c.get("priority") or "standard").lower(),
+            "assigned_to": (c.get("assigned_to") or "").strip() or None,
+            "created_at": _iso_or_none(created),
+            "needs_geography_review": bool(meta.get("needs_geography_review")),
+            "is_deleted": bool(c.get("is_deleted")),
         })
 
     # Get filter options
@@ -3034,6 +3195,7 @@ def case_explorer(
             "categories": [c["category"] for c in categories if c["category"]],
             "statuses": [s["status"] for s in statuses if s["status"]],
             "mps": [{"id": t["id"], "name": t["name"], "constituency": t["constituency"]} for t in tenants],
+            "priorities": list(CASE_PRIORITIES),
         },
     }
 
@@ -3073,6 +3235,164 @@ def case_detail(case_id: int, _=Depends(get_admin_user)):
         "created_at": fmt_dt(detail.get("created_at")),
         "updated_at": fmt_dt(detail.get("updated_at")),
         "resolved_at": fmt_dt(detail.get("resolved_at")),
+        **_case_investigation_context(detail, meta),
+    }
+
+
+# Read-only investigation context for Admin. Exposes only columns and
+# metadata that already exist; nothing here writes. Privacy: the citizen is
+# identified by the phone number Admin already sees — contact display names
+# and the AI-extracted `person` field are deliberately NOT exposed, and raw
+# webhook payloads / geography diagnostics are omitted.
+_CASE_ACTIVITY_LIMIT = 100
+_CASE_MESSAGES_LIMIT = 50
+
+
+def _case_investigation_context(detail: dict, meta: dict) -> dict:
+    case_id = detail["id"]
+    tenant_id = detail.get("tenant_id")
+    scope = {"cid": case_id, "tid": tenant_id}
+
+    def _safe_rows(label, query, params):
+        # A missing/unmigrated ledger table marks that section unavailable
+        # (None) rather than failing the whole case detail.
+        try:
+            return _q(query, params)
+        except Exception:
+            logger.warning("case detail: %s lookup failed for case %s", label, case_id, exc_info=True)
+            return None
+
+    portal = None
+    if detail.get("govt_portal_id"):
+        portal_rows = _safe_rows(
+            "portal",
+            "SELECT portal_name, state, portal_type FROM govt_portals WHERE id = :pid",
+            {"pid": detail.get("govt_portal_id")},
+        )
+        portal_row = portal_rows[0] if portal_rows else None
+        if portal_row:
+            portal = {"name": portal_row.get("portal_name"), "state": portal_row.get("state"), "type": portal_row.get("portal_type")}
+
+    # Tenant-scoped: rows must belong to this case AND this case's tenant.
+    activity = _safe_rows(
+        "activity",
+        """
+        SELECT username, action, old_value, new_value, details, created_at
+        FROM case_activity_log
+        WHERE case_id = :cid AND tenant_id = :tid
+        ORDER BY created_at ASC, id ASC
+        LIMIT :lim
+        """,
+        {**scope, "lim": _CASE_ACTIVITY_LIMIT},
+    )
+    outbound = _safe_rows(
+        "outbound",
+        """
+        SELECT id, status, message_body, template_key, last_error, created_at, last_attempt_at, sent_at
+        FROM wa_outbound_messages
+        WHERE case_id = :cid AND tenant_id = :tid
+        ORDER BY created_at ASC, id ASC
+        LIMIT :lim
+        """,
+        {**scope, "lim": _CASE_MESSAGES_LIMIT},
+    )
+    inbound = _safe_rows(
+        "inbound",
+        """
+        SELECT id, status, message_type, created_at, processed_at
+        FROM wa_inbound_messages
+        WHERE case_id = :cid AND tenant_id = :tid
+        ORDER BY created_at ASC, id ASC
+        LIMIT :lim
+        """,
+        {**scope, "lim": _CASE_MESSAGES_LIMIT},
+    )
+
+    translation = meta.get("english_translation")
+    if translation and meta.get("english_translation_source") != detail.get("raw_message"):
+        translation = None  # stale: generated for an earlier version of the message
+
+    def _text(value, limit=2000):
+        value = (value or "").strip() if isinstance(value, str) else value
+        return value[:limit] if isinstance(value, str) else value
+
+    return {
+        "tenant_id": tenant_id,
+        "case_ref": detail.get("case_ref") or None,
+        "priority": (detail.get("priority") or "standard").lower(),
+        "assigned_to": (detail.get("assigned_to") or "").strip() or None,
+        "is_deleted": bool(detail.get("is_deleted")),
+        "problem_domain": detail.get("problem_domain") or None,
+        "problem_subdomain": detail.get("problem_subdomain") or None,
+        "timestamps": {
+            "created_at": _iso_or_none(detail.get("created_at")),
+            "updated_at": _iso_or_none(detail.get("updated_at")),
+            "status_changed_at": _iso_or_none(detail.get("status_changed_at")),
+            "resolved_at": _iso_or_none(detail.get("resolved_at")),
+        },
+        "government": {
+            "status": detail.get("govt_status") or None,
+            "department": detail.get("govt_department") or None,
+            "reference_number": detail.get("govt_reference_number") or None,
+            "status_updated_at": _iso_or_none(detail.get("govt_status_updated_at")),
+            "last_forwarded_to_citizen_at": _iso_or_none(detail.get("govt_last_forwarded_to_citizen_at")),
+            "portal": portal,
+        },
+        # AI-derived: produced by Needle's classifier / pipeline, not by staff.
+        "analysis": {
+            "summary": _text(meta.get("summary"), 500) or None,
+            "ai_category": meta.get("ai_category") or None,
+            "ai_subcategory": meta.get("ai_subcategory") or None,
+            "ai_confidence": meta.get("ai_confidence"),
+            "category_decided_by": meta.get("category_decided_by") or None,
+            "needs_review": bool(meta.get("needs_review")),
+            "classification_mode": meta.get("classification_mode") or None,
+            "language": meta.get("detected_language") or meta.get("language") or None,
+            "english_translation": _text(translation, 2000) or None,
+            "department_mentioned": meta.get("department") or None,
+            "scheme_mentioned": meta.get("scheme") or None,
+            "geography": {
+                "confidence": meta.get("geography_confidence") or None,
+                "source": meta.get("geography_source") or None,
+                "needs_review": bool(meta.get("needs_geography_review")),
+                "review_reason": meta.get("geography_review_reason") or None,
+            },
+        },
+        "activity": None if activity is None else [
+            {
+                "username": row.get("username") or None,
+                "action": row.get("action") or None,
+                "old_value": row.get("old_value"),
+                "new_value": row.get("new_value"),
+                "details": _text(row.get("details"), 500),
+                "created_at": _iso_or_none(row.get("created_at")),
+            }
+            for row in activity
+        ],
+        "messages": {
+            "inbound": None if inbound is None else [
+                {
+                    "id": row.get("id"),
+                    "status": row.get("status"),
+                    "message_type": row.get("message_type"),
+                    "created_at": _iso_or_none(row.get("created_at")),
+                    "processed_at": _iso_or_none(row.get("processed_at")),
+                }
+                for row in inbound
+            ],
+            "outbound": None if outbound is None else [
+                {
+                    "id": row.get("id"),
+                    "status": row.get("status"),
+                    "body": _text(row.get("message_body"), 1000),
+                    "template_key": row.get("template_key"),
+                    "last_error": _text(row.get("last_error"), 300),
+                    "created_at": _iso_or_none(row.get("created_at")),
+                    "sent_at": _iso_or_none(row.get("sent_at")),
+                }
+                for row in outbound
+            ],
+        },
     }
 
 
@@ -3760,6 +4080,10 @@ def edit_staff(staff_id: int, req: StaffEditRequest, _=Depends(get_admin_user)):
         raise HTTPException(400, "Nothing to update.")
     with engine.begin() as conn:
         result = conn.execute(text(f"UPDATE users SET {', '.join(updates)} WHERE id = :id AND role NOT IN ('admin','super_admin','sysadmin','owner','mp')"), params)
+        if req.role is not None and result.rowcount:
+            conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+                SELECT username, :now FROM users WHERE id = :id"""),
+                {"now": datetime.now(timezone.utc).replace(tzinfo=None), "id": staff_id})
     if result.rowcount == 0:
         raise HTTPException(404, "Staff member not found.")
     return {"success": True}
@@ -3776,6 +4100,10 @@ def toggle_staff_suspension(staff_id: int, _=Depends(get_admin_user)):
     new_state = not bool(row.get("is_active", True))
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET is_active = :s WHERE id = :id"), {"s": new_state, "id": staff_id})
+        conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+            SELECT username, :now FROM users WHERE id = :id
+              AND role NOT IN ('admin','super_admin','sysadmin','owner','mp')"""),
+            {"now": datetime.now(timezone.utc).replace(tzinfo=None), "id": staff_id})
     return {"success": True, "is_active": new_state}
 
 
@@ -3790,6 +4118,10 @@ def reassign_staff(staff_id: int, req: StaffReassignRequest, _=Depends(get_admin
             text("UPDATE users SET tenant_id = :t WHERE id = :id AND role NOT IN ('admin','super_admin','sysadmin','owner','mp')"),
             {"t": req.tenant_id, "id": staff_id},
         )
+        conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+            SELECT username, :now FROM users WHERE id = :id
+              AND role NOT IN ('admin','super_admin','sysadmin','owner','mp')"""),
+            {"now": datetime.now(timezone.utc).replace(tzinfo=None), "id": staff_id})
     if result.rowcount == 0:
         raise HTTPException(404, "Staff member not found or is a primary/admin account.")
     return {"success": True}
@@ -3827,6 +4159,10 @@ def update_onboarding(tenant_id: int, req: OnboardingUpdate, _=Depends(get_admin
         updates.append("is_active = false")
     with engine.begin() as conn:
         conn.execute(text(f"UPDATE tenants SET {', '.join(updates)} WHERE id = :t"), params)
+        if req.live is not None:
+            conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
+                SELECT username, :now FROM users WHERE tenant_id = :tid"""),
+                {"now": datetime.now(timezone.utc).replace(tzinfo=None), "tid": tenant_id})
     return {"success": True, "onboarding_state": state}
 
 
@@ -4733,7 +5069,7 @@ def create_support_access_launch_token(request_key: str, admin_user=Depends(get_
     row = _q_one(
         """
         SELECT * FROM support_access_requests
-        WHERE request_key = :request_key
+        WHERE request_key = :request_key AND status = 'approved' AND launch_token_consumed_at IS NULL
         """,
         {"request_key": request_key},
     )
@@ -4749,7 +5085,7 @@ def create_support_access_launch_token(request_key: str, admin_user=Depends(get_
     launch_token = secrets.token_urlsafe(32)
     launch_expires = _support_access_now() + timedelta(minutes=15)
     with engine.begin() as conn:
-        conn.execute(
+        updated = conn.execute(
             text(
                 """
                 UPDATE support_access_requests
@@ -4757,7 +5093,7 @@ def create_support_access_launch_token(request_key: str, admin_user=Depends(get_
                     launch_token_expires_at = :launch_expires,
                     launch_token_consumed_at = NULL,
                     updated_at = :updated_at
-                WHERE request_key = :request_key
+                WHERE request_key = :request_key AND status = 'approved' AND launch_token_consumed_at IS NULL
                 """
             ),
             {
@@ -4767,6 +5103,8 @@ def create_support_access_launch_token(request_key: str, admin_user=Depends(get_
                 "request_key": request_key,
             },
         )
+    if updated.rowcount != 1:
+        raise HTTPException(409, "Support request is no longer available")
     return {
         "success": True,
         "request_key": request_key,

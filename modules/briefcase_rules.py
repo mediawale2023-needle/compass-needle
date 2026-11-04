@@ -294,6 +294,7 @@ _CIVIC_RULES: tuple[dict, ...] = (
             "toot", "tut", "टूट", "तुट", "tutla", "tutli", "kharab", "खराब",
             "gadd", "khadd", "गड्ढ", "खड्ड", "pothole", "kacchi", "कच्ची",
             "band", "बंद", "doob", "डूब", "keechar", "कीचड़", "broken", "damaged",
+            "bad condition", "poor condition",
         ),
         "phrases": (
             "pothole", "potholes", "gadde hain", "khadde hain", "गड्ढे",

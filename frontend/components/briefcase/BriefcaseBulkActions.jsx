@@ -1,7 +1,7 @@
 'use client';
 
 import { STATUS_OPTIONS } from '@/components/briefcase/briefcase-shared';
-import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
+import { gen2, gen2Fonts, gen2Type as T } from '@/lib/briefcase-tokens';
 
 // Compact bulk-action bar. Only genuinely-wired actions are exposed:
 // Assign owner, Set status, Delete (with confirmation, in the hook).
@@ -17,7 +17,7 @@ export default function BriefcaseBulkActions({ selectedCount, onStatusChange, on
         background: 'transparent',
         color: C.cream,
         padding: '5px 10px',
-        fontSize: 11.5,
+        fontSize: T.control,
         fontWeight: 600,
         letterSpacing: '0.02em',
         cursor: 'pointer',
@@ -40,14 +40,14 @@ export default function BriefcaseBulkActions({ selectedCount, onStatusChange, on
             <span
                 style={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    minWidth: 20, height: 20, padding: '0 5px',
+                    minWidth: 22, height: 22, padding: '0 6px',
                     background: C.rust, color: C.cream,
-                    fontFamily: MONO, fontSize: 11, fontWeight: 700,
+                    fontFamily: MONO, fontSize: T.meta, fontWeight: 700,
                 }}
             >
                 {selectedCount}
             </span>
-            <span style={{ fontSize: 12, fontWeight: 600 }}>cases selected</span>
+            <span style={{ fontSize: T.control, fontWeight: 600 }}>cases selected</span>
             <span style={{ width: 1, height: 18, background: 'rgba(243,238,226,0.25)' }} />
 
             <select
@@ -87,7 +87,7 @@ export default function BriefcaseBulkActions({ selectedCount, onStatusChange, on
             <div style={{ flex: 1 }} />
             <button
                 onClick={onClear}
-                style={{ ...btn, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '4px 9px' }}
+                style={{ ...btn, fontFamily: MONO, fontSize: T.label, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '4px 9px' }}
             >
                 Clear
             </button>

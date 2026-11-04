@@ -30,6 +30,7 @@ os.environ.setdefault("OPENAI_API_KEY", "sk-test-fake-key-for-testing")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import jwt
+from tests.auth_token_claims import identity_claims
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, text
 
@@ -51,7 +52,7 @@ def _utcnow():
 
 
 def _headers():
-    token = jwt.encode({"sub": "mp_a", "exp": _utcnow() + timedelta(hours=8), "iat": _utcnow().timestamp()},
+    token = jwt.encode({"sub": "mp_a", **identity_claims(pg_engine, "mp_a"), "exp": _utcnow() + timedelta(hours=8), "iat": _utcnow().timestamp()},
                        TEST_JWT_SECRET, algorithm="HS256")
     return {"Authorization": f"Bearer {token}"}
 

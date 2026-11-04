@@ -136,7 +136,17 @@ def test_ai_location_blob_is_cleaned_before_dashboard_metadata():
         message_body="ಸದಾಶಿವ ನಗರದಲ್ಲಿ ನೀರಿಲ್ಲ ಸ್ವಲ್ಪ ನೋಡಬೇಕು",
         current_tenant=2,
         is_emergency_complaint=False,
-        resolve_location_fn=lambda *_args, **_kwargs: {"location_resolved": False},
+        resolve_location_fn=lambda text, **_kwargs: (
+            {
+                "location_resolved": True,
+                "matched_value": "Sadashivanagar",
+                "assembly_constituency": "Belgaum Uttar",
+                "confidence_level": "boundary",
+                "match_type": "db_alias_boundary",
+            }
+            if text == "Sadashivanagar"
+            else {"location_resolved": False}
+        ),
         resolve_constituency_fn=lambda location, _tenant_id: (location, "Belgaum Uttar"),
         get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
     )
@@ -176,7 +186,17 @@ def test_rejects_ai_assembly_outside_tenant_constituency():
         message_body="शांती बसवाड मध्ये रस्ता खराब आहे.",
         current_tenant=2,
         is_emergency_complaint=False,
-        resolve_location_fn=lambda *_args, **_kwargs: {"location_resolved": False},
+        resolve_location_fn=lambda text, **_kwargs: (
+            {
+                "location_resolved": True,
+                "matched_value": "Santibastawad",
+                "assembly_constituency": "Belgaum Rural",
+                "confidence_level": "boundary",
+                "match_type": "db_alias_boundary",
+            }
+            if text == "Shanti Baswad"
+            else {"location_resolved": False}
+        ),
         resolve_constituency_fn=lambda location, _tenant_id: ("Santibastawad", "Belgaum Rural"),
         get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
         assembly_belongs_to_parliamentary_fn=lambda assembly, constituency: (
@@ -185,7 +205,7 @@ def test_rejects_ai_assembly_outside_tenant_constituency():
     )
 
     assert result["status"] == "new"
-    assert result["location_name"] == "Shanti Baswad"
+    assert result["location_name"] == "Santibastawad"
     assert result["final_constituency"] == "Belgaum Rural"
     assert result["grievance"]["assembly_constituency"] == "Belgaum Rural"
 
@@ -273,7 +293,7 @@ def test_required_category_without_location_stays_awaiting_location():
     assert result["final_constituency"] == "Unknown"
 
 
-def test_low_confidence_speech_match_goes_to_pending_review():
+def test_low_confidence_speech_match_stays_unresolved_candidate():
     result = finalize_geography_decision(
         grievance={},
         ai_result={},
@@ -294,14 +314,19 @@ def test_low_confidence_speech_match_goes_to_pending_review():
         get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
     )
 
-    assert result["status"] == "pending_review"
-    assert result["final_constituency"] == "Belgaum Dakshin"
+    assert result["status"] == "awaiting_location"
+    assert result["location_name"] is None
+    assert result["final_constituency"] == "Unknown"
+    assert result["grievance"]["location_resolved"] is False
+    assert result["grievance"]["unresolved_location"] == "Vadgaon"
+    assert result["grievance"]["geography_candidate"]["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["grievance"]["geography_candidate"]["verified"] is False
     assert result["grievance"]["geography_confidence"] == "speech_phonetic"
     assert result["grievance"]["needs_geography_review"] is True
     diagnostics = result["grievance"]["geography_diagnostics"]
     assert diagnostics["tenant_scope"] == "Belagavi"
     assert diagnostics["attempts"][0]["source"] == "raw_message"
-    assert diagnostics["final"]["location_resolved"] is True
+    assert diagnostics["final"]["location_resolved"] is False
     assert diagnostics["final"]["geography_confidence"] == "speech_phonetic"
 
 
@@ -362,3 +387,45 @@ def test_english_support_fallback_can_resolve_geography_when_native_pass_misses(
     diagnostics = result["grievance"]["geography_diagnostics"]
     assert diagnostics["attempts"][0]["source"] == "raw_message"
     assert diagnostics["attempts"][1]["source"] == "english_support"
+
+
+def test_verified_support_fallback_can_replace_unverified_raw_candidate():
+    result = finalize_geography_decision(
+        grievance={},
+        ai_result={},
+        status="awaiting_location",
+        political_reply="please tell village/ward",
+        detected_language="Kannada",
+        message_body="ಪೀರನವಾಡಿಯಲ್ಲಿ ರಸ್ತೆ ಹಾಳಾಗಿದೆ",
+        resolver_message_body="ಪೀರನವಾಡಿಯಲ್ಲಿ ರಸ್ತೆ ಹಾಳಾಗಿದೆ",
+        resolver_fallback_message_body="Road issue in Peeranwadi. Location: Peeranwadi",
+        current_tenant=2,
+        is_emergency_complaint=False,
+        resolve_location_fn=lambda text, **_kwargs: (
+            {
+                "location_resolved": True,
+                "matched_value": "Peeranwadi",
+                "assembly_constituency": "Belgaum Rural",
+                "confidence_level": "boundary",
+                "match_type": "db_alias_boundary",
+            }
+            if "Location:" in text
+            else {
+                "location_resolved": True,
+                "matched_value": "Peeranwadi",
+                "assembly_constituency": "Belgaum Rural",
+                "confidence_level": "fuzzy",
+                "match_type": "fuzzy_phrase",
+                "needs_confirmation": True,
+            }
+        ),
+        resolve_constituency_fn=lambda *_args, **_kwargs: (None, None),
+        get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+    )
+
+    assert result["status"] == "new"
+    assert result["location_name"] == "Peeranwadi"
+    assert result["final_constituency"] == "Belgaum Rural"
+    assert result["grievance"]["location_resolved"] is True
+    assert result["grievance"]["geography_source"] == "english_support"
+    assert "geography_candidate" not in result["grievance"]

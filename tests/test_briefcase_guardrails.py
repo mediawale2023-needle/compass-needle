@@ -58,6 +58,7 @@ def _classification_on_by_default(monkeypatch):
         ("naali bhar gayi hai pura mohalla pareshan", "Infrastructure & Utilities", "Drainage/Sewage"),
         ("kachara nahi uthta hamare yaha 2 hafte se", "Infrastructure & Utilities", "Solid Waste"),
         ("sadak toot gayi hai bade khadde hain", "Infrastructure & Utilities", "Roads & Bridges"),
+        ("Mahatma Phule Road is in very bad condition", "Infrastructure & Utilities", "Roads & Bridges"),
         ("transformer jal gaya raat se light nahi", "Infrastructure & Utilities", "Power & Street Lighting"),
         ("Police FIR nahi likh rahi hai", "Law & Order", "FIR/Police Inaction"),
         ("Patwari paise mang raha hai jamin ke kagaz ke liye", "Bureaucratic / Administrative", "Bribery/Corruption"),

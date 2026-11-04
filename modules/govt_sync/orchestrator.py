@@ -100,7 +100,9 @@ def persist_successful_status_result(
 
       1. compute whether the normalized status actually changed
       2. update cases.govt_status / govt_status_updated_at iff changed
-      3. write the govt_submission_log 'status_polled' audit row
+      3. write the govt_submission_log 'status_polled' audit row, and apply
+         modules.case_lifecycle's portal-confirmation evidence rule (may
+         move an eligible case to in_progress; never resolves one)
       4. persist a govt_status_snapshot (best-effort; a persistence
          failure here is logged and swallowed, never raised, matching
          both callers' existing behavior)
@@ -147,6 +149,14 @@ def persist_successful_status_result(
                 "payload": json.dumps(_status_poll_payload(case_row, result), default=str),
                 "now": _utcnow(),
             },
+        )
+        # Verified portal confirmation may start internal progress — same
+        # evidence rule as every other successful status-check path.
+        from modules.case_lifecycle import apply_portal_confirmation
+
+        apply_portal_confirmation(
+            conn, tenant_id=tenant_id, case_id=case_id, govt_status=result.status,
+            source={"check": "status_poll", "actor": actor_username or "background_poller"},
         )
 
     try:

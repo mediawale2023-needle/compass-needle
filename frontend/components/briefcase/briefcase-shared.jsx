@@ -1,5 +1,7 @@
 'use client';
 
+import { gen2Type } from '@/lib/briefcase-tokens';
+
 // DEPRECATED — Gen 1 palette. Canonical tokens live in
 // `@/lib/briefcase-tokens` (`gen2`). Still consumed by the clusters,
 // deleted-cases and new-cases surfaces, whose rendering would visibly change
@@ -111,7 +113,7 @@ export function getStatusBadge(status) {
                 display: 'inline-flex', alignItems: 'center',
                 border: '1px solid #C9BFA9', padding: '2px 7px',
                 fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
-                fontSize: 9.5, fontWeight: 600, letterSpacing: '.03em',
+                fontSize: gen2Type.badge, fontWeight: 600, letterSpacing: '.03em',
                 textTransform: 'uppercase', lineHeight: 1.15,
                 background: tone.bg, color: tone.fg, whiteSpace: 'nowrap',
             }}
@@ -172,13 +174,13 @@ export function BriefcaseStatusPill({ status }) {
                 padding: '2px 8px 2px 6px',
                 background: pill.bg,
                 color: pill.fg,
-                fontSize: 10.5,
+                fontSize: gen2Type.tag,
                 fontWeight: 600,
                 letterSpacing: '0.02em',
                 whiteSpace: 'nowrap',
             }}
         >
-            <BriefcaseIcon name={pill.icon} size={10} color={pill.fg} stroke={2} />
+            <BriefcaseIcon name={pill.icon} size={11} color={pill.fg} stroke={2} />
             {pill.label}
         </span>
     );

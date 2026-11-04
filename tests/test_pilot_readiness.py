@@ -32,6 +32,7 @@ from unittest.mock import patch, MagicMock, call
 from typing import Generator
 
 import jwt
+from tests.auth_token_claims import credential_claims
 import bcrypt
 import pytest
 from fastapi.testclient import TestClient
@@ -198,7 +199,7 @@ def _reset_test_state():
 def _make_token(username: str, tenant_id: int, role: str = "user",
                 expire_hours: int = 8) -> str:
     now = datetime.utcnow()
-    payload = {
+    payload = {**credential_claims(test_engine, username),
         "sub": username,
         "tid": tenant_id,
         "role": role,
@@ -210,7 +211,7 @@ def _make_token(username: str, tenant_id: int, role: str = "user",
 
 def _make_expired_token(username: str, tenant_id: int) -> str:
     now = datetime.utcnow()
-    payload = {
+    payload = {**credential_claims(test_engine, username),
         "sub": username,
         "tid": tenant_id,
         "role": "user",
@@ -223,7 +224,7 @@ def _make_expired_token(username: str, tenant_id: int) -> str:
 def _make_tampered_token(username: str, tenant_id: int) -> str:
     """Sign with wrong secret."""
     now = datetime.utcnow()
-    payload = {
+    payload = {**credential_claims(test_engine, username),
         "sub": username,
         "tid": tenant_id,
         "role": "user",
@@ -1112,7 +1113,7 @@ class TestAdminPanelSecurity:
         """Token with role='sysadmin' but wrong secret is rejected."""
         # Create token claiming admin role but signed incorrectly
         fake_admin_token = jwt.encode(
-            {"sub": "mp_arun", "tid": 1, "role": "sysadmin",
+            {**credential_claims(test_engine, "mp_arun"), "sub": "mp_arun", "tid": 1, "role": "sysadmin",
              "exp": datetime.utcnow() + timedelta(hours=8)},
             "wrong-secret-tampered-123",
             algorithm="HS256"

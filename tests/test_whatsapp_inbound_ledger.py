@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timedelta
 
 import jwt
+from tests.auth_token_claims import credential_claims
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
@@ -123,7 +124,7 @@ def _seed_database():
 def _make_admin_headers():
     now = _utcnow()
     token = jwt.encode(
-        {
+        {**credential_claims(test_engine, "sysadmin"),
             "sub": "sysadmin",
             "tid": 1,
             "role": "sysadmin",

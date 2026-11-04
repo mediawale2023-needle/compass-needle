@@ -7,6 +7,9 @@ import hashlib
 from datetime import datetime, timedelta
 
 import jwt
+import pytest
+from tests.auth_token_claims import credential_claims
+import time
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy import event
@@ -67,6 +70,7 @@ def _seed_database():
     with test_engine.begin() as conn:
         for table_name in (
             "incident_clusters",
+            "wa_inbound_messages",
             "wa_message_dedup",
             "activity_history",
             "case_activity_log",
@@ -121,11 +125,11 @@ def _seed_database():
 
 
 def _make_token(username: str, tenant_id: int, role: str = "mp") -> str:
-    payload = {
+    payload = {**credential_claims(test_engine, username),
         "sub": username,
         "tid": tenant_id,
         "role": role,
-        "exp": datetime.utcnow() + timedelta(hours=8),
+        "iat": time.time(), "exp": datetime.utcnow() + timedelta(hours=8),
     }
     return jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
@@ -595,7 +599,9 @@ def test_abusive_message_gets_warning_reply_without_ai(monkeypatch):
     assert created_case is not None
     assert created_case["category"] == "Spam (Offensive)"
     assert created_case["status"] == "offensive"
-    assert outbound_messages[0][1] == "Maintain decorum. Legal action can be taken for abusive language."
+    # This early, no-AI path has no reliable language evidence. It must use the
+    # neutral validated fallback rather than silently defaulting to English.
+    assert outbound_messages[0][1] == "🙏"
 
 
 def test_contact_buffering_merges_duplicate_followups(monkeypatch):
@@ -860,6 +866,288 @@ def test_thread_distinct_issue_links_each_inbound_ledger_row_to_its_case(monkeyp
     assert len(outbound_messages) == 3
     assert all("noted this concern" in message.lower() for _, message, _ in outbound_messages[1:])
     assert all("separate issue" not in message.lower() for _, message, _ in outbound_messages[1:])
+
+
+def test_whatsapp_path_preserves_roman_language_across_short_ambiguous_message(monkeypatch):
+    """Regression: a short Roman follow-up must use the established thread
+    language instead of being switched by a shared word such as ``nahi``."""
+    _seed_database()
+    outbound_messages = []
+    ai_prompts = []
+
+    def _fake_ai(prompt, tenant_id=None):
+        ai_prompts.append(prompt)
+        body = prompt.split("USER MESSAGE:", 1)[-1].strip()
+        first = "madhe" in body.lower()
+        return {
+            "status": "new",
+            "detected_language": "Marathi" if first else "Hinglish",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Whitefield" if first else "Mahatma Phule Road",
+                "summary": body[:120],
+            },
+        }
+
+    def _geo(text, **_kwargs):
+        if "Whitefield" in text:
+            return {
+                "location_resolved": True,
+                "matched_value": "Whitefield",
+                "assembly_constituency": "Mahadevapura",
+                "confidence_level": "exact",
+                "match_type": "db_alias_exact",
+            }
+        return {"location_resolved": False}
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(main, "resolve_location", _geo)
+    monkeypatch.setattr(main, "_schedule_case_clarification_follow_up", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919900001616"
+    main._process_incoming_message(sender, "Whitefield madhe paani nahi", receiver_number="+15551636821")
+    main._process_incoming_message(sender, "Mahatma Phule Road var paani nahi", receiver_number="+15551636821")
+
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 2
+    newest_meta = json.loads(rows[-1]["case_metadata"] or "{}")
+    assert newest_meta["language_decision"]["language"] == "Marathi"
+    assert newest_meta["language_decision"]["script"] == "Latin"
+    assert newest_meta["language_decision"]["used_conversation_history"] is True
+    assert "language=Marathi; script=Latin; source=conversation_history" in ai_prompts[-1]
+    assert "Tumchi" in outbound_messages[-1][1]
+    assert "Aapka" not in outbound_messages[-1][1]
+    assert "\\n" not in outbound_messages[-1][1]
+
+
+def test_whatsapp_path_clear_roman_language_change_overrides_history(monkeypatch):
+    _seed_database()
+    outbound_messages = []
+    ai_prompts = []
+
+    def _fake_ai(prompt, tenant_id=None):
+        ai_prompts.append(prompt)
+        body = prompt.split("USER MESSAGE:", 1)[-1].strip()
+        is_kannada = "nimma" in body.lower()
+        return {
+            "status": "new",
+            "detected_language": "Kannada" if is_kannada else "Marathi",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Electricity" if is_kannada else "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "KR Puram" if is_kannada else "Whitefield",
+                "summary": body[:120],
+            },
+        }
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(
+        main,
+        "resolve_location",
+        lambda text, **_kwargs: {
+            "location_resolved": True,
+            "matched_value": "KR Puram" if "KR Puram" in text else "Whitefield",
+            "assembly_constituency": "Mahadevapura",
+            "confidence_level": "exact",
+            "match_type": "db_alias_exact",
+        },
+    )
+    monkeypatch.setattr(main, "_schedule_case_clarification_follow_up", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919900001619"
+    main._process_incoming_message(sender, "Whitefield madhe paani nahi", receiver_number="+15551636821")
+    main._process_incoming_message(
+        sender,
+        "KR Puram nimma gramadalli current illa dayavittu sahaya madi",
+        receiver_number="+15551636821",
+    )
+
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 2
+    newest_meta = json.loads(rows[-1]["case_metadata"] or "{}")
+    assert newest_meta["language_decision"]["language"] == "Kannada"
+    assert newest_meta["language_decision"]["script"] == "Latin"
+    assert newest_meta["language_decision"]["used_conversation_history"] is False
+    assert "source=conversation_history" in ai_prompts[-1]
+    assert "Nimma" in outbound_messages[-1][1]
+    assert "Tumcha" not in outbound_messages[-1][1]
+
+
+def test_unsupported_message_path_reuses_established_language_and_validates(monkeypatch):
+    _seed_database()
+    outbound_messages = []
+
+    monkeypatch.setattr(
+        main,
+        "ask_chatgpt_agent",
+        lambda prompt, tenant_id=None: {
+            "status": "new",
+            "detected_language": "Marathi",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Whitefield",
+                "summary": "Water issue",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "resolve_location",
+        lambda *_args, **_kwargs: {
+            "location_resolved": True,
+            "matched_value": "Whitefield",
+            "assembly_constituency": "Mahadevapura",
+            "confidence_level": "exact",
+            "match_type": "db_alias_exact",
+        },
+    )
+    monkeypatch.setattr(main, "_schedule_case_clarification_follow_up", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919900001620"
+    main._process_incoming_message(sender, "Whitefield madhe paani nahi", receiver_number="+15551636821")
+    main._handle_unsupported_message_type(sender, "sticker", receiver_number="+15551636821")
+
+    assert "Tumcha" in outbound_messages[-1][1]
+    assert "Thank you for reaching out" not in outbound_messages[-1][1]
+
+
+def test_unsupported_message_without_language_evidence_uses_neutral_fallback(monkeypatch):
+    _seed_database()
+    outbound_messages = []
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    main._handle_unsupported_message_type(
+        "919900001621",
+        "sticker",
+        receiver_number="+15551636821",
+    )
+
+    assert outbound_messages[-1][1] == "🙏"
+
+
+def test_whatsapp_path_keeps_fuzzy_geography_as_unresolved_candidate(monkeypatch):
+    _seed_database()
+    outbound_messages = []
+
+    monkeypatch.setattr(
+        main,
+        "ask_chatgpt_agent",
+        lambda prompt, tenant_id=None: {
+            "status": "new",
+            "detected_language": "Marathi",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Shahpur",
+                "summary": "Water supply issue",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "resolve_location",
+        lambda *_args, **_kwargs: {
+            "location_resolved": True,
+            "matched_value": "Sathpur",
+            "assembly_constituency": "Udaipur Rural",
+            "confidence_level": "fuzzy",
+            "match_type": "fuzzy_phrase",
+            "needs_confirmation": True,
+        },
+    )
+    monkeypatch.setattr(main, "_schedule_case_clarification_follow_up", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919900001617"
+    main._process_incoming_message(sender, "Shahpur madhe paani nahi", receiver_number="+15551636821")
+
+    row = _cases_for_phone(sender)[0]
+    meta = json.loads(row["case_metadata"] or "{}")
+    assert row["status"] == "awaiting_location"
+    assert meta["location_resolved"] is False
+    assert meta["matched_value"] == ""
+    assert meta["unresolved_location"] == "Sathpur"
+    assert meta["geography_candidate"]["verified"] is False
+    assert meta["geography_candidate"]["assembly_constituency"] == "Udaipur Rural"
+    assert outbound_messages
+
+
+def test_whatsapp_path_uses_neutral_non_registration_fallback_when_language_is_unresolved(monkeypatch):
+    _seed_database()
+    outbound_messages = []
+
+    monkeypatch.setattr(
+        main,
+        "ask_chatgpt_agent",
+        lambda prompt, tenant_id=None: {
+            "status": "incomplete",
+            "detected_language": "Unknown",
+            "political_response": "",
+            "grievance_data": {
+                "categories": [],
+                "problem_domain": None,
+                "problem_subdomain": None,
+                "convergence_program_type": None,
+                "location": "MG Road",
+                "summary": "MG Road 4",
+            },
+        },
+    )
+    monkeypatch.setattr(main, "resolve_location", lambda *_args, **_kwargs: {"location_resolved": False})
+    monkeypatch.setattr(main, "_schedule_case_clarification_follow_up", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919900001618"
+    main._process_incoming_message(sender, "MG Road 4", receiver_number="+15551636821")
+
+    row = _cases_for_phone(sender)[0]
+    meta = json.loads(row["case_metadata"] or "{}")
+    assert outbound_messages[-1][1] == "🙏"
+    assert "registered" not in outbound_messages[-1][1].lower()
+    assert meta["language_decision"]["resolved"] is False
+    assert meta["reply_validation"]["fallback_used"] is True
+    assert meta["reply_validation"]["reason"] == "language_or_script_unresolved"
 
 
 def test_low_information_nudge_gets_one_reassurance_then_silence(monkeypatch):
@@ -1318,3 +1606,96 @@ def test_audio_media_bypasses_contextless_media_rule(monkeypatch):
 
     rows = _cases_for_phone(sender)
     assert len(rows) == 2  # voice note treated as a real distinct issue
+
+
+# ── Case lifecycle: intake, classification and follow-ups never start progress ──
+
+_PROGRESS_OR_RESOLVED = {"in_progress", "escalated", "resolved", "completed", "closed"}
+
+
+def _status_changes_into(case_ids, new_values):
+    if not case_ids:
+        return []
+    placeholders = ", ".join(f":c{i}" for i in range(len(case_ids)))
+    params = {f"c{i}": cid for i, cid in enumerate(case_ids)}
+    with test_engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                f"SELECT case_id, username, new_value FROM case_activity_log "  # nosec B608
+                f"WHERE action = 'status_change' AND case_id IN ({placeholders})"
+            ),
+            params,
+        ).mappings().all()
+    return [dict(r) for r in rows if str(r["new_value"] or "").lower() in new_values]
+
+
+def _lifecycle_fake_ai(status_value):
+    def _fake_ai(prompt, tenant_id=None):
+        return {
+            "status": status_value,
+            "detected_language": "English",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Whitefield",
+                "summary": "No water in Whitefield",
+            },
+        }
+    return _fake_ai
+
+
+def _silence_outbound(monkeypatch):
+    monkeypatch.setattr(main, "send_whatsapp_message", lambda *args, **kwargs: None)
+    monkeypatch.setattr(whatsapp_module, "send_whatsapp_message", lambda *args, **kwargs: None)
+
+
+def test_lifecycle_new_whatsapp_grievance_stays_new(monkeypatch):
+    _seed_database()
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _lifecycle_fake_ai("new"))
+    _silence_outbound(monkeypatch)
+
+    sender = "919900070001"
+    main._process_incoming_message(sender, "No water supply in Whitefield for 3 days", receiver_number="+15551636821")
+
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 1
+    assert rows[0]["status"] == "new"
+    assert _status_changes_into([rows[0]["id"]], _PROGRESS_OR_RESOLVED) == []
+
+
+@pytest.mark.parametrize("ai_status", ["COMPLETED", "completed", "pending", "INCOMPLETE"])
+def test_lifecycle_ai_classification_never_implies_progress(monkeypatch, ai_status):
+    _seed_database()
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _lifecycle_fake_ai(ai_status))
+    _silence_outbound(monkeypatch)
+
+    sender = "919900070002"
+    main._process_incoming_message(sender, "Water has not come to Whitefield ward for a week", receiver_number="+15551636821")
+
+    rows = _cases_for_phone(sender)
+    assert rows, "classification should still create the case"
+    assert all(str(r["status"]).lower() not in _PROGRESS_OR_RESOLVED for r in rows)
+    assert _status_changes_into([r["id"] for r in rows], _PROGRESS_OR_RESOLVED) == []
+
+
+def test_lifecycle_citizen_followups_never_imply_progress(monkeypatch):
+    _seed_database()
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _lifecycle_fake_ai("new"))
+    _silence_outbound(monkeypatch)
+
+    sender = "919900070003"
+    for message in (
+        "No water supply in Whitefield",
+        "No water supply in Whitefield still",
+        "Please do something about the water in Whitefield",
+        "Any update?",
+    ):
+        main._process_incoming_message(sender, message, receiver_number="+15551636821")
+
+    rows = _cases_for_phone(sender)
+    assert rows
+    assert all(str(r["status"]).lower() not in _PROGRESS_OR_RESOLVED for r in rows)
+    assert _status_changes_into([r["id"] for r in rows], _PROGRESS_OR_RESOLVED) == []

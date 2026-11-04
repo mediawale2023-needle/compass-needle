@@ -774,6 +774,28 @@ def _has_any_marker(blob: str, markers: tuple[str, ...]) -> bool:
     return any(marker in blob for marker in markers)
 
 
+def _has_any_silent_intent_marker(blob: str, markers: tuple[str, ...]) -> bool:
+    """Match silent-intent words/phrases without firing inside other words.
+
+    Silent categories suppress the citizen acknowledgement, so their Latin
+    markers must be high precision.  Plain substring matching made ``media``
+    match ``immediate`` and ``press`` match ``pressure``.  Preserve the older
+    substring behavior for non-Latin scripts, where suffixes and combining
+    marks make ASCII-style word boundaries less reliable.
+    """
+    lowered = (blob or "").lower()
+    for raw_marker in markers:
+        marker = str(raw_marker or "").lower().strip()
+        if not marker:
+            continue
+        if marker.isascii():
+            if re.search(rf"(?<!\w){re.escape(marker)}(?!\w)", lowered):
+                return True
+        elif marker in lowered:
+            return True
+    return False
+
+
 def _looks_like_payment_demand(blob: str) -> bool:
     has_payment = _has_any_marker(blob, _PAYMENT_MARKERS)
     has_demand = _has_any_marker(blob, _DEMAND_MARKERS)
@@ -878,22 +900,22 @@ def infer_silent_log_category(blob: str) -> str | None:
 
     lowered = blob.lower()
 
-    if _has_any_marker(lowered, _SPAM_PROMO_MARKERS):
+    if _has_any_silent_intent_marker(lowered, _SPAM_PROMO_MARKERS):
         return "Spam / Promotional / Irrelevant"
 
-    if _has_any_marker(lowered, _MEDIA_OUTREACH_MARKERS):
+    if _has_any_silent_intent_marker(lowered, _MEDIA_OUTREACH_MARKERS):
         return "Media / Press Outreach"
 
-    if _has_any_marker(lowered, _DONATION_REQUEST_MARKERS):
+    if _has_any_silent_intent_marker(lowered, _DONATION_REQUEST_MARKERS):
         return "Donation / Sponsorship Request"
 
-    if _has_any_marker(lowered, _COMMUNITY_INVITATION_MARKERS):
+    if _has_any_silent_intent_marker(lowered, _COMMUNITY_INVITATION_MARKERS):
         return "Community / Event Invitation"
 
-    if _has_any_marker(lowered, _SUGGESTION_MARKERS):
+    if _has_any_silent_intent_marker(lowered, _SUGGESTION_MARKERS):
         return "Suggestion / Idea"
 
-    if _has_any_marker(lowered, _POLITICAL_SUPPORT_MARKERS) and not _has_any_marker(
+    if _has_any_silent_intent_marker(lowered, _POLITICAL_SUPPORT_MARKERS) and not _has_any_silent_intent_marker(
         lowered, _POLITICAL_SUPPORT_EXCLUSION_MARKERS
     ):
         return "Political / Support Message"
