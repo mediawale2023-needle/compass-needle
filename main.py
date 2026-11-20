@@ -188,6 +188,11 @@ app.include_router(api_router, prefix="/api")
 from admin_api import router as admin_router
 app.include_router(admin_router, prefix="/api/admin")
 
+# Partner (political consultancy) channel — white-label client rollups and seat management
+from partner_api import router as partner_router, admin_router as partner_admin_router
+app.include_router(partner_router, prefix="/api/partner")
+app.include_router(partner_admin_router, prefix="/api/admin/partners")
+
 # ─────────────────────────────────────────
 # DATABASE INIT & MIGRATION LOCK
 # ─────────────────────────────────────────

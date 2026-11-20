@@ -7,7 +7,7 @@ describe('admin navigation ownership', () => {
     it('keeps the approved destination order', () => {
         expect(NAV_GROUPS.map((g) => g.label)).toEqual(['Command', 'Customers', 'Operations', 'Platform', 'Administration']);
         expect(NAV_GROUPS.flatMap((g) => g.items.map((i) => i.label))).toEqual([
-            'Command Centre', 'Accounts', 'Onboarding', 'Cases', 'Messaging', 'Data & Geography', 'System', 'People & Access', 'Audit & Settings',
+            'Command Centre', 'Accounts', 'Onboarding', 'Partners', 'Cases', 'Messaging', 'Data & Geography', 'System', 'People & Access', 'Audit & Settings',
         ]);
     });
 
