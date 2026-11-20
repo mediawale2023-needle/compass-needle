@@ -21,6 +21,7 @@ export const NAV_GROUPS = [
         items: [
             { id: 'accounts', href: '/dashboard/accounts', label: 'Accounts', icon: 'accounts', owns: ['/dashboard/accounts', '/dashboard/mps', '/dashboard/profiles'], excludes: ['/dashboard/accounts/new', '/dashboard/mps/new'], excludePatterns: [/^\/dashboard\/mps\/[^/]+\/setup/] },
             { id: 'onboarding', href: '/dashboard/accounts/new', label: 'Onboarding', icon: 'onboarding', owns: ['/dashboard/accounts/new', '/dashboard/mps/new'], ownPatterns: [/^\/dashboard\/mps\/[^/]+\/setup/] },
+            { id: 'partners', href: '/dashboard/partners', label: 'Partners', icon: 'partners', owns: ['/dashboard/partners'] },
         ],
     },
     {
