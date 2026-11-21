@@ -10,7 +10,6 @@ const { replaceMock, pushMock, sessionState, apiMocks } = vi.hoisted(() => ({
         partnerClients: vi.fn(),
         partnerClientSummary: vi.fn(),
         partnerClientReport: vi.fn(),
-        partnerRequestSeat: vi.fn(),
     },
 }));
 
@@ -35,11 +34,11 @@ const summary = (over = {}) => ({
 });
 
 const clientsPayload = (over = {}) => ({
-    days: 30, seats_used: 3, seat_cap: 5,
+    days: 30, active_clients: 2,
     portfolio: { total: 40, resolved: 30, open: 10, critical: 3 },
     clients: [
         { id: 7, client_label: 'Asha Patil', constituency: 'Belagavi South', seat_type: 'mla', status: 'active', summary: summary() },
-        { id: 8, client_label: 'Ravi Kulkarni', constituency: 'Pune Cantonment', seat_type: 'mla', status: 'requested', summary: null },
+        { id: 8, client_label: 'Ravi Kulkarni', constituency: 'Pune Cantonment', seat_type: 'mla', status: 'active', summary: summary({ total: 12, resolved: 6, open: 6, critical: 0 }) },
         { id: 9, client_label: 'Old Client', constituency: '', seat_type: 'mp', status: 'paused', summary: null },
     ],
     ...over,
@@ -67,14 +66,14 @@ describe('partner portfolio page', () => {
         render(<PartnerDashboardPage />);
 
         expect(await screen.findByText('Asha Patil')).toBeInTheDocument();
-        expect(screen.getByText('3 of 5 seats used')).toBeInTheDocument();
-        expect(screen.getByText('Live')).toBeInTheDocument();
-        expect(screen.getByText('Awaiting activation')).toBeInTheDocument();
+        expect(screen.getByText('2 active clients')).toBeInTheDocument();
+        expect(screen.getAllByText('Live')).toHaveLength(2);
         expect(screen.getByText('Paused')).toBeInTheDocument();
 
-        // Only the live client is clickable
+        // Only live clients are clickable; a paused client grants no access
         expect(screen.getByRole('link', { name: /open asha patil/i })).toHaveAttribute('href', '/partner/dashboard/clients/7');
-        expect(screen.queryByRole('link', { name: /open ravi kulkarni/i })).toBeNull();
+        expect(screen.getByRole('link', { name: /open ravi kulkarni/i })).toHaveAttribute('href', '/partner/dashboard/clients/8');
+        expect(screen.queryByRole('link', { name: /open old client/i })).toBeNull();
 
         const section = screen.getByRole('region', { name: /portfolio totals/i });
         expect(within(section).getByText('40')).toBeInTheDocument();
@@ -103,48 +102,30 @@ describe('partner portfolio page', () => {
 
     it('distinguishes an empty portfolio from a failed load', async () => {
         apiMocks.partnerClients.mockResolvedValue(clientsPayload({
-            seats_used: 0, clients: [], portfolio: { total: 0, resolved: 0, open: 0, critical: 0 },
+            active_clients: 0, clients: [], portfolio: { total: 0, resolved: 0, open: 0, critical: 0 },
         }));
         render(<PartnerDashboardPage />);
         expect(await screen.findByText('No clients yet')).toBeInTheDocument();
         expect(screen.queryByText(/unavailable/i)).toBeNull();
     });
 
-    it('submits a seat request and reloads the list', async () => {
+    it('has no seat-request form, seat-cap indicator or cap warning', async () => {
         apiMocks.partnerClients.mockResolvedValue(clientsPayload());
-        apiMocks.partnerRequestSeat.mockResolvedValue({ success: true });
         render(<PartnerDashboardPage />);
         await screen.findByText('Asha Patil');
+        expect(screen.queryByRole('button', { name: /request client seat/i })).toBeNull();
+        expect(screen.queryByText(/seat cap|seats used|awaiting activation|raise/i)).toBeNull();
+    });
 
-        fireEvent.click(screen.getByRole('button', { name: /request client seat/i }));
-        fireEvent.change(screen.getByLabelText('Client name'), { target: { value: 'New Client' } });
-        fireEvent.change(screen.getByLabelText('Constituency'), { target: { value: 'Goa South' } });
-        fireEvent.click(screen.getByRole('button', { name: /send request/i }));
-
-        await waitFor(() => expect(apiMocks.partnerRequestSeat).toHaveBeenCalledWith({
-            client_label: 'New Client', constituency: 'Goa South', seat_type: 'mla', notes: '',
+    it('lists any number of attributed clients without limiting or warning', async () => {
+        const many = Array.from({ length: 40 }, (_, i) => ({
+            id: 100 + i, client_label: `Client ${i}`, constituency: 'X', seat_type: 'mla', status: 'active', summary: summary(),
         }));
-        await waitFor(() => expect(apiMocks.partnerClients).toHaveBeenCalledTimes(2));
-        expect(await screen.findByRole('status')).toHaveTextContent(/awaiting activation/i);
-    });
-
-    it('shows the server error when a seat request is refused', async () => {
-        apiMocks.partnerClients.mockResolvedValue(clientsPayload());
-        apiMocks.partnerRequestSeat.mockRejectedValue(new Error('Seat cap reached. Contact Needle to raise your cap.'));
+        apiMocks.partnerClients.mockResolvedValue(clientsPayload({ active_clients: 40, clients: many }));
         render(<PartnerDashboardPage />);
-        await screen.findByText('Asha Patil');
-
-        fireEvent.click(screen.getByRole('button', { name: /request client seat/i }));
-        fireEvent.change(screen.getByLabelText('Client name'), { target: { value: 'One too many' } });
-        fireEvent.click(screen.getByRole('button', { name: /send request/i }));
-        expect(await screen.findByText(/seat cap reached/i)).toBeInTheDocument();
-    });
-
-    it('disables the request button when the seat cap is reached', async () => {
-        apiMocks.partnerClients.mockResolvedValue(clientsPayload({ seats_used: 5, seat_cap: 5 }));
-        render(<PartnerDashboardPage />);
-        await screen.findByText('Asha Patil');
-        expect(screen.getByRole('button', { name: /request client seat/i })).toBeDisabled();
+        expect(await screen.findByText('40 active clients')).toBeInTheDocument();
+        expect(screen.getAllByRole('link', { name: /^open client/i })).toHaveLength(40);
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 
     it('sends signed-out visitors to the sign-in page without calling the API', async () => {

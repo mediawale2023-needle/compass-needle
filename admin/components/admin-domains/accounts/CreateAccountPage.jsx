@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Pencil } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api';
 import {
-    applyRole, buildCreatePayload, constituencyMode, formReadiness, INITIAL_ACCOUNT_FORM, ONBOARDING_STEPS,
+    acquisitionProblem, applyRole, buildCreatePayload, constituencyMode, formReadiness, INITIAL_ACCOUNT_FORM, ONBOARDING_STEPS,
     ROLE_OPTIONS, roleValue, validateForCreate, validateStep,
 } from '@/lib/admin-data';
 import {
@@ -79,6 +79,18 @@ export default function CreateAccountPage() {
             .catch(() => setConstituencyState('error'));
     }, []);
 
+    // Active partners only (the server never lists inactive ones). null = not loaded, 'error' = unavailable.
+    const [partners, setPartners] = useState(null);
+    const isPartner = form.acquisition_channel === 'partner';
+    const loadPartners = useCallback(() => {
+        setPartners(null);
+        apiGet('/api/admin/partners/selectable').then((r) => setPartners(r.partners || [])).catch(() => setPartners('error'));
+    }, []);
+    useEffect(() => {
+        if (isPartner && partners === null) loadPartners();
+    }, [isPartner, partners, loadPartners]);
+    const selectedPartner = Array.isArray(partners) ? partners.find((p) => String(p.id) === String(form.partner_id)) : null;
+
     const set = (key) => (event) => {
         const value = event?.target ? event.target.value : event;
         setForm((prev) => ({ ...prev, [key]: value }));
@@ -108,7 +120,7 @@ export default function CreateAccountPage() {
         setError('');
         try {
             const result = await apiPost('/api/admin/mps', buildCreatePayload(form));
-            setSuccess(`Created ${form.name}. The account must set a new password on first login — redirecting to setup checklist…`);
+            setSuccess(`Created ${form.name}${isPartner && selectedPartner ? `, attributed to ${selectedPartner.name}` : ''}. The account must set a new password on first login — redirecting to setup checklist…`);
             const tid = result?.tenant_id;
             setTimeout(() => router.push(tid ? `/dashboard/mps/${tid}/setup` : '/dashboard'), 1500);
         } catch (err) {
@@ -189,6 +201,34 @@ export default function CreateAccountPage() {
                                             </Field>
                                         </div>
                                     </Fieldset>
+                                    <Fieldset legend="How did this tenant come to Needle?">
+                                        <RadioCards name="acquisition_channel" label="Acquisition source" columns={2} value={form.acquisition_channel}
+                                            onChange={(value) => setForm((prev) => ({ ...prev, acquisition_channel: value, partner_id: '' }))}
+                                            options={[
+                                                { value: 'direct', label: 'Direct — Needle', detail: 'Brought in by the Needle team' },
+                                                { value: 'partner', label: 'Partner / Consultancy', detail: 'Referred by a political consultancy' },
+                                            ]} />
+                                        {isPartner && (
+                                            <>
+                                                <div className="nx-ob-gap" />
+                                                {partners === 'error' ? (
+                                                    <Callout tone="critical" title="Partner list unavailable."
+                                                        action={<button type="button" className="nx-btn nx-btn-sm" onClick={loadPartners}>Retry</button>}>
+                                                        Retry before creating a partner-referred account.
+                                                    </Callout>
+                                                ) : partners === null ? (
+                                                    <div aria-busy="true" aria-label="Loading partners" className="nx-ob-static">Loading partners…</div>
+                                                ) : partners.length === 0 ? (
+                                                    <Callout tone="warning" title="No active partners.">Create one under Customers → Partners, or choose Direct.</Callout>
+                                                ) : (
+                                                    <Field label="Partner" required help="The tenant appears in this partner's portfolio as soon as it is created. No seat request or approval is needed.">
+                                                        {(props) => <Select {...props} value={form.partner_id} onChange={set('partner_id')} placeholder="— select partner —"
+                                                            options={partners.map((p) => ({ value: String(p.id), label: p.name }))} />}
+                                                    </Field>
+                                                )}
+                                            </>
+                                        )}
+                                    </Fieldset>
                                 </>
                             )}
 
@@ -261,6 +301,7 @@ export default function CreateAccountPage() {
                                         ['Role', role ? `${role.label} · ${role.detail}` : form.house],
                                         ['Stage', form.account_stage === 'aspirant' ? 'Aspirant' : 'Elected'],
                                         ['State / Party', `${form.state || '—'} · ${form.party || 'Independent'}`, !form.state],
+                                        ['Acquisition', isPartner ? `Partner — ${selectedPartner?.name || 'not selected'}` : 'Direct — Needle', isPartner && !selectedPartner],
                                     ]} />
                                     <ReviewGroup title="Seat & Access" step={2} onEdit={goTo} rows={[
                                         ['Constituency', form.constituency || 'India', !form.constituency],

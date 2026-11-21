@@ -9,7 +9,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PY="${PY:-venv/bin/python}"
+if [ -z "${PY:-}" ]; then
+  for c in venv/bin/python .venv/bin/python python3.11 python3; do
+    if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import fastapi, uvicorn' >/dev/null 2>&1; then PY="$c"; break; fi
+  done
+fi
+if [ -z "${PY:-}" ]; then echo "No Python with fastapi/uvicorn found. Set PY=/path/to/python (3.11, backend requirements installed)." >&2; exit 1; fi
+echo "Using Python: $PY"
 API_PORT="${API_PORT:-8000}"
 MP_PORT="${MP_PORT:-3000}"
 ADMIN_PORT="${ADMIN_PORT:-3001}"

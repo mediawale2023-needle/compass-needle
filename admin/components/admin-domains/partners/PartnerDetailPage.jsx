@@ -102,19 +102,19 @@ function SeatsPanel({ partner, seats, error, loading, onRetry, onChanged, notify
     }
 
     const CONFIRM_COPY = {
-        reject: (s) => ({ title: `Decline ${s.client_label}?`, description: 'The partner will see this request as declined and the seat is freed from their cap.', label: 'Decline', variant: 'danger' }),
-        pause: (s) => ({ title: `Pause ${s.client_label}?`, description: 'The partner immediately stops seeing this client’s data. The customer account itself is unaffected.', label: 'Pause', variant: 'warning' }),
+        reject: (s) => ({ title: `Decline ${s.client_label}?`, description: 'This legacy request is closed. No tenant is linked and the partner never sees it.', label: 'Decline', variant: 'danger' }),
+        pause: (s) => ({ title: `Pause ${s.client_label}?`, description: 'The partner immediately stops seeing this client’s data. The tenant stays attributed to this partner and the customer account is unaffected.', label: 'Pause', variant: 'warning' }),
         resume: (s) => ({ title: `Resume ${s.client_label}?`, description: 'The partner can see this client’s data again.', label: 'Resume', variant: 'warning' }),
     };
     const copy = confirm ? CONFIRM_COPY[confirm.action](confirm.seat) : null;
 
     return (
-        <AdminPanel title="Client seats" description="Requests from the partner and the customer accounts linked to them.">
+        <AdminPanel title="Attributed clients" description="Tenants onboarded for this partner appear here automatically. Pausing removes partner access without changing attribution.">
             <AdminDataState loading={loading} error={error} onRetry={onRetry} empty={!error && seats.length === 0}
-                emptyTitle="No seats yet" emptyDescription="Seat requests from this partner will appear here.">
+                emptyTitle="No attributed clients yet" emptyDescription="Choose this partner under “How did this tenant come to Needle?” when onboarding a tenant it brought in.">
                 <AdminTableWrap label="Partner client seats">
                     <table className="data-table">
-                        <thead><tr><th>Client</th><th>Seat</th><th>Status</th><th>Linked account</th><th>Requested</th><th style={{ textAlign: 'right' }}>Actions</th></tr></thead>
+                        <thead><tr><th>Client</th><th>Seat</th><th>Status</th><th>Linked account</th><th>Since</th><th style={{ textAlign: 'right' }}>Actions</th></tr></thead>
                         <tbody>
                             {seats.map((s) => {
                                 const st = SEAT_STATUS[s.status] || { label: s.status, badge: 'badge-slate' };
@@ -128,7 +128,7 @@ function SeatsPanel({ partner, seats, error, loading, onRetry, onChanged, notify
                                         <td style={{ textAlign: 'right' }}>
                                             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                                                 {s.status === 'requested' && <>
-                                                    <button type="button" className="btn-primary" disabled={busy} onClick={() => setActivating(s)}>Activate</button>
+                                                    <button type="button" className="btn-primary" disabled={busy} onClick={() => setActivating(s)}>Link (legacy)</button>
                                                     <button type="button" className="btn-ghost" disabled={busy} onClick={() => setConfirm({ seat: s, action: 'reject' })}>Decline</button>
                                                 </>}
                                                 {s.status === 'active' && <button type="button" className="btn-ghost" disabled={busy} onClick={() => setConfirm({ seat: s, action: 'pause' })}>Pause</button>}
@@ -279,7 +279,7 @@ function SettingsPanel({ partner, onSaved, notify }) {
         setForm({
             brand_name: partner.brand_name || '', brand_color: partner.brand_color || '#1F3A5F',
             brand_logo_url: partner.brand_logo_url || '', show_powered_by: !!partner.show_powered_by,
-            contact_email: partner.contact_email || '', seat_cap: partner.seat_cap, wholesale_price_inr: partner.wholesale_price_inr,
+            contact_email: partner.contact_email || '', wholesale_price_inr: partner.wholesale_price_inr,
         });
     }, [partner]);
 
@@ -293,7 +293,7 @@ function SettingsPanel({ partner, onSaved, notify }) {
             await apiPatch(`/api/admin/partners/${partner.id}`, {
                 brand_name: form.brand_name.trim(), brand_color: form.brand_color,
                 brand_logo_url: form.brand_logo_url.trim(), show_powered_by: form.show_powered_by,
-                contact_email: form.contact_email.trim(), seat_cap: Number(form.seat_cap),
+                contact_email: form.contact_email.trim(),
                 wholesale_price_inr: Number(form.wholesale_price_inr),
             });
             notify('success', 'Partner settings saved.');
@@ -306,7 +306,7 @@ function SettingsPanel({ partner, onSaved, notify }) {
     }
 
     return (
-        <AdminPanel title="Branding & limits" description="What the consultancy's clients see on reports, and how many seats they may hold.">
+        <AdminPanel title="Branding & pricing" description="What the consultancy's clients see on reports, and the wholesale price per active client.">
             <form onSubmit={save}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                     <div className="form-row"><label className="form-label" htmlFor="s-brand">Brand name</label>
@@ -317,9 +317,7 @@ function SettingsPanel({ partner, onSaved, notify }) {
                         <input id="s-logo" className="form-input" value={form.brand_logo_url} onChange={set('brand_logo_url')} /></div>
                     <div className="form-row"><label className="form-label" htmlFor="s-email">Contact email</label>
                         <input id="s-email" type="email" className="form-input" value={form.contact_email} onChange={set('contact_email')} /></div>
-                    <div className="form-row"><label className="form-label" htmlFor="s-cap">Seat cap</label>
-                        <input id="s-cap" type="number" min={0} max={500} className="form-input" value={form.seat_cap} onChange={set('seat_cap')} /></div>
-                    <div className="form-row"><label className="form-label" htmlFor="s-price">Wholesale ₹ / seat / month</label>
+                    <div className="form-row"><label className="form-label" htmlFor="s-price">Wholesale ₹ / client / month</label>
                         <input id="s-price" type="number" min={0} className="form-input" value={form.wholesale_price_inr} onChange={set('wholesale_price_inr')} /></div>
                 </div>
                 <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem', margin: '4px 0 12px' }}>
@@ -418,7 +416,7 @@ export default function PartnerDetailPage() {
                 <ConfirmModal
                     title={`${partner.is_active ? 'Deactivate' : 'Reactivate'} ${partner.name}?`}
                     description={partner.is_active
-                        ? 'All of their logins stop working on the next request. Client seats and customer accounts are not changed.'
+                        ? 'All of their logins stop working on the next request. Attributed clients and customer accounts are not changed.'
                         : 'Their logins work again.'}
                     confirmLabel={partner.is_active ? 'Deactivate' : 'Reactivate'}
                     variant={partner.is_active ? 'danger' : 'warning'}
@@ -432,10 +430,10 @@ export default function PartnerDetailPage() {
                             <AdminNotice tone="warning" title="This partner is inactive">Their logins are blocked until you reactivate them.</AdminNotice>
                         )}
                         <AdminMetricStrip items={[
-                            { label: 'Seats used', value: `${partner.seats_used} / ${partner.seat_cap}`, tone: partner.seats_used >= partner.seat_cap ? 'warning' : 'neutral' },
-                            { label: 'Live clients', value: partner.seats_active },
-                            { label: 'Awaiting activation', value: partner.seats_requested, tone: partner.seats_requested ? 'warning' : 'neutral' },
-                            { label: 'Est. monthly wholesale', value: formatInr(partner.seats_active * (partner.wholesale_price_inr || 0)), detail: `${partner.seats_active} live × ${formatInr(partner.wholesale_price_inr)}` },
+                            { label: 'Active clients', value: partner.clients_active },
+                            { label: 'Paused clients', value: partner.clients_paused },
+                            { label: 'Legacy requests', value: partner.legacy_requests, tone: partner.legacy_requests ? 'warning' : 'neutral' },
+                            { label: 'Est. monthly wholesale', value: formatInr(partner.monthly_wholesale_inr), detail: `${partner.billable_clients} active × ${formatInr(partner.wholesale_price_inr)}` },
                         ]} />
                         <SeatsPanel partner={partner} seats={seats} loading={seatsLoading} error={seatsError}
                             onRetry={loadSeats} onChanged={() => { loadSeats(); loadPartner(); }} notify={notify} />

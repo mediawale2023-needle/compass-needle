@@ -14,9 +14,7 @@ export function fmtCount(value) {
 
 export const SEAT_STATUS = {
     active: { label: 'Live', variant: 'success' },
-    requested: { label: 'Awaiting activation', variant: 'warning' },
     paused: { label: 'Paused', variant: 'secondary' },
-    rejected: { label: 'Declined', variant: 'destructive' },
 };
 
 /** "#B8860B" -> "43 89% 38%" so it can drive the shadcn `--primary` token. Falls back to null if invalid. */

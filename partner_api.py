@@ -23,10 +23,13 @@ from sqlalchemy.exc import IntegrityError
 
 import sansadx_backend.db as dbmod
 from sansadx_backend.db import Tenant, validate_password
-from admin_api import _audit, generate_temporary_password, get_admin_user, hash_password, verify_password
+from admin_api import (
+    _audit, generate_temporary_password, get_admin_user, hash_password, require_super_admin, verify_password,
+)
 from modules.partners import (
-    PartnerOrg, PartnerSeat, PartnerUser, SEAT_ACTIVE_STATUSES, SEAT_TYPES,
-    clean_color, clean_logo_url, make_slug, partner_jwt_key, render_client_report, tenant_summary,
+    AttributionError, PORTFOLIO_STATUSES, PartnerOrg, PartnerSeat, PartnerUser,
+    billing_summary, clean_color, clean_logo_url, get_tenant_attribution, link_legacy_request,
+    list_attribution_events, make_slug, partner_jwt_key, reassign_tenant, render_client_report, tenant_summary,
 )
 
 try:
@@ -79,7 +82,7 @@ def _brand_dict(p: PartnerOrg) -> dict:
     return {
         "id": p.id, "name": p.name, "slug": p.slug, "brand_name": p.brand_name,
         "brand_color": clean_color(p.brand_color), "brand_logo_url": p.brand_logo_url,
-        "show_powered_by": bool(p.show_powered_by), "seat_cap": p.seat_cap,
+        "show_powered_by": bool(p.show_powered_by),
     }
 
 
@@ -201,10 +204,11 @@ _HEADLINE_KEYS = ("total", "resolved", "open", "critical", "resolution_rate", "a
 def _owned_seat(db, partner_id: int, seat_id: int, require_active: bool = True) -> PartnerSeat:
     """The ONLY way partner routes resolve a seat: scoped by partner_id."""
     seat = db.query(PartnerSeat).filter(PartnerSeat.id == seat_id, PartnerSeat.partner_id == partner_id).first()
-    if not seat:
+    # Revoked (reassigned-away) and legacy request rows are invisible to the partner: 404, not 409.
+    if not seat or seat.status not in PORTFOLIO_STATUSES:
         raise HTTPException(404, "Client not found")
     if require_active and (seat.status != "active" or not seat.tenant_id):
-        raise HTTPException(409, "This client seat is not active yet")
+        raise HTTPException(409, "Access to this client is paused")
     return seat
 
 
@@ -212,7 +216,11 @@ def _owned_seat(db, partner_id: int, seat_id: int, require_active: bool = True) 
 def partner_clients(days: int = Query(30, ge=7, le=90), me: dict = Depends(get_partner_user)):
     db = dbmod.SessionLocal()
     try:
-        seats = db.query(PartnerSeat).filter(PartnerSeat.partner_id == me["partner_id"]).order_by(PartnerSeat.id).all()
+        # Portfolio = active + paused attributed clients only. Legacy requested/rejected rows
+        # and revoked (reassigned-away) rows are never shown to the partner.
+        seats = (db.query(PartnerSeat)
+                 .filter(PartnerSeat.partner_id == me["partner_id"], PartnerSeat.status.in_(PORTFOLIO_STATUSES))
+                 .order_by(PartnerSeat.id).all())
         clients, totals = [], {k: 0 for k in ("total", "resolved", "open", "critical")}
         for seat in seats:
             item = _seat_dict(seat)
@@ -223,9 +231,8 @@ def partner_clients(days: int = Query(30, ge=7, le=90), me: dict = Depends(get_p
                 for k in totals:
                     totals[k] += full[k]
             clients.append(item)
-        used = sum(1 for s in seats if s.status in SEAT_ACTIVE_STATUSES)
         return {
-            "days": days, "seats_used": used, "seat_cap": me["partner"]["seat_cap"],
+            "days": days, "active_clients": sum(1 for s in seats if s.status == "active"),
             "portfolio": totals, "clients": clients,
         }
     finally:
@@ -256,38 +263,6 @@ def partner_client_report(seat_id: int, days: int = Query(30, ge=7, le=90), me: 
         db.close()
 
 
-class SeatRequestBody(BaseModel):
-    client_label: str = Field(min_length=1, max_length=120)
-    constituency: str = Field(default="", max_length=120)
-    seat_type: str = "mp"
-    notes: str = Field(default="", max_length=1000)
-
-
-@router.post("/seat-requests")
-def partner_request_seat(body: SeatRequestBody, me: dict = Depends(get_partner_user)):
-    if body.seat_type not in SEAT_TYPES:
-        raise HTTPException(400, "seat_type must be 'mp' or 'mla'")
-    db = dbmod.SessionLocal()
-    try:
-        # Row lock serialises concurrent requests so the cap cannot be overshot (PostgreSQL).
-        partner = db.query(PartnerOrg).filter(PartnerOrg.id == me["partner_id"]).with_for_update().first()
-        used = db.query(PartnerSeat).filter(
-            PartnerSeat.partner_id == partner.id, PartnerSeat.status.in_(SEAT_ACTIVE_STATUSES)
-        ).count()
-        if used >= (partner.seat_cap or 0):
-            raise HTTPException(409, "Seat cap reached. Contact Needle to raise your cap.")
-        seat = PartnerSeat(
-            partner_id=partner.id, client_label=body.client_label.strip(),
-            constituency=body.constituency.strip() or None, seat_type=body.seat_type,
-            notes=body.notes.strip() or None, status="requested",
-        )
-        db.add(seat)
-        db.commit()
-        return {"success": True, "seat": _seat_dict(seat)}
-    finally:
-        db.close()
-
-
 # ─────────────────────────────────────────
 # ADMIN: PARTNER MANAGEMENT (Needle staff only)
 # ─────────────────────────────────────────
@@ -298,7 +273,6 @@ class CreatePartnerRequest(BaseModel):
     brand_logo_url: str | None = None
     show_powered_by: bool = True
     contact_email: str | None = Field(default=None, max_length=200)
-    seat_cap: int = Field(default=5, ge=0, le=500)
     wholesale_price_inr: int = Field(default=0, ge=0, le=10_000_000)
 
 
@@ -308,7 +282,6 @@ class UpdatePartnerRequest(BaseModel):
     brand_logo_url: str | None = None
     show_powered_by: bool | None = None
     contact_email: str | None = Field(default=None, max_length=200)
-    seat_cap: int | None = Field(default=None, ge=0, le=500)
     wholesale_price_inr: int | None = Field(default=None, ge=0, le=10_000_000)
     is_active: bool | None = None
 
@@ -329,11 +302,11 @@ class SeatStatusRequest(BaseModel):
 def _admin_partner_dict(db, p: PartnerOrg) -> dict:
     counts = {
         status: db.query(PartnerSeat).filter(PartnerSeat.partner_id == p.id, PartnerSeat.status == status).count()
-        for status in ("requested", "active", "paused")
+        for status in ("active", "paused", "requested")
     }
     return {**_brand_dict(p), "contact_email": p.contact_email, "wholesale_price_inr": p.wholesale_price_inr,
-            "is_active": p.is_active, "seats_used": counts["requested"] + counts["active"],
-            "seats_requested": counts["requested"], "seats_active": counts["active"], "seats_paused": counts["paused"],
+            "is_active": p.is_active, "clients_active": counts["active"], "clients_paused": counts["paused"],
+            "legacy_requests": counts["requested"], **billing_summary(db, p),
             "users_count": db.query(PartnerUser).filter(PartnerUser.partner_id == p.id).count(),
             "created_at": p.created_at.isoformat() if p.created_at else None}
 
@@ -364,11 +337,11 @@ def admin_create_partner(req: CreatePartnerRequest, admin_user=Depends(get_admin
             name=req.name.strip(), slug=slug, brand_name=(req.brand_name or req.name).strip(),
             brand_color=clean_color(req.brand_color), brand_logo_url=logo,
             show_powered_by=req.show_powered_by, contact_email=req.contact_email,
-            seat_cap=req.seat_cap, wholesale_price_inr=req.wholesale_price_inr,
+            wholesale_price_inr=req.wholesale_price_inr,
         )
         db.add(partner)
         db.commit()
-        _audit(admin_user, "create_partner", "partner", partner.name, f"seat_cap={partner.seat_cap}")
+        _audit(admin_user, "create_partner", "partner", partner.name, f"wholesale_price_inr={partner.wholesale_price_inr}")
         return {"success": True, "partner": _admin_partner_dict(db, partner)}
     finally:
         db.close()
@@ -444,6 +417,56 @@ def admin_available_tenants(_=Depends(get_admin_user)):
              "account_stage": t.account_stage, "seat_type": t.seat_type}
             for t in rows if t.id in customer_tenants and t.id not in linked and t.id not in admin_tenants
         ]}
+    finally:
+        db.close()
+
+
+@admin_router.get("/selectable")
+def admin_selectable_partners(_=Depends(get_admin_user)):
+    """Active partners offered in the onboarding dropdown. Inactive partners are never listed."""
+    db = dbmod.SessionLocal()
+    try:
+        rows = db.query(PartnerOrg).filter(PartnerOrg.is_active.is_(True)).order_by(PartnerOrg.name).all()
+        return {"partners": [{"id": p.id, "name": p.name} for p in rows]}
+    finally:
+        db.close()
+
+
+class ReassignAttributionRequest(BaseModel):
+    partner_id: int | None = None  # None = move the tenant to Direct (Needle)
+    reason: str = Field(default="", max_length=1000)
+
+
+@admin_router.get("/tenants/{tenant_id}/attribution")
+def admin_get_tenant_attribution(tenant_id: int, _=Depends(get_admin_user)):
+    db = dbmod.SessionLocal()
+    try:
+        if not db.query(Tenant).filter(Tenant.id == tenant_id).first():
+            raise HTTPException(404, "Tenant not found")
+        return {"attribution": get_tenant_attribution(db, tenant_id), "history": list_attribution_events(db, tenant_id)}
+    finally:
+        db.close()
+
+
+@admin_router.post("/tenants/{tenant_id}/attribution/reassign")
+def admin_reassign_tenant_attribution(tenant_id: int, req: ReassignAttributionRequest,
+                                      admin_user=Depends(require_super_admin)):
+    """Super-admin only. Requires a reason; audited; old partner loses access in the same commit."""
+    db = dbmod.SessionLocal()
+    try:
+        try:
+            result = reassign_tenant(db, tenant_id, req.partner_id, req.reason, admin_user)
+            db.commit()
+        except AttributionError as exc:
+            db.rollback()
+            raise HTTPException(exc.status_code, exc.message)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(409, "Attribution changed concurrently; reload and try again")
+        _audit(admin_user, "reassign_tenant_attribution", "tenant", f"tenant_id={tenant_id}",
+               f"from={result['from_channel']}:{result['from_partner_id']} to={result['to_channel']}:{result['to_partner_id']} "
+               f"reason={req.reason.strip()[:200]}")
+        return {"success": True, **result, "attribution": get_tenant_attribution(db, tenant_id)}
     finally:
         db.close()
 
@@ -533,7 +556,10 @@ def admin_list_seats(partner_id: int, _=Depends(get_admin_user)):
 
 @admin_router.post("/{partner_id}/seats/{seat_id}/activate")
 def admin_activate_seat(partner_id: int, seat_id: int, req: ActivateSeatRequest, admin_user=Depends(get_admin_user)):
-    """Link a seat to an already-provisioned tenant (create it via the normal MP/aspirant flow first)."""
+    """LEGACY: resolve an old partner-requested seat by linking it to an existing tenant.
+
+    New partner tenants are attributed during normal onboarding (POST /api/admin/mps) and never
+    need this step. The single-association rule is enforced by the same service."""
     db = dbmod.SessionLocal()
     try:
         partner = _get_partner_or_404(db, partner_id)
@@ -545,17 +571,20 @@ def admin_activate_seat(partner_id: int, seat_id: int, req: ActivateSeatRequest,
         tenant = db.query(Tenant).filter(Tenant.id == req.tenant_id).first()
         if not tenant or not tenant.is_active:
             raise HTTPException(404, "Tenant not found or inactive")
-        taken = db.query(PartnerSeat).filter(PartnerSeat.tenant_id == tenant.id, PartnerSeat.id != seat.id).first()
-        if taken:
-            raise HTTPException(409, "Tenant is already linked to a partner seat")
-        seat.tenant_id = tenant.id
-        seat.status = "active"
-        seat.activated_at = datetime.utcnow()
+        if seat.status != "requested" or seat.tenant_id:
+            raise HTTPException(409, "Only legacy pending requests can be linked this way; "
+                                     "new tenants are attributed during onboarding.")
+        if not partner.is_active:
+            raise HTTPException(409, "Partner is inactive")
         try:
+            link_legacy_request(db, seat, tenant, admin_user)
             db.commit()
+        except AttributionError as exc:
+            db.rollback()
+            raise HTTPException(exc.status_code, exc.message)
         except IntegrityError:
             db.rollback()
-            raise HTTPException(409, "Tenant is already linked to a partner seat")
+            raise HTTPException(409, "Tenant is already attributed to a partner.")
         _audit(admin_user, "activate_partner_seat", "partner_seat", partner.name, f"seat={seat.id} tenant={tenant.id}")
         return {"success": True, "seat": {**_seat_dict(seat), "tenant_id": seat.tenant_id}}
     finally:
@@ -570,8 +599,8 @@ def admin_reject_seat(partner_id: int, seat_id: int, admin_user=Depends(get_admi
         seat = db.query(PartnerSeat).filter(PartnerSeat.id == seat_id, PartnerSeat.partner_id == partner_id).first()
         if not seat:
             raise HTTPException(404, "Seat not found")
-        if seat.status == "active":
-            raise HTTPException(409, "Active seats must be paused, not rejected")
+        if seat.status != "requested":
+            raise HTTPException(409, "Only legacy pending requests can be rejected")
         seat.status = "rejected"
         db.commit()
         _audit(admin_user, "reject_partner_seat", "partner_seat", partner.name, f"seat={seat.id}")
@@ -590,8 +619,8 @@ def admin_set_seat_status(partner_id: int, seat_id: int, req: SeatStatusRequest,
         seat = db.query(PartnerSeat).filter(PartnerSeat.id == seat_id, PartnerSeat.partner_id == partner_id).first()
         if not seat:
             raise HTTPException(404, "Seat not found")
-        if not seat.tenant_id:
-            raise HTTPException(409, "Seat is not linked to a tenant yet; use activate")
+        if not seat.tenant_id or seat.status not in PORTFOLIO_STATUSES:
+            raise HTTPException(409, "Only an attributed client can be paused or resumed")
         seat.status = req.status
         db.commit()
         _audit(admin_user, "set_partner_seat_status", "partner_seat", partner.name, f"seat={seat.id} -> {req.status}")

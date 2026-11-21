@@ -23,6 +23,8 @@ export const INITIAL_ACCOUNT_FORM = {
     username: '', password: '', constituency: '',
     state: '', party: '', whatsapp_number: '',
     languages: 'English, Hindi', key_facts: '', alt_names: '',
+    // Acquisition source. 'direct' = brought by Needle; 'partner' needs an active partner.
+    acquisition_channel: 'direct', partner_id: '',
 };
 
 /** Role choices map onto the existing seat_type + house fields. */
@@ -49,16 +51,23 @@ export function constituencyMode(form) {
     return { kind: 'text', label: 'State / Nominated' };
 }
 
+/** A partner-referred account must name its partner; Direct never carries one. */
+export function acquisitionProblem(form) {
+    if (form.acquisition_channel === 'partner' && !form.partner_id) return 'Select the partner that brought this tenant to Needle';
+    return '';
+}
+
 /** Returns an error message for the step, or '' when it may continue. */
 export function validateStep(form, step) {
     if (step === 1 && !(form.name && form.state)) return 'Name and State are required before continuing';
+    if (step === 1) return acquisitionProblem(form);
     if (step === 2 && !(form.username && form.password)) return 'Username and Password are required before continuing';
     return '';
 }
 
 export function validateForCreate(form) {
     if (!form.name || !form.username || !form.password || !form.state) return 'Name, Username, Password and State are required';
-    return '';
+    return acquisitionProblem(form);
 }
 
 function splitList(value, separator) {
@@ -82,6 +91,8 @@ export function buildCreatePayload(form) {
         languages: form.languages ? splitList(form.languages, ',') : ['English', 'Hindi'],
         key_facts: splitList(form.key_facts, '\n'),
         alt_names: splitList(form.alt_names, ','),
+        acquisition_channel: form.acquisition_channel === 'partner' ? 'partner' : 'direct',
+        ...(form.acquisition_channel === 'partner' ? { partner_id: Number(form.partner_id) } : {}),
     };
 }
 

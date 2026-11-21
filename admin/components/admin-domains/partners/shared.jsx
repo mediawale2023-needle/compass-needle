@@ -4,9 +4,10 @@ import { useState } from 'react';
 
 export const SEAT_STATUS = {
     active: { label: 'Live', badge: 'badge-green' },
-    requested: { label: 'Awaiting activation', badge: 'badge-amber' },
     paused: { label: 'Paused', badge: 'badge-slate' },
-    rejected: { label: 'Declined', badge: 'badge-red' },
+    requested: { label: 'Legacy request', badge: 'badge-amber' },
+    rejected: { label: 'Declined (legacy)', badge: 'badge-red' },
+    revoked: { label: 'Reassigned', badge: 'badge-slate' },
 };
 
 const inr = new Intl.NumberFormat('en-IN');
