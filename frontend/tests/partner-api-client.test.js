@@ -3,11 +3,12 @@ import {
     PartnerApiError,
     clearPartnerSession,
     getPartnerToken,
+    partnerClientSummary,
     partnerClients,
     partnerLogin,
-    partnerRequestSeat,
     storePartnerSession,
 } from '@/lib/partnerApi';
+import * as partnerApiModule from '@/lib/partnerApi';
 import { hexToHslTriplet } from '@/lib/partnerFormat';
 
 function jsonResponse(body, status = 200) {
@@ -15,6 +16,10 @@ function jsonResponse(body, status = 200) {
 }
 
 describe('partner API client', () => {
+    it('no longer exposes the retired seat-request call', () => {
+        expect(partnerApiModule.partnerRequestSeat).toBeUndefined();
+    });
+
     beforeEach(() => {
         sessionStorage.clear();
         localStorage.clear();
@@ -60,7 +65,7 @@ describe('partner API client', () => {
     it('turns validation arrays and network failures into readable messages', async () => {
         storePartnerSession({ token: 't', partner: {}, mustChangePassword: false });
         vi.spyOn(global, 'fetch').mockResolvedValueOnce(jsonResponse({ detail: [{ msg: 'too short' }] }, 422));
-        await expect(partnerRequestSeat({ client_label: '' })).rejects.toThrow(/check the form/i);
+        await expect(partnerClientSummary(7, 30)).rejects.toThrow(/check the form/i);
 
         vi.spyOn(global, 'fetch').mockRejectedValueOnce(new TypeError('Failed to fetch'));
         await expect(partnerClients(30)).rejects.toMatchObject({ status: 0 });

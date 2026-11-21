@@ -6,9 +6,9 @@ demo data. It never reads `.env`, never touches your real database, and disables
 every startup background job (WhatsApp sweepers, government sync, keep-alive), so
 nothing external is called.
 
-    venv/bin/python scripts/partner_demo.py            # fresh DB each run, serves on :8000
-    venv/bin/python scripts/partner_demo.py --keep     # reuse the DB from the last run
-    venv/bin/python scripts/partner_demo.py --port 8010
+    python scripts/partner_demo.py            # fresh DB each run, serves on :8000
+    python scripts/partner_demo.py --keep     # reuse the DB from the last run
+    python scripts/partner_demo.py --port 8010
 
 Normally launched through `scripts/partner_demo.sh`, which also starts both frontends.
 """
@@ -129,10 +129,10 @@ def seed():
 
         rajdhani = PartnerOrg(name="Rajdhani Strategy", slug="rajdhani-strategy", brand_name="Rajdhani Strategy",
                               brand_color="#B45309", show_powered_by=True, contact_email="ops@rajdhani.in",
-                              seat_cap=5, wholesale_price_inr=15000, is_active=True)
+                              wholesale_price_inr=15000, is_active=True)
         bravo = PartnerOrg(name="Bravo Campaigns", slug="bravo-campaigns", brand_name="Bravo",
                            brand_color="#1D4ED8", show_powered_by=False, contact_email="ops@bravo.in",
-                           seat_cap=3, wholesale_price_inr=18000, is_active=True)
+                           wholesale_price_inr=18000, is_active=True)
         db.add_all([rajdhani, bravo])
         db.flush()
         db.add_all([
@@ -156,10 +156,14 @@ def seed():
             PartnerSeat(partner_id=bravo.id, client_label="Kavita Joshi", constituency="Nashik Central", seat_type="mla",
                         status="requested", notes="Pilot seat, aspirant stage.", created_at=day(1)),
         ])
-        # tenants 5 and 6 are intentionally unlinked so "Activate" has accounts to choose from
+        # tenants 5 and 6 are intentionally unattributed: create more tenants through the onboarding form
+        # to exercise Direct vs Partner attribution; the two "requested" seats are legacy rows kept for history.
         db.commit()
     finally:
         db.close()
+    # Same idempotent step the backend runs at startup: records attribution for the seeded active/paused seats.
+    from modules.partners import ensure_partner_schema  # noqa: E402
+    print("attribution backfill:", ensure_partner_schema())
 
 
 if fresh:

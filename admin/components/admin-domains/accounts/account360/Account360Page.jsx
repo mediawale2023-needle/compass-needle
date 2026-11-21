@@ -10,6 +10,7 @@ import {
     Avatar, Badge, Callout, Card, ErrorState, IncidentBanner, LoadingSkeleton, MobileDisclosure, ReadinessRail, useMediaQuery,
 } from '@/components/admin-ui';
 import { useAccount360Data } from './useAccount360Data';
+import AcquisitionPanel from '@/components/admin-domains/partners/AcquisitionPanel';
 import {
     ActivityCard, CaseOperationsCard, GeographyCard, IntelligenceCard, NotesPanel, ProfileSettingsPanel, StaffPanel,
     SupportAccessPanel, WhatsAppCard, WhatsAppConfigPanel,
@@ -210,6 +211,13 @@ export default function Account360Page({ tenantId }) {
                     <Card title="Account readiness" description={`${readyCount} of ${columns.length} areas ready`}>
                         <ReadinessRail items={columns.map((column) => ({ label: column.label, tone: column.tone, status: column.status, detail: column.detail, icon: RAIL_ICONS[column.key] }))} />
                     </Card>
+
+                    <AcquisitionPanel
+                        tenantId={tenantId}
+                        acquisition={detail.acquisition}
+                        history={detail.acquisition_history || []}
+                        onChanged={() => reload('detail')}
+                    />
 
                     <div className="nx-split-grid" data-align="stretch">
                         <CaseOperationsCard tenantId={tenantId} cases={data.cases} detail={detail} status={status.cases} onRetry={() => reload('cases')} />

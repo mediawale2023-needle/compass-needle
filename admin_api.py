@@ -573,6 +573,10 @@ class CreateMPRequest(BaseModel):
     key_facts: List[str] = []
     languages: List[str] = ["English", "Hindi"]
     alt_names: List[str] = []
+    # Acquisition source — validated and persisted server-side (see modules/partners.py).
+    # Who attributed the tenant and when are taken from the verified admin token, never from this body.
+    acquisition_channel: str = "direct"   # "direct" | "partner"
+    partner_id: int | None = None
 
 
 class UpdateProfileRequest(BaseModel):
@@ -896,8 +900,12 @@ def list_mps(_=Depends(get_admin_user)):
 
 
 @router.post("/mps")
-def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
-    """Create a new MP — tenant + user + profile."""
+def create_mp(req: CreateMPRequest, admin_user=Depends(get_admin_user)):
+    """Create a new MP — tenant + user + profile + acquisition attribution (one transaction).
+
+    A partner-attributed tenant gets its active partner association in the same commit;
+    any failure (including an inactive/unknown partner) rolls the whole onboarding back."""
+    from modules.partners import AttributionError, attribute_new_tenant
     pw_err = validate_password(req.password)
     if pw_err:
         raise HTTPException(400, pw_err)
@@ -955,17 +963,42 @@ def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
             profile_data=profile_data,
         )
         db.add(new_profile)
-        db.commit()
 
-        return {"success": True, "tenant_id": new_tenant.id, "user_id": new_user.id}
+        attribution = attribute_new_tenant(db, new_tenant, req.acquisition_channel, req.partner_id, admin_user)
+        db.commit()
+        _audit(admin_user, "created", "mp", req.name,
+               f"tenant_id={new_tenant.id} acquisition={attribution['channel']}"
+               + (f" partner_id={attribution['partner_id']}" if attribution["partner_id"] else ""))
+
+        return {"success": True, "tenant_id": new_tenant.id, "user_id": new_user.id, "acquisition": attribution}
     except HTTPException:
         raise
+    except AttributionError as e:
+        db.rollback()
+        raise HTTPException(e.status_code, e.message)
     except Exception as e:
         db.rollback()
         logger.exception("Admin operation failed")
         raise HTTPException(500, "Internal server error")
     finally:
         db.close()
+
+
+def _detach_partner_attribution(conn, tenant_id: int) -> None:
+    """Before a tenant is deleted: revoke its partner seat (kept as history, detached from the
+    tenant), log the event, and drop the attribution row so the tenant FK is released."""
+    from sqlalchemy import inspect as _sa_inspect
+    insp = _sa_inspect(conn)
+    if insp.has_table("partner_seats"):
+        conn.execute(text("UPDATE partner_seats SET status = 'revoked', tenant_id = NULL WHERE tenant_id = :t"), {"t": tenant_id})
+    if insp.has_table("tenant_attributions"):
+        row = conn.execute(text("SELECT channel, partner_id FROM tenant_attributions WHERE tenant_id = :t"), {"t": tenant_id}).first()
+        if row and insp.has_table("tenant_attribution_events"):
+            conn.execute(text(
+                "INSERT INTO tenant_attribution_events (tenant_id, event, from_channel, from_partner_id, to_channel, reason, changed_by, created_at) "
+                "VALUES (:t, 'tenant_deleted', :fc, :fp, 'deleted', 'Tenant deleted', 'system', :now)"),
+                {"t": tenant_id, "fc": row[0], "fp": row[1], "now": datetime.utcnow()})
+        conn.execute(text("DELETE FROM tenant_attributions WHERE tenant_id = :t"), {"t": tenant_id})
 
 
 @router.delete("/mps/{tenant_id}")
@@ -1004,6 +1037,7 @@ def delete_mp(tenant_id: int, _=Depends(get_admin_user)):
             conn.execute(text("""INSERT INTO token_blocklist (username, revoked_at)
                 SELECT username, :now FROM users WHERE tenant_id = :tid"""),
                 {"now": datetime.now(timezone.utc).replace(tzinfo=None), "tid": tenant_id})
+            _detach_partner_attribution(conn, tenant_id)
             for table in _TENANT_TABLES_ORDERED:
                 conn.execute(
                     text(f"DELETE FROM {table} WHERE tenant_id = :tid"),  # nosec B608 — table names are hardcoded, not user input
@@ -4899,6 +4933,19 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
         "created_at": tenant["created_at"].isoformat() if tenant.get("created_at") and hasattr(tenant["created_at"], "isoformat") else str(tenant.get("created_at", "")),
     }
 
+    # Acquisition (staff-only: this endpoint is admin-gated and never served to the tenant)
+    acquisition, acquisition_history = None, []
+    try:
+        from modules.partners import get_tenant_attribution, list_attribution_events
+        _adb = SessionLocal()
+        try:
+            acquisition = get_tenant_attribution(_adb, tenant_id)
+            acquisition_history = list_attribution_events(_adb, tenant_id)[:10]
+        finally:
+            _adb.close()
+    except Exception:
+        logger.exception("mp_detail: acquisition lookup failed for tenant_id=%s", tenant_id)
+
     # Login history
     last_login = user.get("last_login") if user else None
     login_str = last_login.isoformat() if last_login and hasattr(last_login, "isoformat") else (str(last_login) if last_login else "Never")
@@ -4951,6 +4998,8 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
         "staff": staff,
         "onboarding_state": onboarding,
         "activity": activity,
+        "acquisition": acquisition,          # None => lookup failed (UI must say "unavailable")
+        "acquisition_history": acquisition_history,
     }
 
 

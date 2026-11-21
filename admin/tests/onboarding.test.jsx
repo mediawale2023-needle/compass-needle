@@ -22,12 +22,13 @@ describe('onboarding rules', () => {
         expect(validateForCreate({ ...INITIAL_ACCOUNT_FORM, name: 'A', state: 'K', username: 'u' })).toBe('Name, Username, Password and State are required');
     });
 
-    it('builds the same POST payload as before', () => {
+    it('builds the same POST payload as before (plus the explicit Direct acquisition channel)', () => {
         const form = { ...INITIAL_ACCOUNT_FORM, name: 'Shri A', state: 'Karnataka', username: 'a', password: 'p', languages: 'English, Kannada ,', key_facts: 'one\n\n two ', alt_names: 'Belagavi, Belgaum', account_stage: 'aspirant' };
         expect(buildCreatePayload(form)).toEqual({
             name: 'Shri A', username: 'a', password: 'p', tenant_type: 'aspirant', account_stage: 'aspirant', seat_type: 'mp',
             constituency: 'India', whatsapp_number: '', house: 'Lok Sabha', display_name: 'Shri A', state: 'Karnataka', party: 'Independent',
             languages: ['English', 'Kannada'], key_facts: ['one', 'two'], alt_names: ['Belagavi', 'Belgaum'],
+            acquisition_channel: 'direct',
         });
         expect(buildCreatePayload({ ...form, languages: '' }).languages).toEqual(['English', 'Hindi']);
     });

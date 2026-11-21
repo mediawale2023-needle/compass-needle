@@ -2262,3 +2262,18 @@ Chronological log of completed repository work. Read before making changes to un
 - Review findings fixed: rollback could never succeed after exercising the Delhi worksheet workflow (now opt-in `--allow-worksheet-artifacts`, catalogue-driven FK check); geography preflight filtered by tenant where the app does not; seeded cases now `geography_locked`; dry-run is a hard READ ONLY transaction with redacted output and a schema/column-type preflight; new manual read-only workflow `tenant9-synthetic-dry-run.yml`.
 - CI: PR check "Backend, Frontend, Admin, And Browser Tests" failed on two opt-in PostgreSQL files that skip at module level (pytest exit 5). Mine now uses a `skipif` mark; the runner accepts exit 5 only when the output shows a skip, which also clears the pre-existing red caused by `test_govt_manual_reference_delhi_postgres.py` on `main` since #158.
 - Verified: 27/27 Tenant 9 PostgreSQL tests on PG 14 and PG 17, existing Delhi PG race file 2/2 on PG 17, all 17 changed Python files parse under 3.11. The 13 single-process failures reproduce identically on untouched `origin/main` and 10 pass alone.
+
+## 2026-11-21 — Partner attribution in tenant onboarding (pre-merge audit)
+
+- Rebuilt on current `origin/main` + `claude/partner-channel`: onboarding acquisition section in the redesigned `CreateAccountPage` (`lib/admin-data/onboarding.js` validation + payload), `AcquisitionPanel` in Account 360, backend attribution/reassignment in `modules/partners.py`, `partner_api.py`, `admin_api.py`; seat caps and the partner seat-request flow removed.
+- Verified: PostgreSQL 18 migration (empty / legacy with `seat_cap` / re-run x3 / injected failure), constraints (CHECK, unique, FK), real-server end-to-end on a migrated legacy DB (22 checks), `tests/test_partner_api.py` 40 passed on SQLite and the concurrency/rollback tests on PostgreSQL, admin Vitest 158, frontend Vitest 260, both `next build`s (Google Fonts mocked — sandbox has no access), backend suite file-by-file.
+- Not verified: real browser (no browser reachable from the sandbox).
+- Known pre-existing artifact: `tests/test_pilot_readiness.py` fails (3 tests) when stale SQLite `*.db` files from earlier test files sit in the working directory; it passes in a clean directory, on this branch and on `origin/main`.
+- Nothing committed, pushed, merged or deployed.
+
+## 2026-11-21 — Partner attribution final merge candidate (migration safety)
+
+- Base: current `origin/main` (`26cdc04`, which already contains `claude/partner-channel` via PR #161) + `partner-attribution-on-partner-channel.patch`; the patch applied cleanly.
+- Migration made expand/contract: startup keeps `partners.seat_cap` (sets a column default) and never drops it; `scripts/partner_drop_seat_cap.py` is the explicit phase 2. Reason: EC2 recreates `backend` and `backend_govt_live` sequentially, so old and new code overlap.
+- Migration failure handling: only the advisory-lock holder migrates; others wait/retry; failure => `/health` 503 and partner/onboarding endpoints 503 until the retry succeeds. Tests: `tests/test_partner_migration_safety.py` (failure, contention, retry; PostgreSQL section needs `NEEDLE_PG_TEST_URL`).
+- Nothing committed, pushed, merged or deployed.

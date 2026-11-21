@@ -33,8 +33,8 @@ import PartnerDetailPage from '@/components/admin-domains/partners/PartnerDetail
 const partner = (over = {}) => ({
     id: 3, name: 'Rajdhani Strategy', slug: 'rajdhani-strategy', brand_name: 'Rajdhani Strategy',
     brand_color: '#1F3A5F', brand_logo_url: null, show_powered_by: true, contact_email: 'ops@rajdhani.in',
-    seat_cap: 5, wholesale_price_inr: 15000, is_active: true, seats_used: 3, seats_requested: 1,
-    seats_active: 2, seats_paused: 0, users_count: 1, created_at: '2026-11-01T10:00:00',
+    wholesale_price_inr: 15000, is_active: true, clients_active: 2, clients_paused: 1, legacy_requests: 1,
+    billable_clients: 2, monthly_wholesale_inr: 30000, users_count: 1, created_at: '2026-11-01T10:00:00',
     ...over,
 });
 
@@ -67,19 +67,21 @@ beforeEach(() => {
 describe('Admin partners list', () => {
     const pendingReq = { id: 2, partner_id: 3, partner_name: 'Rajdhani Strategy', client_label: 'Ravi Kulkarni', constituency: 'Pune Cantonment', seat_type: 'mla', status: 'requested', notes: 'Urgent', created_at: '2026-11-05T10:00:00' };
 
-    it('shows totals, the waiting queue and every partner', async () => {
+    it('shows attributed-client totals, legacy requests and every partner', async () => {
         apiGetMock.mockImplementation(async (path) => path.endsWith('/requests/pending')
             ? { requests: [pendingReq] }
-            : { partners: [partner(), partner({ id: 4, name: 'Bravo Campaigns', slug: 'bravo', seats_active: 1, seats_requested: 0, seats_used: 1, is_active: false })] });
+            : { partners: [partner(), partner({ id: 4, name: 'Bravo Campaigns', slug: 'bravo', clients_active: 1, clients_paused: 0, legacy_requests: 0, billable_clients: 1, monthly_wholesale_inr: 15000, is_active: false })] });
         render(<PartnersPage />);
 
         expect(await screen.findByRole('link', { name: 'Rajdhani Strategy' })).toHaveAttribute('href', '/dashboard/partners/3');
         expect(screen.getByRole('link', { name: 'Bravo Campaigns' })).toBeInTheDocument();
         expect(screen.getByText('Inactive')).toBeInTheDocument();
-        // 3 live seats total; wholesale = (2 × 15,000) + (1 × 15,000)
+        // wholesale total = 2 active × 15,000 + 1 active × 15,000
         expect(screen.getByText('₹45,000')).toBeInTheDocument();
+        expect(screen.getByText('Active attributed clients')).toBeInTheDocument();
+        expect(screen.queryByText(/seat cap|seats used|awaiting activation/i)).toBeNull();
 
-        const queue = screen.getByRole('region', { name: /pending seat requests/i });
+        const queue = screen.getByRole('region', { name: /legacy seat requests/i });
         expect(within(queue).getByText('Ravi Kulkarni')).toBeInTheDocument();
         expect(within(queue).getByRole('link', { name: 'Review' })).toHaveAttribute('href', '/dashboard/partners/3');
     });
@@ -91,7 +93,7 @@ describe('Admin partners list', () => {
         });
         render(<PartnersPage />);
 
-        expect(await screen.findByText(/seat request queue unavailable/i)).toBeInTheDocument();
+        expect(await screen.findByText(/legacy request list unavailable/i)).toBeInTheDocument();
         expect(screen.queryByText(/no seat requests waiting/i)).toBeNull();
         expect(screen.getByRole('link', { name: 'Rajdhani Strategy' })).toBeInTheDocument();
     });
@@ -111,7 +113,7 @@ describe('Admin partners list', () => {
         apiGetMock.mockImplementation(async (path) => (path.endsWith('/requests/pending') ? { requests: [] } : { partners: [] }));
         render(<PartnersPage />);
         expect(await screen.findByText('No partners yet')).toBeInTheDocument();
-        expect(screen.getByText('No seat requests waiting')).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: /legacy seat requests/i })).toBeNull();   // nothing legacy to show
     });
 
     it('creates a partner and opens its page', async () => {
@@ -122,12 +124,13 @@ describe('Admin partners list', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /new partner/i }));
         fireEvent.change(screen.getByLabelText(/consultancy name/i), { target: { value: 'Alpha Advisory' } });
-        fireEvent.change(screen.getByLabelText(/seat cap/i), { target: { value: '8' } });
+        expect(screen.queryByLabelText(/seat cap/i)).toBeNull();   // no per-partner limit exists
         fireEvent.click(screen.getByRole('button', { name: /create partner/i }));
 
         await waitFor(() => expect(apiPostMock).toHaveBeenCalledWith('/api/admin/partners', expect.objectContaining({
-            name: 'Alpha Advisory', seat_cap: 8, wholesale_price_inr: 15000, brand_name: null, brand_logo_url: null,
+            name: 'Alpha Advisory', wholesale_price_inr: 15000, brand_name: null, brand_logo_url: null,
         })));
+        expect(apiPostMock.mock.calls[0][1]).not.toHaveProperty('seat_cap');
         await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/dashboard/partners/8'));
     });
 
@@ -145,13 +148,13 @@ describe('Admin partners list', () => {
 });
 
 describe('Admin partner detail', () => {
-    it('offers the right action for each seat status', async () => {
+    it('offers the right action for each association status', async () => {
         mockDetailApi();
         render(<PartnerDetailPage />);
         const table = await screen.findByRole('region', { name: /partner client seats/i });
 
         const rowFor = (name) => within(table).getByText(name).closest('tr');
-        expect(within(rowFor('Ravi Kulkarni')).getByRole('button', { name: 'Activate' })).toBeInTheDocument();
+        expect(within(rowFor('Ravi Kulkarni')).getByRole('button', { name: 'Link (legacy)' })).toBeInTheDocument();
         expect(within(rowFor('Ravi Kulkarni')).getByRole('button', { name: 'Decline' })).toBeInTheDocument();
         expect(within(rowFor('Asha Patil')).getByRole('button', { name: 'Pause' })).toBeInTheDocument();
         expect(within(rowFor('Paused Client')).getByRole('button', { name: 'Resume' })).toBeInTheDocument();
@@ -159,12 +162,12 @@ describe('Admin partner detail', () => {
         expect(within(rowFor('Asha Patil')).getByText(/Asha Patil Office/)).toBeInTheDocument();
     });
 
-    it('activates a seat by linking an unlinked account', async () => {
+    it('links a legacy request to an unlinked account', async () => {
         mockDetailApi();
         apiPostMock.mockResolvedValue({ success: true });
         render(<PartnerDetailPage />);
         const table = await screen.findByRole('region', { name: /partner client seats/i });
-        fireEvent.click(within(within(table).getByText('Ravi Kulkarni').closest('tr')).getByRole('button', { name: 'Activate' }));
+        fireEvent.click(within(within(table).getByText('Ravi Kulkarni').closest('tr')).getByRole('button', { name: 'Link (legacy)' }));
 
         const select = await screen.findByLabelText(/customer account/i);
         expect(screen.getByRole('button', { name: /link and activate/i })).toBeDisabled();
@@ -181,7 +184,7 @@ describe('Admin partner detail', () => {
         mockDetailApi({ '/api/admin/partners/available-tenants': async () => ({ tenants: [] }) });
         render(<PartnerDetailPage />);
         const table = await screen.findByRole('region', { name: /partner client seats/i });
-        fireEvent.click(within(within(table).getByText('Ravi Kulkarni').closest('tr')).getByRole('button', { name: 'Activate' }));
+        fireEvent.click(within(within(table).getByText('Ravi Kulkarni').closest('tr')).getByRole('button', { name: 'Link (legacy)' }));
 
         expect(await screen.findByText(/no unlinked accounts available/i)).toBeInTheDocument();
         expect(screen.queryByLabelText(/customer account/i)).toBeNull();
@@ -193,7 +196,7 @@ describe('Admin partner detail', () => {
         apiPostMock.mockRejectedValue(new Error('Tenant is already linked to a partner seat'));
         render(<PartnerDetailPage />);
         const table = await screen.findByRole('region', { name: /partner client seats/i });
-        fireEvent.click(within(within(table).getByText('Ravi Kulkarni').closest('tr')).getByRole('button', { name: 'Activate' }));
+        fireEvent.click(within(within(table).getByText('Ravi Kulkarni').closest('tr')).getByRole('button', { name: 'Link (legacy)' }));
         fireEvent.change(await screen.findByLabelText(/customer account/i), { target: { value: '21' } });
         fireEvent.click(screen.getByRole('button', { name: /link and activate/i }));
         expect(await screen.findByRole('alert')).toHaveTextContent(/already linked/i);
@@ -259,7 +262,7 @@ describe('Admin partner detail', () => {
         mockDetailApi({ '/api/admin/partners/3/seats': async () => { throw new Error('seats down'); } });
         render(<PartnerDetailPage />);
         expect(await screen.findByText(/seats down/i)).toBeInTheDocument();
-        expect(screen.queryByText('No seats yet')).toBeNull();
+        expect(screen.queryByText('No attributed clients yet')).toBeNull();
         expect(await screen.findByRole('region', { name: /partner logins/i })).toBeInTheDocument();
     });
 
@@ -285,15 +288,20 @@ describe('Admin partner detail', () => {
         await waitFor(() => expect(apiPatchMock).toHaveBeenCalledWith('/api/admin/partners/3', { is_active: false }));
     });
 
-    it('saves branding and limits as numbers', async () => {
+    it('has no seat-cap control, metric or warning, and saves branding and pricing as numbers', async () => {
         mockDetailApi();
         apiPatchMock.mockResolvedValue({ success: true });
         render(<PartnerDetailPage />);
-        const cap = await screen.findByLabelText('Seat cap');
-        fireEvent.change(cap, { target: { value: '12' } });
+        const price = await screen.findByLabelText(/wholesale/i);
+        expect(screen.queryByLabelText(/seat cap/i)).toBeNull();
+        expect(screen.queryByText(/seats used|seat cap|cap reached/i)).toBeNull();
+        expect(screen.getByText('Active clients')).toBeInTheDocument();
+        expect(screen.getByText('Paused clients')).toBeInTheDocument();
+        fireEvent.change(price, { target: { value: '18000' } });
         fireEvent.click(screen.getByRole('button', { name: /save settings/i }));
         await waitFor(() => expect(apiPatchMock).toHaveBeenCalledWith('/api/admin/partners/3', expect.objectContaining({
-            seat_cap: 12, wholesale_price_inr: 15000, brand_color: '#1F3A5F',
+            wholesale_price_inr: 18000, brand_color: '#1F3A5F',
         })));
+        expect(apiPatchMock.mock.calls[0][1]).not.toHaveProperty('seat_cap');
     });
 });

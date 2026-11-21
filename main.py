@@ -252,11 +252,40 @@ if _startup_migration_lock_conn is not None:
 else:
     logger.error("Skipping startup migrations — could not connect to Postgres after retries.")
 
-try:
-    init_db()
-    logger.info("Database initialised.")
-except Exception as _init_err:
-    logger.error("init_db() failed (DB may be unreachable): %s", _init_err)
+# init_db() is idempotent but its CREATE TABLE statements are not serialised across workers (an instance
+# that did not get the lock still runs it), so two workers creating a brand-new table at once can make one of
+# them fail with a duplicate-relation error. Retry once so a lost race never leaves later migrations skipped.
+for _init_attempt in (1, 2):
+    try:
+        init_db()
+        logger.info("Database initialised.")
+        break
+    except Exception as _init_err:
+        logger.error("init_db() failed on attempt %d (DB may be unreachable, or a concurrent worker won a table-creation race): %s",
+                     _init_attempt, _init_err)
+        if _init_attempt == 1:
+            _time.sleep(2)
+
+# Partner channel (expand-only migration, see modules/partners.py). Only the instance holding the startup
+# migration lock runs it; an instance without the lock waits and reports not-ready instead of migrating on its
+# own. A genuine failure leaves partner/attribution endpoints disabled and /health at 503 (no silent degradation).
+from modules.partners import SCHEMA_GATE as _partner_schema_gate, startup_partner_migration as _startup_partner_migration
+_startup_partner_migration(engine=engine, holds_lock=bool(_migration_lock_acquired))
+
+
+@app.middleware("http")
+async def partner_schema_guard(request: Request, call_next):
+    """While the partner schema is not ready, refuse only the endpoints that depend on it (partner portal, partner
+    admin, tenant onboarding). Citizen intake and everything else keep serving; /health reports the degraded state."""
+    if not _partner_schema_gate.ready:
+        path = request.url.path.rstrip("/")
+        if path.startswith("/api/partner") or path.startswith("/api/admin/partners") or (
+            path == "/api/admin/mps" and request.method == "POST"
+        ):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=503, headers={"Retry-After": "30"}, content={
+                "detail": "Partner attribution is not ready (migration in progress or failed). Retry shortly."})
+    return await call_next(request)
 
 # ── Phase 1 Brain: ensure parliament answer-fetcher schema exists ─────────
 # Creates prs_pdf_cache and adds question_pdf_url / real_question_number /
@@ -6973,7 +7002,11 @@ def root():
 
 @app.get("/health")
 def health():
-    """Basic liveness check — returns 200 if the process is running."""
+    """Liveness + partner-schema readiness: 503 while the partner schema is not ready (see modules/partners.py)."""
+    if not _partner_schema_gate.ready:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=503, content={
+            "status": "degraded", "partner_schema": _partner_schema_gate.state, "detail": _partner_schema_gate.detail})
     return {"status": "ok", "system": "Needle Backend V8.2", "timestamp": datetime.utcnow().isoformat(), "routes": ["profile-generate"]}
 
 

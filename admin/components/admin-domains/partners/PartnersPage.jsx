@@ -11,7 +11,7 @@ import { Modal, SEAT_STATUS, formatDate, formatInr } from './shared';
 
 const BLANK = {
     name: '', brand_name: '', brand_color: '#1F3A5F', brand_logo_url: '', show_powered_by: true,
-    contact_email: '', seat_cap: 5, wholesale_price_inr: 15000,
+    contact_email: '', wholesale_price_inr: 15000,
 };
 
 function CreatePartnerModal({ onClose, onCreated }) {
@@ -32,7 +32,6 @@ function CreatePartnerModal({ onClose, onCreated }) {
                 brand_logo_url: form.brand_logo_url.trim() || null,
                 show_powered_by: form.show_powered_by,
                 contact_email: form.contact_email.trim() || null,
-                seat_cap: Number(form.seat_cap),
                 wholesale_price_inr: Number(form.wholesale_price_inr),
             });
             onCreated(res.partner);
@@ -69,11 +68,7 @@ function CreatePartnerModal({ onClose, onCreated }) {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-row">
-                        <label className="form-label" htmlFor="p-cap">Seat cap</label>
-                        <input id="p-cap" type="number" min={0} max={500} className="form-input" value={form.seat_cap} onChange={set('seat_cap')} />
-                    </div>
-                    <div className="form-row">
-                        <label className="form-label" htmlFor="p-price">Wholesale ₹ / seat / month</label>
+                        <label className="form-label" htmlFor="p-price">Wholesale ₹ / client / month</label>
                         <input id="p-price" type="number" min={0} className="form-input" value={form.wholesale_price_inr} onChange={set('wholesale_price_inr')} />
                     </div>
                 </div>
@@ -113,9 +108,9 @@ export default function PartnersPage() {
 
     const totals = partners && {
         partners: partners.length,
-        live: partners.reduce((n, p) => n + p.seats_active, 0),
-        awaiting: partners.reduce((n, p) => n + p.seats_requested, 0),
-        wholesale: partners.reduce((n, p) => n + p.seats_active * (p.wholesale_price_inr || 0), 0),
+        live: partners.reduce((n, p) => n + p.clients_active, 0),
+        paused: partners.reduce((n, p) => n + p.clients_paused, 0),
+        wholesale: partners.reduce((n, p) => n + p.monthly_wholesale_inr, 0),
     };
 
     return (
@@ -123,7 +118,7 @@ export default function PartnersPage() {
             <AdminPageHeader
                 context="Customers"
                 title="Partners"
-                description="Political consultancies that resell Needle seats to their clients. Approve seat requests, manage partner logins and limits."
+                description="Political consultancies that bring tenants to Needle. A tenant is attributed to its partner while onboarding it (Onboarding → How did this tenant come to Needle?) and appears in the partner's portfolio immediately."
                 actions={<button type="button" className="btn-primary" onClick={() => setCreating(true)}>+ New partner</button>}
             />
 
@@ -132,23 +127,22 @@ export default function PartnersPage() {
                     <>
                         <AdminMetricStrip items={[
                             { label: 'Partners', value: totals.partners },
-                            { label: 'Live client seats', value: totals.live },
-                            { label: 'Awaiting activation', value: pending === null ? 'n/a' : totals.awaiting, unavailable: pending === null, tone: totals.awaiting ? 'warning' : 'neutral' },
-                            { label: 'Est. monthly wholesale', value: formatInr(totals.wholesale), detail: 'Live seats × wholesale price' },
+                            { label: 'Active attributed clients', value: totals.live },
+                            { label: 'Paused clients', value: totals.paused, detail: 'Attributed, partner access paused' },
+                            { label: 'Est. monthly wholesale', value: formatInr(totals.wholesale), detail: 'Active clients × wholesale price' },
                         ]} />
 
                         {pending === null && (
-                            <AdminNotice tone="warning" title="Seat request queue unavailable"
+                            <AdminNotice tone="warning" title="Legacy request list unavailable"
                                 action={<button type="button" className="btn-secondary" onClick={load}>Try again</button>}>
-                                The list of pending requests could not be loaded. Do not assume the queue is empty.
+                                The list of old partner seat requests could not be loaded. Do not assume there are none.
                             </AdminNotice>
                         )}
 
-                        <AdminPanel title="Seat requests waiting" description="Provision the customer account first (Onboarding), then link it from the partner page.">
-                            {pending && pending.length === 0 ? (
-                                <div className="admin-empty-state"><h3>No seat requests waiting</h3></div>
-                            ) : pending ? (
-                                <AdminTableWrap label="Pending seat requests">
+                        {pending && pending.length > 0 && (
+                        <AdminPanel title="Legacy seat requests" description="Requests made before partner attribution moved into onboarding. New partner tenants never need this step. Link each to an existing account or decline it.">
+                            {pending ? (
+                                <AdminTableWrap label="Legacy seat requests">
                                     <table className="data-table">
                                         <thead><tr><th>Partner</th><th>Client</th><th>Seat</th><th>Requested</th><th>Notes</th><th /></tr></thead>
                                         <tbody>
@@ -169,18 +163,19 @@ export default function PartnersPage() {
                                 </AdminTableWrap>
                             ) : null}
                         </AdminPanel>
+                        )}
 
                         <AdminPanel title="All partners">
                             {partners.length === 0 ? (
                                 <div className="admin-empty-state">
                                     <h3>No partners yet</h3>
-                                    <p>Create the first consultancy to start onboarding client seats.</p>
+                                    <p>Create the first consultancy, then pick it when onboarding a tenant it brought to Needle.</p>
                                 </div>
                             ) : (
                                 <AdminTableWrap label="Partners">
                                     <table className="data-table">
                                         <thead>
-                                            <tr><th>Partner</th><th>Status</th><th>Seats used</th><th>Live</th><th>Awaiting</th><th>Wholesale / seat</th><th>Logins</th><th>Created</th></tr>
+                                            <tr><th>Partner</th><th>Status</th><th>Active clients</th><th>Paused</th><th>Legacy requests</th><th>Wholesale / client</th><th>Monthly wholesale</th><th>Logins</th><th>Created</th></tr>
                                         </thead>
                                         <tbody>
                                             {partners.map((p) => (
@@ -190,10 +185,11 @@ export default function PartnersPage() {
                                                         <div style={{ fontSize: '0.72rem', opacity: 0.7 }}>{p.contact_email || p.slug}</div>
                                                     </td>
                                                     <td><span className={`badge badge-dot ${p.is_active ? 'badge-green' : 'badge-red'}`}>{p.is_active ? 'Active' : 'Inactive'}</span></td>
-                                                    <td>{p.seats_used} / {p.seat_cap}</td>
-                                                    <td>{p.seats_active}</td>
-                                                    <td>{p.seats_requested > 0 ? <span className={`badge ${SEAT_STATUS.requested.badge}`}>{p.seats_requested}</span> : 0}</td>
+                                                    <td>{p.clients_active}</td>
+                                                    <td>{p.clients_paused}</td>
+                                                    <td>{p.legacy_requests > 0 ? <span className={`badge ${SEAT_STATUS.requested.badge}`}>{p.legacy_requests}</span> : 0}</td>
                                                     <td>{formatInr(p.wholesale_price_inr)}</td>
+                                                    <td>{formatInr(p.monthly_wholesale_inr)}</td>
                                                     <td>{p.users_count}</td>
                                                     <td>{formatDate(p.created_at)}</td>
                                                 </tr>
