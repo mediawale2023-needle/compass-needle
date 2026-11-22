@@ -10,6 +10,7 @@ import { PERIODS, fmtCount, fmtDays, fmtPct } from '@/lib/partnerFormat';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import PartnerOverview from '@/components/partner/PartnerOverview';
 
 function Kpi({ label, value }) {
     return (
@@ -162,6 +163,7 @@ export default function PartnerClientPage() {
     const params = useParams();
     const seatId = params?.seatId;
     const { ready, token, mustChangePassword } = usePartnerSession();
+    const [tab, setTab] = useState('overview'); // overview | analytics
     const [days, setDays] = useState(30);
     const [result, setResult] = useState(null);
     const [status, setStatus] = useState('loading'); // loading | ready | error | missing
@@ -193,6 +195,8 @@ export default function PartnerClientPage() {
         }
         load();
     }, [ready, token, mustChangePassword, load, router]);
+
+    const signOutRedirect = useCallback(() => router.replace('/partner'), [router]);
 
     if (!ready || !token) return null;
 
@@ -239,6 +243,7 @@ export default function PartnerClientPage() {
                                 {[client.constituency, client.seat_type === 'mla' ? 'MLA' : 'MP'].filter(Boolean).join(' · ')}
                             </p>
                         </div>
+                        {tab === 'analytics' && (
                         <div role="group" aria-label="Reporting period" className="inline-flex rounded-lg border bg-card p-1">
                             {PERIODS.map((p) => (
                                 <button key={p} type="button" aria-pressed={days === p} onClick={() => setDays(p)}
@@ -248,27 +253,49 @@ export default function PartnerClientPage() {
                                 </button>
                             ))}
                         </div>
+                        )}
                     </div>
 
-                    <section aria-label={`Headline numbers, last ${days} days`} className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-                        <Kpi label="Received" value={fmtCount(s.total)} />
-                        <Kpi label="Resolved" value={fmtPct(s.resolution_rate)} />
-                        <Kpi label="Still open" value={fmtCount(s.open)} />
-                        <Kpi label="Critical" value={fmtCount(s.critical)} />
-                        <Kpi label="Avg. to resolve" value={fmtDays(s.avg_resolution_days)} />
-                    </section>
-
-                    <Card>
-                        <CardHeader className="pb-2"><CardTitle className="text-base">Weekly volume, last 8 weeks</CardTitle></CardHeader>
-                        <CardContent><WeeklyChart weekly={s.weekly} /></CardContent>
-                    </Card>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <RankedList title="Top issue categories" items={s.top_categories} />
-                        <RankedList title="Where complaints come from" items={s.top_locations} />
+                    <div role="tablist" aria-label="Client views" className="inline-flex rounded-lg border bg-card p-1">
+                        {[['overview', 'Overview'], ['analytics', 'Analytics']].map(([key, label]) => (
+                            <button key={key} type="button" role="tab" id={`tab-${key}`} aria-selected={tab === key} aria-controls={`panel-${key}`}
+                                onClick={() => setTab(key)}
+                                className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                                    tab === key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                                {label}
+                            </button>
+                        ))}
                     </div>
 
-                    <ReportPanel seatId={seatId} days={days} clientLabel={client.client_label} />
+                    {tab === 'overview' && (
+                        <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
+                            <PartnerOverview seatId={seatId} onUnauthorized={signOutRedirect} />
+                        </div>
+                    )}
+
+                    {tab === 'analytics' && (
+                        <div role="tabpanel" id="panel-analytics" aria-labelledby="tab-analytics" className="space-y-6">
+                        <section aria-label={`Headline numbers, last ${days} days`} className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+                            <Kpi label="Received" value={fmtCount(s.total)} />
+                            <Kpi label="Resolved" value={fmtPct(s.resolution_rate)} />
+                            <Kpi label="Still open" value={fmtCount(s.open)} />
+                            <Kpi label="Critical" value={fmtCount(s.critical)} />
+                            <Kpi label="Avg. to resolve" value={fmtDays(s.avg_resolution_days)} />
+                        </section>
+
+                        <Card>
+                            <CardHeader className="pb-2"><CardTitle className="text-base">Weekly volume, last 8 weeks</CardTitle></CardHeader>
+                            <CardContent><WeeklyChart weekly={s.weekly} /></CardContent>
+                        </Card>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <RankedList title="Top issue categories" items={s.top_categories} />
+                            <RankedList title="Where complaints come from" items={s.top_locations} />
+                        </div>
+
+                        <ReportPanel seatId={seatId} days={days} clientLabel={client.client_label} />
+                        </div>
+                    )}
                 </>
             )}
         </div>
