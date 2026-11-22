@@ -3,6 +3,7 @@ import {
     PartnerApiError,
     clearPartnerSession,
     getPartnerToken,
+    partnerClientOverview,
     partnerClientSummary,
     partnerClients,
     partnerLogin,
@@ -42,6 +43,16 @@ describe('partner API client', () => {
         expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer partner-token');
         expect(sessionStorage.getItem('needle_token')).toBe('mp-token');
         expect(localStorage.getItem('needle_partner_token')).toBeNull(); // sessionStorage only
+    });
+
+    it('requests the counts-only overview for one seat with the partner token and no tenant parameter', async () => {
+        storePartnerSession({ token: 'partner-token', partner: { brand_name: 'X' }, mustChangePassword: false });
+        const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ overview: {} }));
+        await partnerClientOverview(7);
+        const [url, init] = fetchMock.mock.calls[0];
+        expect(url).toMatch(/\/api\/partner\/clients\/7\/dashboard\/overview$/);
+        expect(init.headers.Authorization).toBe('Bearer partner-token');
+        expect(url).not.toMatch(/tenant|tid/i);
     });
 
     it('does not call the server without a token', async () => {

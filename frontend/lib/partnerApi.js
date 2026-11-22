@@ -119,3 +119,5 @@ export const partnerClientSummary = (seatId, days = 30) =>
     request(`/api/partner/clients/${encodeURIComponent(seatId)}/summary?days=${days}`);
 export const partnerClientReport = (seatId, days = 30) =>
     request(`/api/partner/clients/${encodeURIComponent(seatId)}/report?days=${days}`, { asText: true });
+export const partnerClientOverview = (seatId) =>
+    request(`/api/partner/clients/${encodeURIComponent(seatId)}/dashboard/overview`);
