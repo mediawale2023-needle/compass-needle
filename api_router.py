@@ -45,6 +45,7 @@ from modules.ack_composer import compose_status_update
 from modules.ack_validator import ack_policy_mode, validate_citizen_message, violation_codes
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
 from modules import case_lifecycle
+from modules.dashboard_overview import OverviewDeps, build_mp_overview
 from modules.synthetic_cases import (
     SyntheticCaseActionBlocked,
     append_data_scope_condition,
@@ -1148,106 +1149,21 @@ def _dashboard_latest_citizen_activity(members: list[dict], inbound_map: dict[in
     return (max(created) if created else None), False
 
 
-def _dashboard_is_govt_filed(case: dict) -> bool:
-    if str(case.get("govt_reference_number") or "").strip():
-        return True
-    return str(case.get("govt_status") or "").strip().lower() in {
-        "submitted", "registered", "forwarded", "under_review",
-        "escalated", "resolved", "rejected", "disposed",
-    }
-
-
-def _dashboard_govt_stage(case: dict) -> str:
-    status = str(case.get("govt_status") or "").strip().lower()
-    if status in {"resolved", "disposed"}:
-        return "resolved"
-    if status in {"under_review", "escalated", "forwarded"}:
-        return "department"
-    if _dashboard_is_govt_filed(case):
-        return "registered"
-    if status == "pending_staff_submit":
-        return "ready"
-    return "none"
-
-
-def _dashboard_action_for_case(case: dict, sync: dict | None = None) -> dict | None:
-    status = str(case.get("status") or "").strip().lower()
-    sync_state = (sync or {}).get("govt_sync_state")
-    if status == "pending_review":
-        return {"label": "Review case", "href": f"/dashboard/sansadx?case_id={case.get('id')}"}
-    if status == "awaiting_location":
-        return {"label": "Add location", "href": f"/dashboard/sansadx?case_id={case.get('id')}"}
-    if sync_state in {"failed", "verification", "inconclusive"}:
-        return {"label": "Review sync issue", "href": f"/dashboard/sansadx?case_id={case.get('id')}"}
-    if sync_state == "changed":
-        return {"label": "View govt update", "href": f"/dashboard/sansadx?case_id={case.get('id')}"}
-    if not _dashboard_is_govt_filed(case):
-        if status in {"resolved", "completed", "closed", "irrelevant", "offensive"}:
-            return None
-        return {"label": "File grievance", "href": f"/dashboard/sansadx?case_id={case.get('id')}"}
-    if str(case.get("govt_status") or "").strip().lower() in {"resolved", "disposed", "rejected"}:
-        return None
-    return {"label": "Check portal status", "href": f"/dashboard/sansadx?case_id={case.get('id')}"}
-
-
-def _dashboard_state_label(case: dict, sync: dict | None = None) -> str:
-    status = str(case.get("status") or "").strip().lower()
-    stage = _dashboard_govt_stage(case)
-    sync_state = (sync or {}).get("govt_sync_state")
-    if status == "pending_review":
-        return "Needs Review"
-    if status == "awaiting_location":
-        return "Needs Location"
-    if sync_state in {"failed", "verification", "inconclusive"}:
-        return "Sync Issue"
-    if sync_state == "changed":
-        return "Govt Update"
-    if stage == "ready":
-        return "Ready to File"
-    if stage == "registered":
-        return "Govt Registered"
-    if stage == "department":
-        return "Department Action"
-    if status in {"new", "pending"} and not case.get("assigned_to"):
-        return "Unassigned"
-    if status == "resolved":
-        return "Resolved"
-    return (case.get("status") or "New").replace("_", " ").title()
-
-
-def _dashboard_issue_label(case: dict) -> str:
-    return (
-        case.get("problem_subdomain")
-        or case.get("problem_domain")
-        or case.get("category")
-        or "General grievance"
+def _overview_deps() -> OverviewDeps:
+    return OverviewDeps(
+        q=_q,
+        q_one=_q_one,
+        group_bundles=_briefcase_group_bundles,
+        coerce_iso=_coerce_iso,
+        coerce_datetime=_coerce_datetime,
+        utcnow=_utcnow,
+        prepare_case=_prepare_briefcase_list_case,
+        govt_sync_map=_dashboard_govt_sync_map,
+        inbound_map=_dashboard_latest_inbound_map,
+        latest_citizen_activity=_dashboard_latest_citizen_activity,
+        parse_meta=_parse_meta,
+        assembly_belongs=assembly_belongs_to_parliamentary,
     )
-
-
-def _dashboard_location_label(case: dict) -> str:
-    parts = [
-        str(case.get("location") or "").strip(),
-        str(case.get("assembly") or "").strip(),
-    ]
-    return " · ".join([p for p in parts if p and p.lower() != "unknown"]) or "Location pending"
-
-
-def _dashboard_time_ago(value) -> str:
-    dt = _coerce_datetime(value)
-    if not dt:
-        return ""
-    # _prepare_briefcase_list_case / _coerce_iso hand back tz-aware "Z" strings,
-    # but _utcnow() is naive UTC — normalise to naive UTC before subtracting.
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-    diff = max(_utcnow() - dt, timedelta(seconds=0))
-    minutes = int(diff.total_seconds() // 60)
-    if minutes < 60:
-        return f"{minutes}m"
-    hours = minutes // 60
-    if hours < 24:
-        return f"{hours}h"
-    return f"{diff.days}d"
 
 
 @router.get("/dashboard/overview")
@@ -1260,244 +1176,12 @@ def dashboard_overview(user=Depends(get_current_user)):
     Issues (latest persisted govt sync failure/verification/inconclusive) ->
     Govt Updates (latest persisted successful status_polled with changed=true)
     -> Ready to File (active, not filed, not terminal).
+
+    The builder lives in modules/dashboard_overview.py. Helpers are resolved
+    here at call time so patches on this module keep taking effect.
     """
     tid = get_tenant_or_fail(user)
-    tenant_row = _q_one(
-        "SELECT constituency FROM tenants WHERE id = :tid",
-        {"tid": tid},
-    ) or {}
-    tenant_constituency = tenant_row.get("constituency")
-
-    raw_cases = _q(
-        f"""
-        SELECT c.id, c.case_ref, c.user_phone, c.category, c.problem_domain,
-               c.problem_subdomain, c.convergence_program_type, c.status, c.raw_message,
-               COALESCE(c.location, c.case_metadata->>'matched_value') AS location,
-               COALESCE(c.assembly, c.case_metadata->>'assembly_constituency') AS assembly,
-               c.case_metadata, c.is_critical, c.created_at, c.updated_at,
-               c.response_to_citizen, c.notes_for_staff, c.assigned_to,
-               c.govt_status, c.govt_reference_number, c.govt_status_updated_at,
-               c.govt_portal_id, c.govt_department, p.portal_name AS govt_portal_name,
-               p.state AS govt_portal_state
-        FROM cases c
-        LEFT JOIN govt_portals p ON p.id = c.govt_portal_id
-        WHERE c.tenant_id = :tid
-          AND (c.is_deleted = false OR c.is_deleted IS NULL)
-          AND {sql_is_live("c")}
-        ORDER BY c.created_at DESC, c.id DESC
-        """,
-        {"tid": tid},
-    )
-
-    bundles = _briefcase_group_bundles(raw_cases, sort="newest")
-    filing_ids = []
-    for bundle in bundles:
-        anchor = bundle["anchor"]
-        filing_ids.append(anchor.get("govt_filing_case_id") or anchor.get("id"))
-    sync_map = _dashboard_govt_sync_map(tid, [cid for cid in filing_ids if cid is not None])
-
-    # Attention Queue ordering is driven by the newest inbound citizen message
-    # across every case in a thread, so the map covers all members, not just
-    # the anchors. Tenant-scoped in the query as well as by the id list.
-    member_case_ids = [
-        member.get("id")
-        for bundle in bundles
-        for member in bundle["members_by_received"]
-        if member.get("id") is not None
-    ]
-    inbound_map = _dashboard_latest_inbound_map(tid, member_case_ids)
-
-    counts = {
-        "needs_review": 0,
-        "needs_location": 0,
-        "sync_issues": 0,
-        "govt_updates": 0,
-        "ready_to_file": 0,
-    }
-    bucketed = []
-    stage_counts = {"ready": 0, "registered": 0, "department": 0, "resolved": 0}
-    location_counts: dict[str, int] = {}
-    issue_counts: dict[str, dict] = {}
-    unassigned_count = 0
-    active_statuses = {"new", "pending", "pending_review", "awaiting_location", "in_progress"}
-
-    for bundle in bundles:
-        anchor = _prepare_briefcase_list_case(dict(bundle["anchor"]), tenant_constituency, tid, 0)
-        members = bundle["members_by_received"]
-        sync = sync_map.get(anchor.get("govt_filing_case_id") or anchor.get("id"), {})
-        member_statuses = {str(m.get("status") or "").strip().lower() for m in members}
-        anchor_status = str(anchor.get("status") or "").strip().lower()
-        stage = _dashboard_govt_stage(anchor)
-        if stage in stage_counts:
-            stage_counts[stage] += 1
-        if any(str(m.get("assigned_to") or "").strip() == "" and str(m.get("status") or "").strip().lower() in active_statuses for m in members):
-            unassigned_count += 1
-
-        loc = str(anchor.get("location") or "").strip()
-        if loc:
-            location_counts[loc] = location_counts.get(loc, 0) + 1
-        issue = _dashboard_issue_label(anchor)
-        bucket = issue_counts.setdefault(issue, {"title": issue, "count": 0, "locations": {}})
-        bucket["count"] += 1
-        if loc:
-            bucket["locations"][loc] = bucket["locations"].get(loc, 0) + 1
-
-        if "pending_review" in member_statuses:
-            attention_bucket = "needs_review"
-        elif "awaiting_location" in member_statuses:
-            attention_bucket = "needs_location"
-        elif sync.get("govt_sync_state") in {"failed", "verification", "inconclusive"}:
-            attention_bucket = "sync_issues"
-        elif sync.get("govt_changed"):
-            attention_bucket = "govt_updates"
-        elif anchor_status in active_statuses and not _dashboard_is_govt_filed(anchor):
-            attention_bucket = "ready_to_file"
-        else:
-            attention_bucket = None
-
-        if attention_bucket:
-            counts[attention_bucket] += 1
-            action = _dashboard_action_for_case(anchor, sync)
-            thread_count = int(anchor.get("thread_case_count") or 1)
-            latest_activity_at, has_inbound = _dashboard_latest_citizen_activity(members, inbound_map)
-            govt_status_raw = str(anchor.get("govt_status") or "").strip()
-            govt_status_label = govt_status_raw.replace("_", " ").title() if govt_status_raw else "Not filed"
-            assigned_to = str(anchor.get("assigned_to") or "").strip()
-            channel = "WhatsApp" if str(anchor.get("user_phone") or "").strip() else "—"
-            bucketed.append({
-                "id": anchor.get("id"),
-                "case_ref": anchor.get("case_ref") or f"#{anchor.get('id')}",
-                "thread_count": thread_count,
-                "channel": channel,
-                "meta": " · ".join([
-                    "Thread" if thread_count > 1 else "Case",
-                    f"{thread_count} complaint" + ("" if thread_count == 1 else "s"),
-                    _dashboard_time_ago(latest_activity_at),
-                ]).strip(" ·"),
-                "message": anchor.get("raw_message") or "",
-                "issue": _dashboard_issue_label(anchor),
-                "location": _dashboard_location_label(anchor),
-                "state": _dashboard_state_label(anchor, sync),
-                "needle_status": (anchor.get("status") or "new").replace("_", " ").title(),
-                "govt_status": govt_status_label,
-                "assigned_to": assigned_to or None,
-                "recency": _dashboard_time_ago(latest_activity_at),
-                "action": action,
-                "critical": bool(anchor.get("is_critical")),
-                "bucket": attention_bucket,
-                "created_at": anchor.get("created_at"),
-                "updated_at": anchor.get("updated_at"),
-                "latest_citizen_message_at": _coerce_iso(latest_activity_at),
-                "has_inbound_citizen_message": has_inbound,
-                "_sort_at": latest_activity_at,
-            })
-
-    # Newest citizen message first. Deliberately NOT keyed on bucket priority,
-    # status, creation time or case id: a ten-day-old case that just received a
-    # WhatsApp message outranks one created minutes ago. Cases with no inbound
-    # ledger row fall back to their newest creation time (see
-    # _dashboard_latest_citizen_activity) so legacy rows still place sensibly.
-    # datetime.min keeps rows with no usable timestamp at the bottom instead of
-    # raising on the None comparison, and case id descending breaks ties so the
-    # order is deterministic for identical timestamps.
-    bucketed.sort(
-        key=lambda row: (row.get("_sort_at") or datetime.min, int(row.get("id") or 0)),
-        reverse=True,
-    )
-    for row in bucketed:
-        row.pop("_sort_at", None)
-    attention_queue = bucketed[:12]
-
-    sync_issue_rows = [row for row in bucketed if row["bucket"] == "sync_issues"][:3]
-    issue_pressure = []
-    for item in sorted(issue_counts.values(), key=lambda r: (-r["count"], r["title"]))[:4]:
-        top_locations = sorted(item["locations"].items(), key=lambda kv: (-kv[1], kv[0]))[:2]
-        issue_pressure.append({
-            "title": item["title"],
-            "place": " + ".join([name for name, _count in top_locations]) or "Location pending",
-            "count": item["count"],
-        })
-
-    letter_new = _q_one(
-        "SELECT COUNT(*) AS cnt FROM letterbox WHERE tenant_id = :tid AND direction = 'inbox' "
-        "AND status IN ('new', 'needs_review', 'processing') "
-        "AND (is_deleted = false OR is_deleted IS NULL)",
-        {"tid": tid},
-    ) or {}
-    draft_pending = _q_one(
-        "SELECT COUNT(*) AS cnt FROM letterbox WHERE tenant_id = :tid AND direction = 'outbox' "
-        "AND status = 'drafted' "
-        "AND (is_deleted = false OR is_deleted IS NULL)",
-        {"tid": tid},
-    ) or {}
-
-    history_rows = _q(
-        """
-        SELECT id, activity_type, title, metadata, created_at
-        FROM activity_history
-        WHERE tenant_id = :tid
-        ORDER BY created_at DESC
-        LIMIT 4
-        """,
-        {"tid": tid},
-    )
-    movement = []
-    for row in history_rows:
-        meta = _parse_meta(row.get("metadata"))
-        href = meta.get("href") or meta.get("url") or meta.get("path") or "/dashboard/archives"
-        if not isinstance(href, str) or not href.startswith("/"):
-            href = "/dashboard/archives"
-        movement.append({
-            "id": row.get("id"),
-            "time": _dashboard_time_ago(row.get("created_at")),
-            "item": row.get("title") or str(row.get("activity_type") or "Activity").replace("_", " ").title(),
-            "tone": "green" if row.get("activity_type") in {"draft_letter", "draft_question"} else "rust",
-            "href": href,
-        })
-
-    hotspots = [
-        {"name": name, "count": count}
-        for name, count in sorted(location_counts.items(), key=lambda kv: (-kv[1], kv[0]))[:3]
-    ]
-
-    return {
-        "seat": tenant_constituency or user.get("constituency") or "Constituency",
-        "date_label": "Today",
-        "attention_counts": [
-            {"key": "needs_review", "label": "Needs review", "value": counts["needs_review"], "tone": "red"},
-            {"key": "needs_location", "label": "Needs location", "value": counts["needs_location"], "tone": "amber"},
-            {"key": "sync_issues", "label": "Sync issues", "value": counts["sync_issues"], "tone": "rust"},
-            {"key": "govt_updates", "label": "Govt updates", "value": counts["govt_updates"], "tone": "green"},
-            {"key": "ready_to_file", "label": "Ready to file", "value": counts["ready_to_file"], "tone": "green"},
-        ],
-        "attention_queue": attention_queue,
-        "government_tracking": {
-            "ready": stage_counts["ready"],
-            "registered": stage_counts["registered"],
-            "department": stage_counts["department"],
-            "resolved": stage_counts["resolved"],
-            "sync_issues": counts["sync_issues"],
-            "issues": [
-                f"{item['case_ref']} · {item['state']}" for item in sync_issue_rows
-            ],
-        },
-        "constituency_pressure": hotspots,
-        "issue_pressure": issue_pressure,
-        "office_pending": [
-            {"key": "letters", "label": f"{int(letter_new.get('cnt') or 0)} new letters need intake review", "href": "/dashboard/letterbox"},
-            {"key": "drafts", "label": f"{int(draft_pending.get('cnt') or 0)} drafts awaiting MP approval", "href": "/dashboard/letterbox?direction=outbox&status=drafted"},
-            {"key": "unassigned", "label": f"{unassigned_count} unassigned cases need owner", "href": "/dashboard/sansadx"},
-        ],
-        "recent_movement": movement,
-        "validation": {
-            "thread_count": len(bundles),
-            "attention_bucket_total": sum(counts.values()),
-            "bucket_precedence": ["needs_review", "needs_location", "sync_issues", "govt_updates", "ready_to_file"],
-            "govt_updates_definition": "latest persisted govt_submission_log action=status_polled with payload.changed=true",
-            "case_unit": "Briefcase CASE/THREAD rows, not individual complaint members",
-            "pagination_independent": True,
-        },
-    }
+    return build_mp_overview(tid, user, _overview_deps())
 
 
 def _parse_iso_date(value: str | None) -> date:

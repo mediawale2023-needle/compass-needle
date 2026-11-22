@@ -1,0 +1,313 @@
+{
+  "seat": "Belagavi",
+  "date_label": "Today",
+  "attention_counts": [
+    {
+      "key": "needs_review",
+      "label": "Needs review",
+      "value": 1,
+      "tone": "red"
+    },
+    {
+      "key": "needs_location",
+      "label": "Needs location",
+      "value": 1,
+      "tone": "amber"
+    },
+    {
+      "key": "sync_issues",
+      "label": "Sync issues",
+      "value": 1,
+      "tone": "rust"
+    },
+    {
+      "key": "govt_updates",
+      "label": "Govt updates",
+      "value": 1,
+      "tone": "green"
+    },
+    {
+      "key": "ready_to_file",
+      "label": "Ready to file",
+      "value": 3,
+      "tone": "green"
+    }
+  ],
+  "attention_queue": [
+    {
+      "id": 305,
+      "case_ref": "CN-305",
+      "thread_count": 1,
+      "channel": "WhatsApp",
+      "meta": "Case · 1 complaint · 45m",
+      "message": "Water supply problem",
+      "issue": "Supply",
+      "location": "Ward 5",
+      "state": "Pending",
+      "needle_status": "Pending",
+      "govt_status": "Not filed",
+      "assigned_to": "Asha",
+      "recency": "45m",
+      "action": {
+        "label": "File grievance",
+        "href": "/dashboard/sansadx?case_id=305"
+      },
+      "critical": false,
+      "bucket": "ready_to_file",
+      "created_at": "2026-03-09T12:00:00Z",
+      "updated_at": "2026-03-09T12:00:00Z",
+      "latest_citizen_message_at": "2026-03-10T11:15:00Z",
+      "has_inbound_citizen_message": true
+    },
+    {
+      "id": 301,
+      "case_ref": "CN-301",
+      "thread_count": 2,
+      "channel": "WhatsApp",
+      "meta": "Thread · 2 complaints · 2h",
+      "message": "Water supply problem",
+      "issue": "Supply",
+      "location": "Tilakwadi · Belagavi Dakshin",
+      "state": "Needs Review",
+      "needle_status": "Pending Review",
+      "govt_status": "Not filed",
+      "assigned_to": null,
+      "recency": "2h",
+      "action": {
+        "label": "Review case",
+        "href": "/dashboard/sansadx?case_id=301"
+      },
+      "critical": true,
+      "bucket": "needs_review",
+      "created_at": "2026-03-09T08:00:00Z",
+      "updated_at": "2026-03-09T08:00:00Z",
+      "latest_citizen_message_at": "2026-03-10T09:30:00Z",
+      "has_inbound_citizen_message": true
+    },
+    {
+      "id": 304,
+      "case_ref": "CN-304",
+      "thread_count": 1,
+      "channel": "WhatsApp",
+      "meta": "Case · 1 complaint · 1d",
+      "message": "Water supply problem",
+      "issue": "Potholes",
+      "location": "Tilakwadi · Belagavi Dakshin",
+      "state": "Ready to File",
+      "needle_status": "New",
+      "govt_status": "Pending Staff Submit",
+      "assigned_to": null,
+      "recency": "1d",
+      "action": {
+        "label": "File grievance",
+        "href": "/dashboard/sansadx?case_id=304"
+      },
+      "critical": false,
+      "bucket": "ready_to_file",
+      "created_at": "2026-03-09T11:00:00Z",
+      "updated_at": "2026-03-09T11:00:00Z",
+      "latest_citizen_message_at": "2026-03-09T11:00:00Z",
+      "has_inbound_citizen_message": false
+    },
+    {
+      "id": 303,
+      "case_ref": "CN-303",
+      "thread_count": 1,
+      "channel": "WhatsApp",
+      "meta": "Case · 1 complaint · 1d",
+      "message": "Water supply problem",
+      "issue": "Potholes",
+      "location": "Ward 5",
+      "state": "Needs Location",
+      "needle_status": "Awaiting Location",
+      "govt_status": "Not filed",
+      "assigned_to": null,
+      "recency": "1d",
+      "action": {
+        "label": "Add location",
+        "href": "/dashboard/sansadx?case_id=303"
+      },
+      "critical": false,
+      "bucket": "needs_location",
+      "created_at": "2026-03-09T10:00:00Z",
+      "updated_at": "2026-03-09T10:00:00Z",
+      "latest_citizen_message_at": "2026-03-09T10:05:00Z",
+      "has_inbound_citizen_message": true
+    },
+    {
+      "id": 307,
+      "case_ref": "CN-307",
+      "thread_count": 1,
+      "channel": "WhatsApp",
+      "meta": "Case · 1 complaint · 3d",
+      "message": "Water supply problem",
+      "issue": "Power",
+      "location": "Vadgaon · Belagavi Dakshin",
+      "state": "Govt Update",
+      "needle_status": "In Progress",
+      "govt_status": "Forwarded",
+      "assigned_to": null,
+      "recency": "3d",
+      "action": {
+        "label": "View govt update",
+        "href": "/dashboard/sansadx?case_id=307"
+      },
+      "critical": false,
+      "bucket": "govt_updates",
+      "created_at": "2026-03-07T10:00:00Z",
+      "updated_at": "2026-03-07T10:00:00Z",
+      "latest_citizen_message_at": "2026-03-07T10:00:00Z",
+      "has_inbound_citizen_message": false
+    },
+    {
+      "id": 306,
+      "case_ref": "CN-306",
+      "thread_count": 1,
+      "channel": "WhatsApp",
+      "meta": "Case · 1 complaint · 3d",
+      "message": "Water supply problem",
+      "issue": "Power",
+      "location": "Vadgaon · Belagavi Dakshin",
+      "state": "Sync Issue",
+      "needle_status": "In Progress",
+      "govt_status": "Registered",
+      "assigned_to": null,
+      "recency": "3d",
+      "action": {
+        "label": "Review sync issue",
+        "href": "/dashboard/sansadx?case_id=306"
+      },
+      "critical": false,
+      "bucket": "sync_issues",
+      "created_at": "2026-03-07T09:00:00Z",
+      "updated_at": "2026-03-07T09:00:00Z",
+      "latest_citizen_message_at": "2026-03-07T09:00:00Z",
+      "has_inbound_citizen_message": false
+    },
+    {
+      "id": 313,
+      "case_ref": "CN-313",
+      "thread_count": 1,
+      "channel": "WhatsApp",
+      "meta": "Case · 1 complaint · 6d",
+      "message": "Water supply problem",
+      "issue": "Request",
+      "location": "Location pending",
+      "state": "Unassigned",
+      "needle_status": "New",
+      "govt_status": "Not filed",
+      "assigned_to": null,
+      "recency": "6d",
+      "action": {
+        "label": "File grievance",
+        "href": "/dashboard/sansadx?case_id=313"
+      },
+      "critical": false,
+      "bucket": "ready_to_file",
+      "created_at": "2026-03-04T09:00:00Z",
+      "updated_at": "2026-03-04T09:00:00Z",
+      "latest_citizen_message_at": "2026-03-04T09:00:00Z",
+      "has_inbound_citizen_message": false
+    }
+  ],
+  "government_tracking": {
+    "ready": 1,
+    "registered": 2,
+    "department": 2,
+    "resolved": 1,
+    "sync_issues": 1,
+    "issues": [
+      "CN-306 · Sync Issue"
+    ]
+  },
+  "constituency_pressure": [
+    {
+      "name": "Ward 5",
+      "count": 4
+    },
+    {
+      "name": "Tilakwadi",
+      "count": 3
+    },
+    {
+      "name": "Vadgaon",
+      "count": 2
+    }
+  ],
+  "issue_pressure": [
+    {
+      "title": "Supply",
+      "place": "Tilakwadi + Ward 5",
+      "count": 3
+    },
+    {
+      "title": "Potholes",
+      "place": "Tilakwadi + Ward 5",
+      "count": 2
+    },
+    {
+      "title": "Power",
+      "place": "Vadgaon",
+      "count": 2
+    },
+    {
+      "title": "Roads",
+      "place": "Ward 5",
+      "count": 2
+    }
+  ],
+  "office_pending": [
+    {
+      "key": "letters",
+      "label": "2 new letters need intake review",
+      "href": "/dashboard/letterbox"
+    },
+    {
+      "key": "drafts",
+      "label": "1 drafts awaiting MP approval",
+      "href": "/dashboard/letterbox?direction=outbox&status=drafted"
+    },
+    {
+      "key": "unassigned",
+      "label": "6 unassigned cases need owner",
+      "href": "/dashboard/sansadx"
+    }
+  ],
+  "recent_movement": [
+    {
+      "id": 3,
+      "time": "2h",
+      "item": "Draft Question",
+      "tone": "green",
+      "href": "/dashboard/archives"
+    },
+    {
+      "id": 2,
+      "time": "3h",
+      "item": "Visited ward",
+      "tone": "rust",
+      "href": "/dashboard/archives"
+    },
+    {
+      "id": 1,
+      "time": "4h",
+      "item": "Drafted letter to Collector",
+      "tone": "green",
+      "href": "/dashboard/archives/1"
+    }
+  ],
+  "validation": {
+    "thread_count": 10,
+    "attention_bucket_total": 7,
+    "bucket_precedence": [
+      "needs_review",
+      "needs_location",
+      "sync_issues",
+      "govt_updates",
+      "ready_to_file"
+    ],
+    "govt_updates_definition": "latest persisted govt_submission_log action=status_polled with payload.changed=true",
+    "case_unit": "Briefcase CASE/THREAD rows, not individual complaint members",
+    "pagination_independent": true
+  }
+}
