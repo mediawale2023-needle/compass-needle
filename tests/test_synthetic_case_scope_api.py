@@ -177,9 +177,19 @@ def test_genuine_case_is_not_blocked_by_the_synthetic_guard():
 
 @pytest.mark.parametrize("module,names", [
     (admin_api, ["case_health", "case_analytics", "case_aggregates", "case_explorer", "tenant_health", "usage_analytics", "mp_detail", "get_alerts"]),
-    (api_router, ["dashboard_summary", "dashboard_overview", "get_summary", "get_live_gaps", "_get_velocity", "get_report_card", "export_cases", "download_grievance_report"]),
+    (api_router, ["dashboard_summary", "get_summary", "get_live_gaps", "_get_velocity", "get_report_card", "export_cases", "download_grievance_report"]),
 ])
 def test_reporting_entry_points_apply_the_central_scope_predicate(module, names):
     for name in names:
         source = inspect.getsource(getattr(module, name))
         assert "sql_is_live" in source or "append_data_scope_condition" in source, f"{module.__name__}.{name} does not exclude synthetic cases"
+
+
+def test_overview_builders_apply_the_central_scope_predicate():
+    # The /dashboard/overview handler is a thin wrapper; the SQL lives in the
+    # two builders, so both must carry the synthetic-case exclusion.
+    from modules import dashboard_overview as overview
+
+    for name in ("build_mp_overview", "build_partner_overview"):
+        source = inspect.getsource(getattr(overview, name))
+        assert "sql_is_live" in source or "append_data_scope_condition" in source, f"{name} does not exclude synthetic cases"

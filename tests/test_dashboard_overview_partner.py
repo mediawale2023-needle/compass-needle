@@ -147,8 +147,39 @@ def test_partner_is_tenant_scoped(env):
 
 
 def test_partner_areas_are_assembly_level_only(env):
+    # Real geography-index pairs (data/geography): Bailhongal belongs to the
+    # Belagavi parliamentary constituency (the seeded tenant's seat); Koil is a
+    # real assembly of Aligarh; "Belagavi Rural" is not in the index at all.
+    with golden.test_engine.begin() as conn:
+        conn.execute(text("UPDATE cases SET assembly = NULL WHERE tenant_id = 1"))
+        for case_id in (301, 304, 308):      # direct assembly column
+            conn.execute(text("UPDATE cases SET assembly = 'Bailhongal' WHERE id = :i"), {"i": case_id})
+        conn.execute(                       # fallback: assembly only in case_metadata
+            text("UPDATE cases SET case_metadata = :m WHERE id = 305"),
+            {"m": json.dumps({"assembly_constituency": "Bailhongal"})},
+        )
+        conn.execute(text("UPDATE cases SET assembly = 'Koil' WHERE id = 306"))             # other parliamentary seat
+        conn.execute(text("UPDATE cases SET assembly = 'Belagavi Rural' WHERE id = 307"))   # unknown to the index
+        conn.execute(text("UPDATE cases SET assembly = 'Unknown' WHERE id = 310"))
+
     out = build_partner_overview(1, env)
-    for item in out["constituency_pressure"]:
-        assert item["name"] in {"Belagavi Dakshin"}
+
+    # Exact output: 4 Bailhongal threads (301, 304, 308 + 305 via metadata);
+    # Koil, the unindexed name and "Unknown" are excluded, not bucketed.
+    assert out["constituency_pressure"] == [{"name": "Bailhongal", "count": 4}]
+    # Free-text locations seeded on these cases never surface.
+    blob = json.dumps(out)
+    for leaked in ("Tilakwadi", "Ward 5", "Vadgaon", "Koil", "Belagavi Rural"):
+        assert leaked not in blob, leaked
+    # Unknown geography is dropped from areas but the thread is still counted.
+    assert out["validation"]["thread_count"] == 10
     for item in out["issue_pressure"]:
         assert set(item) == {"title", "count"}
+
+
+def test_partner_areas_empty_when_no_assembly_belongs(env):
+    # Explicit companion: when nothing resolves, the list is empty by design -
+    # which is why the test above must (and does) assert a non-empty exact list.
+    with golden.test_engine.begin() as conn:
+        conn.execute(text("UPDATE cases SET assembly = 'Koil' WHERE tenant_id = 1"))
+    assert build_partner_overview(1, env)["constituency_pressure"] == []
