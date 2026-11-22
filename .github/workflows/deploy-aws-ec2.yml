@@ -10,6 +10,7 @@ on:
       - "main.py"
       - "api_router.py"
       - "admin_api.py"
+      - "partner_api.py"
       - "core/**"
       - "modules/**"
       - "sansadx_backend/**"
