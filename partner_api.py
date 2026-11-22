@@ -21,11 +21,13 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 
+import api_router
 import sansadx_backend.db as dbmod
 from sansadx_backend.db import Tenant, validate_password
 from admin_api import (
     _audit, generate_temporary_password, get_admin_user, hash_password, require_super_admin, verify_password,
 )
+from modules.dashboard_overview import build_partner_overview
 from modules.partners import (
     AttributionError, PORTFOLIO_STATUSES, PartnerOrg, PartnerSeat, PartnerUser,
     billing_summary, clean_color, clean_logo_url, get_tenant_attribution, link_legacy_request,
@@ -247,6 +249,24 @@ def partner_client_summary(seat_id: int, days: int = Query(30, ge=7, le=90), me:
         return {"client": _seat_dict(seat), "summary": tenant_summary(seat.tenant_id, days)}
     finally:
         db.close()
+
+
+@router.get("/clients/{seat_id}/dashboard/overview")
+def partner_client_dashboard_overview(seat_id: int, me: dict = Depends(get_partner_user)):
+    """Counts-only Overview for one attributed client (partner view of the MP Overview).
+
+    The tenant comes ONLY from the partner's own seat (`_owned_seat`): foreign or revoked seats are 404, paused
+    seats 409. There is no tenant parameter, and the response is built by the separate partner-mode builder
+    (minimal-column queries, no case rows, no citizen data), never by the MP builder.
+    """
+    db = dbmod.SessionLocal()
+    try:
+        seat = _owned_seat(db, me["partner_id"], seat_id)
+        tenant_id = seat.tenant_id
+        client = _seat_dict(seat)
+    finally:
+        db.close()
+    return {"client": client, "overview": build_partner_overview(tenant_id, api_router._overview_deps())}
 
 
 @router.get("/clients/{seat_id}/report", response_class=HTMLResponse)
