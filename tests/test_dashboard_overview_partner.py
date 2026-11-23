@@ -183,3 +183,16 @@ def test_partner_areas_empty_when_no_assembly_belongs(env):
     with golden.test_engine.begin() as conn:
         conn.execute(text("UPDATE cases SET assembly = 'Koil' WHERE tenant_id = 1"))
     assert build_partner_overview(1, env)["constituency_pressure"] == []
+
+
+def test_partner_asks_assembly_membership_once_per_distinct_assembly(env):
+    # assembly_belongs scans the entire geography index; calling it per thread made large tenants time out.
+    with golden.test_engine.begin() as conn:
+        conn.execute(text("UPDATE cases SET assembly = 'Bailhongal' WHERE tenant_id = 1"))
+    calls = []
+    real = env.assembly_belongs
+    env.assembly_belongs = lambda a, p: (calls.append(a), real(a, p))[1]
+    out = build_partner_overview(1, env)
+    assert out["validation"]["thread_count"] == 10
+    assert calls == ["Bailhongal"]
+    assert out["constituency_pressure"] == [{"name": "Bailhongal", "count": 10}]

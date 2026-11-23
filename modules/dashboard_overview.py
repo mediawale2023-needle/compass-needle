@@ -426,21 +426,21 @@ PARTNER_CASE_SQL = """
 # Latest govt-sync event per filing case. Selects the action and a single
 # boolean extracted from the payload - never the payload itself.
 PARTNER_SYNC_SQL = """
-    SELECT l.id, l.case_id, l.action,
-           CASE WHEN LOWER(CAST(l.payload->>'changed' AS TEXT)) IN ('true', '1', 't')
-                THEN 1 ELSE 0 END AS changed
-    FROM govt_submission_log l
-    WHERE l.tenant_id = :tid
-      AND l.action IN ('status_polled', 'status_check_failed',
-                       'status_check_needs_verification', 'status_check_inconclusive')
-      AND l.id = (
-          SELECT MAX(l2.id) FROM govt_submission_log l2
-          WHERE l2.tenant_id = :tid
-            AND l2.case_id = l.case_id
-            AND l2.action IN ('status_polled', 'status_check_failed',
-                              'status_check_needs_verification', 'status_check_inconclusive')
-      )
+    SELECT id, case_id, action, changed FROM (
+        SELECT l.id, l.case_id, l.action,
+               CASE WHEN LOWER(CAST(l.payload->>'changed' AS TEXT)) IN ('true', '1', 't')
+                    THEN 1 ELSE 0 END AS changed,
+               ROW_NUMBER() OVER (PARTITION BY l.case_id ORDER BY l.id DESC) AS rn
+        FROM govt_submission_log l
+        WHERE l.tenant_id = :tid
+          AND l.action IN ('status_polled', 'status_check_failed',
+                           'status_check_needs_verification', 'status_check_inconclusive')
+    ) ranked
+    WHERE rn = 1
 """
+# NOTE: a single pass with ROW_NUMBER() (portable to Postgres and SQLite). The earlier correlated
+# "id = (SELECT MAX(id) ...)" form was quadratic in poll events per case: ~12s vs ~0.2s on a
+# 200k-row log, which exceeded the partner UI's 15s request timeout.
 
 PARTNER_LETTER_SQL = (
     "SELECT COUNT(*) AS cnt FROM letterbox WHERE tenant_id = :tid AND direction = :direction "
@@ -514,6 +514,7 @@ def build_partner_overview(tid: int, deps: OverviewDeps) -> dict:
         "resolved": "resolved", "disposed": "disposed", "rejected": "rejected",
     }
     area_counts: dict[str, int] = {}
+    belongs_cache: dict[str, bool] = {}
     issue_counts: dict[str, int] = {}
     unassigned = 0
 
@@ -540,12 +541,14 @@ def build_partner_overview(tid: int, deps: OverviewDeps) -> dict:
             unassigned += 1
 
         assembly = str(anchor.get("assembly") or "").strip()
-        if (
-            assembly
-            and assembly.lower() != "unknown"
-            and tenant_constituency
-            and deps.assembly_belongs(assembly, tenant_constituency)
-        ):
+        if assembly and assembly not in belongs_cache:
+            # assembly_belongs scans the whole geography index, so ask once per distinct name.
+            belongs_cache[assembly] = bool(
+                assembly.lower() != "unknown"
+                and tenant_constituency
+                and deps.assembly_belongs(assembly, tenant_constituency)
+            )
+        if assembly and belongs_cache[assembly]:
             area_counts[assembly] = area_counts.get(assembly, 0) + 1
         issue = issue_label(anchor)
         issue_counts[issue] = issue_counts.get(issue, 0) + 1
