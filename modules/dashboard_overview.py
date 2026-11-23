@@ -403,6 +403,8 @@ def build_mp_overview(tid: int, user: dict, deps: OverviewDeps) -> dict:
 # Partner mode: separate, minimal-column, counts-only data access
 # --------------------------------------------------------------------------
 
+# NOTE: production's cases.assigned_to is an INTEGER (users.id) while the ORM declares String, so any
+# string function on it must CAST to TEXT first - PostgreSQL has no btrim(integer).
 # Columns the partner queries are allowed to read. Anything else (user_phone,
 # raw_message, case_ref, response_to_citizen, notes_for_staff, assigned_to
 # value, govt_reference_number value, free-text location, case_metadata blob)
@@ -415,7 +417,7 @@ PARTNER_CASE_SQL = """
            c.case_metadata->>'contact_thread_id' AS thread_id,
            CASE WHEN c.govt_reference_number IS NOT NULL
                  AND TRIM(c.govt_reference_number) <> '' THEN 1 ELSE 0 END AS govt_has_ref,
-           CASE WHEN c.assigned_to IS NULL OR TRIM(c.assigned_to) = '' THEN 1 ELSE 0 END AS unassigned
+           CASE WHEN c.assigned_to IS NULL OR TRIM(CAST(c.assigned_to AS TEXT)) = '' THEN 1 ELSE 0 END AS unassigned
     FROM cases c
     WHERE c.tenant_id = :tid
       AND (c.is_deleted = false OR c.is_deleted IS NULL)
