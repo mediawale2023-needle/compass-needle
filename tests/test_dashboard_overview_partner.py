@@ -20,6 +20,7 @@ from modules.dashboard_overview import (
     build_mp_overview,
     build_partner_overview,
 )
+from modules.synthetic_cases import sql_is_live
 from tests import test_dashboard_overview_golden as golden
 from tests.test_partner_route_security import pii_findings
 
@@ -196,3 +197,40 @@ def test_partner_asks_assembly_membership_once_per_distinct_assembly(env):
     assert out["validation"]["thread_count"] == 10
     assert calls == ["Bailhongal"]
     assert out["constituency_pressure"] == [{"name": "Bailhongal", "count": 10}]
+
+
+# --- assigned_to type regression -------------------------------------------------------------
+# Production's cases.assigned_to is an INTEGER (users.id) while the ORM declares String. SQLite
+# accepts TRIM() on anything, so these tests pin the fix at the SQL-text level and against both
+# column types; the PostgreSQL-backed proof lives in tests/test_partner_overview_postgres.py.
+
+def test_partner_sql_casts_assigned_to_before_string_functions():
+    assert "TRIM(CAST(c.assigned_to AS TEXT))" in PARTNER_CASE_SQL
+    # Every string function applied to assigned_to must see a TEXT cast, never the raw column.
+    assert not re.search(r"(TRIM|LOWER|UPPER|LENGTH)\s*\(\s*c\.assigned_to\b", PARTNER_CASE_SQL, re.I)
+    assert not re.search(r"c\.assigned_to\s*(=|<>|!=)\s*''", PARTNER_CASE_SQL)
+
+
+@pytest.mark.parametrize("column_type", ["INTEGER", "VARCHAR"])
+def test_partner_unassigned_flag_for_integer_and_varchar_assigned_to(column_type):
+    from sqlalchemy import create_engine
+
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE cases (id INTEGER PRIMARY KEY, tenant_id INTEGER, category TEXT, "
+            "problem_domain TEXT, problem_subdomain TEXT, status TEXT, govt_status TEXT, "
+            "govt_status_updated_at TIMESTAMP, created_at TIMESTAMP, assembly TEXT, "
+            f"case_metadata JSON, govt_reference_number TEXT, assigned_to {column_type}, "
+            "is_deleted BOOLEAN)"
+        ))
+        for cid, assigned in ((1, 7 if column_type == "INTEGER" else "7"), (2, None)):
+            conn.execute(
+                text("INSERT INTO cases (id, tenant_id, status, created_at, is_deleted, assigned_to) "
+                     "VALUES (:i, 1, 'new', :t, 0, :a)"),
+                {"i": cid, "t": datetime(2026, 3, 1), "a": assigned},
+            )
+        rows = conn.execute(
+            text(PARTNER_CASE_SQL.format(live=sql_is_live("c"))), {"tid": 1}
+        ).mappings().all()
+    assert {r["id"]: r["unassigned"] for r in rows} == {1: 0, 2: 1}
