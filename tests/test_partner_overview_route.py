@@ -62,3 +62,19 @@ def test_paused_seat_returns_409_without_data():
     assert r.status_code == 200
     resp = client.get(PATH.format(seat=seat_a), headers=ha)
     assert resp.status_code == 409 and "overview" not in resp.text
+
+
+def test_overview_builder_failure_is_a_controlled_500_with_cors(monkeypatch):
+    import partner_api
+
+    admin, pa, pb, ha, hb, seat_a, seat_b = _world()
+
+    def boom(*a, **k):
+        raise RuntimeError("secret internal detail")
+
+    monkeypatch.setattr(partner_api, "build_partner_overview", boom)
+    resp = client.get(PATH.format(seat=seat_a), headers={**ha, "Origin": "https://compass-needle-lacd.vercel.app"})
+    assert resp.status_code == 500
+    assert resp.headers.get("access-control-allow-origin") == "https://compass-needle-lacd.vercel.app"
+    assert "secret internal detail" not in resp.text
+    assert "could not be built" in resp.json()["detail"]

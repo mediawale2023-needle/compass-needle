@@ -266,7 +266,14 @@ def partner_client_dashboard_overview(seat_id: int, me: dict = Depends(get_partn
         client = _seat_dict(seat)
     finally:
         db.close()
-    return {"client": client, "overview": build_partner_overview(tenant_id, api_router._overview_deps())}
+    try:
+        overview = build_partner_overview(tenant_id, api_router._overview_deps())
+    except Exception:
+        # Log internally; return a controlled 500. An unhandled exception escapes the CORS middleware, so the
+        # browser would report an opaque "could not reach the server" instead of a status.
+        logger.exception("partner overview failed seat=%s tenant=%s", seat_id, tenant_id)
+        raise HTTPException(status_code=500, detail="The overview could not be built. Please try again shortly.")
+    return {"client": client, "overview": overview}
 
 
 @router.get("/clients/{seat_id}/report", response_class=HTMLResponse)
