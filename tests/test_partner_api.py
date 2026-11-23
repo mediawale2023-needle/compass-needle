@@ -905,6 +905,29 @@ def test_deactivating_a_partner_keeps_attribution_history_and_billing_records():
     assert listed["clients_active"] == 2 and listed["is_active"] is False                 # still visible to staff for billing review
 
 
+def test_portfolio_weekly_series_sums_client_weekly_counts_and_skips_paused_clients():
+    _seed_database()
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    seat_a = _attach(admin, pid, 2)
+    seat_b = _attach(admin, pid, 3)
+    view = _portfolio(headers)
+    by_id = {c["id"]: c for c in view["clients"]}
+    weeks = view["portfolio"]["weekly"]
+    assert len(weeks) == 8 and [w["week_ending"] for w in weeks] == sorted(w["week_ending"] for w in weeks)
+    for i, w in enumerate(weeks):
+        assert set(w) == {"week_ending", "received", "resolved"}                          # aggregate counts only
+        parts = [by_id[s]["summary"]["weekly"][i] for s in (seat_a, seat_b)]
+        assert all(p["week_ending"] == w["week_ending"] for p in parts)
+        assert w["received"] == sum(p["received"] for p in parts) and w["resolved"] == sum(p["resolved"] for p in parts)
+
+    assert client.post(f"/api/admin/partners/{pid}/seats/{seat_b}/status", json={"status": "paused"}, headers=admin).status_code == 200
+    paused_view = _portfolio(headers)
+    only_a = {c["id"]: c for c in paused_view["clients"]}[seat_a]["summary"]["weekly"]
+    assert [w["received"] for w in paused_view["portfolio"]["weekly"]] == [w["received"] for w in only_a]
+
+
 def test_partner_payloads_never_contain_citizen_level_data():
     import json
     _seed_database()

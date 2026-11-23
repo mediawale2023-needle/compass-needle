@@ -224,15 +224,22 @@ def partner_clients(days: int = Query(30, ge=7, le=90), me: dict = Depends(get_p
                  .filter(PartnerSeat.partner_id == me["partner_id"], PartnerSeat.status.in_(PORTFOLIO_STATUSES))
                  .order_by(PartnerSeat.id).all())
         clients, totals = [], {k: 0 for k in ("total", "resolved", "open", "critical")}
+        weekly: dict[str, dict] = {}  # week_ending -> portfolio received/resolved (aggregate counts only)
         for seat in seats:
             item = _seat_dict(seat)
             item["summary"] = None
             if seat.status == "active" and seat.tenant_id:
                 full = tenant_summary(seat.tenant_id, days)
                 item["summary"] = {k: full[k] for k in _HEADLINE_KEYS}
+                item["summary"]["weekly"] = full["weekly"]
                 for k in totals:
                     totals[k] += full[k]
+                for w in full["weekly"]:
+                    agg = weekly.setdefault(w["week_ending"], {"week_ending": w["week_ending"], "received": 0, "resolved": 0})
+                    agg["received"] += w["received"]
+                    agg["resolved"] += w["resolved"]
             clients.append(item)
+        totals["weekly"] = [weekly[k] for k in sorted(weekly)]
         return {
             "days": days, "active_clients": sum(1 for s in seats if s.status == "active"),
             "portfolio": totals, "clients": clients,
