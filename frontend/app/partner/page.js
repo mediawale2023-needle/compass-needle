@@ -2,20 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, AlertCircle } from 'lucide-react';
 import { usePartnerSession } from '@/lib/partnerSession';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 function ErrorLine({ message }) {
     if (!message) return null;
     return (
-        <div role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>{message}</span>
-        </div>
+        <div role="alert" className="pd-alert">{message}</div>
     );
 }
 
@@ -41,22 +33,21 @@ function SignInForm({ onDone }) {
     }
 
     return (
-        <form onSubmit={submit} className="space-y-4">
-            <div className="space-y-2">
-                <Label htmlFor="partner-email">Work email</Label>
-                <Input id="partner-email" type="email" autoComplete="username" required value={email}
+        <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
+            <div>
+                <label className="pd-label" htmlFor="partner-email">Work email</label>
+                <input className="pd-input" id="partner-email" type="email" autoComplete="username" required value={email}
                     onChange={(e) => setEmail(e.target.value)} placeholder="you@yourfirm.in" />
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="partner-password">Password</Label>
-                <Input id="partner-password" type="password" autoComplete="current-password" required value={password}
+            <div>
+                <label className="pd-label" htmlFor="partner-password">Password</label>
+                <input className="pd-input" id="partner-password" type="password" autoComplete="current-password" required value={password}
                     onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" />
             </div>
             <ErrorLine message={error} />
-            <Button type="submit" className="w-full" disabled={busy}>
-                {busy ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
-                Sign in
-            </Button>
+            <button type="submit" className="pd-btn primary" style={{ width: '100%', justifyContent: 'center', height: 40 }} disabled={busy}>
+                {busy ? 'Signing in…' : 'Sign in'}
+            </button>
         </form>
     );
 }
@@ -88,28 +79,27 @@ function ChangePasswordForm({ onDone }) {
     }
 
     return (
-        <form onSubmit={submit} className="space-y-4">
-            <div className="space-y-2">
-                <Label htmlFor="current-password">Temporary password</Label>
-                <Input id="current-password" type="password" autoComplete="current-password" required value={current}
+        <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
+            <div>
+                <label className="pd-label" htmlFor="current-password">Temporary password</label>
+                <input className="pd-input" id="current-password" type="password" autoComplete="current-password" required value={current}
                     onChange={(e) => setCurrent(e.target.value)} />
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="new-password">New password</Label>
-                <Input id="new-password" type="password" autoComplete="new-password" required value={next}
+            <div>
+                <label className="pd-label" htmlFor="new-password">New password</label>
+                <input className="pd-input" id="new-password" type="password" autoComplete="new-password" required value={next}
                     onChange={(e) => setNext(e.target.value)} />
-                <p className="text-xs text-muted-foreground">At least 8 characters, with one capital letter and one number.</p>
+                <p className="pd-csub" style={{ marginTop: 6 }}>At least 8 characters, with one capital letter and one number.</p>
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm new password</Label>
-                <Input id="confirm-password" type="password" autoComplete="new-password" required value={confirm}
+            <div>
+                <label className="pd-label" htmlFor="confirm-password">Confirm new password</label>
+                <input className="pd-input" id="confirm-password" type="password" autoComplete="new-password" required value={confirm}
                     onChange={(e) => setConfirm(e.target.value)} />
             </div>
             <ErrorLine message={error} />
-            <Button type="submit" className="w-full" disabled={busy}>
-                {busy ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
+            <button type="submit" className="pd-btn primary" style={{ width: '100%', justifyContent: 'center', height: 40 }} disabled={busy}>
                 Set password and continue
-            </Button>
+            </button>
         </form>
     );
 }
@@ -126,24 +116,27 @@ export default function PartnerLoginPage() {
     const needsChange = !!token && mustChangePassword;
 
     return (
-        <div className="mx-auto mt-10 w-full max-w-md">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-serif text-2xl">{needsChange ? 'Choose a new password' : 'Partner sign in'}</CardTitle>
-                    <CardDescription>
+        <div className="pd-auth">
+            <div className="pd-authcard">
+                <div className="pd-authbrand">
+                    <span className="pd-mark" aria-hidden="true">P</span>
+                    <div><div className="pd-wm-name">Partner workspace</div><div className="pd-wm-sub">Client portfolio</div></div>
+                </div>
+                <div className="pd-panel" style={{ padding: 28 }}>
+                    <h1 className="pd-title" style={{ fontSize: 28, marginTop: 0 }}>{needsChange ? 'Choose a new password' : 'Partner sign in'}</h1>
+                    <p className="pd-lede" style={{ marginBottom: 22, fontSize: 14 }}>
                         {needsChange
                             ? 'Your account was created with a temporary password. Set your own to continue.'
                             : 'See every client constituency in one place.'}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
+                    </p>
                     {needsChange ? (
                         <ChangePasswordForm onDone={() => router.push('/partner/dashboard')} />
                     ) : (
                         <SignInForm onDone={(res) => { if (!res.must_change_password) router.push('/partner/dashboard'); }} />
                     )}
-                </CardContent>
-            </Card>
+                </div>
+                <p className="pd-note" style={{ textAlign: 'center' }}>Locked out? Contact your organisation&apos;s administrator.</p>
+            </div>
         </div>
     );
 }

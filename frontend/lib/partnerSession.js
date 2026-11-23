@@ -15,14 +15,14 @@ import {
 const PartnerSessionContext = createContext(null);
 
 export function PartnerSessionProvider({ children }) {
-    const [state, setState] = useState({ ready: false, token: null, partner: null, mustChangePassword: false });
+    const [state, setState] = useState({ ready: false, token: null, partner: null, me: null, mustChangePassword: false });
 
     useEffect(() => {
         let cancelled = false;
         const token = getPartnerToken();
         const partner = getStoredPartnerBrand();
         const mustChangePassword = getMustChangePassword();
-        setState({ ready: true, token, partner, mustChangePassword });
+        setState({ ready: true, token, partner, me: null, mustChangePassword });
 
         // Refresh branding and confirm the token is still valid (a 401 clears storage in the client).
         if (token && !mustChangePassword) {
@@ -30,11 +30,11 @@ export function PartnerSessionProvider({ children }) {
                 .then((me) => {
                     if (cancelled) return;
                     storePartnerSession({ partner: me.partner });
-                    setState((s) => ({ ...s, partner: me.partner }));
+                    setState((s) => ({ ...s, partner: me.partner, me: { email: me.email, display_name: me.display_name } }));
                 })
                 .catch(() => {
                     if (cancelled) return;
-                    if (!getPartnerToken()) setState({ ready: true, token: null, partner: null, mustChangePassword: false });
+                    if (!getPartnerToken()) setState({ ready: true, token: null, partner: null, me: null, mustChangePassword: false });
                 });
         }
         return () => {
@@ -45,7 +45,7 @@ export function PartnerSessionProvider({ children }) {
     const signIn = useCallback(async (email, password) => {
         const res = await partnerLogin(email.trim(), password);
         storePartnerSession({ token: res.token, partner: res.partner, mustChangePassword: !!res.must_change_password });
-        setState({ ready: true, token: res.token, partner: res.partner, mustChangePassword: !!res.must_change_password });
+        setState({ ready: true, token: res.token, partner: res.partner, me: { email: email.trim().toLowerCase(), display_name: null }, mustChangePassword: !!res.must_change_password });
         return res;
     }, []);
 
@@ -58,7 +58,7 @@ export function PartnerSessionProvider({ children }) {
 
     const signOut = useCallback(() => {
         clearPartnerSession();
-        setState({ ready: true, token: null, partner: null, mustChangePassword: false });
+        setState({ ready: true, token: null, partner: null, me: null, mustChangePassword: false });
     }, []);
 
     const value = useMemo(

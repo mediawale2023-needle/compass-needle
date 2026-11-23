@@ -29,17 +29,19 @@ vi.mock('@/lib/partnerApi', () => apiMocks);
 import PartnerDashboardPage from '@/app/partner/dashboard/page';
 import PartnerClientPage from '@/app/partner/dashboard/clients/[seatId]/page';
 import PartnerLoginPage from '@/app/partner/page';
+import PartnerClientsPage from '@/app/partner/dashboard/clients/page';
 
 const summary = (over = {}) => ({
     total: 40, resolved: 30, open: 10, critical: 3, resolution_rate: 0.75, avg_resolution_days: 2.4, ...over,
 });
 
+const weeks = Array.from({ length: 8 }, (_, i) => ({ week_ending: `2026-11-${10 + i}`, received: 10 + i, resolved: 5 + i }));
 const clientsPayload = (over = {}) => ({
     days: 30, active_clients: 2,
-    portfolio: { total: 40, resolved: 30, open: 10, critical: 3 },
+    portfolio: { total: 52, resolved: 36, open: 16, critical: 9, weekly: weeks },
     clients: [
         { id: 7, client_label: 'Asha Patil', constituency: 'Belagavi South', seat_type: 'mla', status: 'active', summary: summary() },
-        { id: 8, client_label: 'Ravi Kulkarni', constituency: 'Pune Cantonment', seat_type: 'mla', status: 'active', summary: summary({ total: 12, resolved: 6, open: 6, critical: 0 }) },
+        { id: 8, client_label: 'Ravi Kulkarni', constituency: 'Pune Cantonment', seat_type: 'mp', status: 'active', summary: summary({ total: 12, resolved: 6, open: 6, critical: 6, resolution_rate: 0.5 }) },
         { id: 9, client_label: 'Old Client', constituency: '', seat_type: 'mp', status: 'paused', summary: null },
     ],
     ...over,
@@ -72,10 +74,12 @@ const overviewPayload = (over = {}) => ({
     },
 });
 
-async function openAnalytics() {
-    await screen.findByRole('heading', { name: 'Asha Patil' });
-    fireEvent.click(screen.getByRole('tab', { name: 'Analytics' }));
+async function openTab(name) {
+    await screen.findByRole('heading', { name: 'Asha Patil', level: 1 });
+    fireEvent.click(screen.getByRole('tab', { name }));
 }
+const table = () => screen.getByRole('table');
+const rowFor = (label) => within(table()).getByText(label).closest('tr');
 
 function signedIn(over = {}) {
     sessionState.current = {
@@ -88,40 +92,72 @@ function signedIn(over = {}) {
 
 beforeEach(() => {
     Object.values(apiMocks).forEach((m) => m.mockReset());
+    apiMocks.partnerClients.mockResolvedValue(clientsPayload());
     replaceMock.mockReset();
     pushMock.mockReset();
     signedIn();
 });
 
 describe('partner portfolio page', () => {
-    it('shows portfolio totals and one row per client with the right status', async () => {
-        apiMocks.partnerClients.mockResolvedValue(clientsPayload());
+    it('shows portfolio totals and one row per client, with only live clients openable', async () => {
         render(<PartnerDashboardPage />);
+        await screen.findByRole('table');
 
-        expect(await screen.findByText('Asha Patil')).toBeInTheDocument();
-        expect(screen.getByText('2 active clients')).toBeInTheDocument();
-        expect(screen.getAllByText('Live')).toHaveLength(2);
-        expect(screen.getByText('Paused')).toBeInTheDocument();
+        expect(screen.getByText('Across 2 active clients')).toBeInTheDocument();
+        const totals = screen.getByRole('region', { name: /portfolio totals/i });
+        expect(within(totals).getByText('52')).toBeInTheDocument();
+        expect(within(totals).getByText('69.2')).toBeInTheDocument(); // 36 of 52 resolved
 
-        // Only live clients are clickable; a paused client grants no access
+        expect(within(rowFor('Old Client')).getByText('Paused')).toBeInTheDocument();
+        expect(within(rowFor('Ravi Kulkarni')).getByText('Needs attention')).toBeInTheDocument();
+        expect(within(rowFor('Asha Patil')).getByText('Watch')).toBeInTheDocument();
+
         expect(screen.getByRole('link', { name: /open asha patil/i })).toHaveAttribute('href', '/partner/dashboard/clients/7');
         expect(screen.getByRole('link', { name: /open ravi kulkarni/i })).toHaveAttribute('href', '/partner/dashboard/clients/8');
         expect(screen.queryByRole('link', { name: /open old client/i })).toBeNull();
+    });
 
-        const section = screen.getByRole('region', { name: /portfolio totals/i });
-        expect(within(section).getByText('40')).toBeInTheDocument();
+    it('ranks clients that need attention and leaves out paused ones', async () => {
+        render(<PartnerDashboardPage />);
+        const panel = await screen.findByRole('region', { name: /needs attention/i });
+        const names = within(panel).getAllByRole('link').map((a) => a.textContent);
+        expect(names[0]).toMatch(/Ravi Kulkarni/);
+        expect(names.join(' ')).not.toMatch(/Old Client/);
+    });
+
+    it('draws the portfolio weekly chart from aggregate counts with an accessible description', async () => {
+        render(<PartnerDashboardPage />);
+        const chart = await screen.findByRole('img', { name: /portfolio grievances by week/i });
+        expect(chart.getAttribute('aria-label')).toContain('week ending 2026-11-17: 17 received, 12 resolved');
+    });
+
+    it('searches, filters and sorts the client table', async () => {
+        render(<PartnerDashboardPage />);
+        await screen.findByRole('table');
+        fireEvent.change(screen.getByPlaceholderText(/search client/i), { target: { value: 'pune' } });
+        expect(within(table()).queryByText('Asha Patil')).toBeNull();
+        expect(within(table()).getByText('Ravi Kulkarni')).toBeInTheDocument();
+
+        fireEvent.change(screen.getByPlaceholderText(/search client/i), { target: { value: '' } });
+        fireEvent.click(within(screen.getByRole('group', { name: /filter clients/i })).getByRole('button', { name: /^paused/i }));
+        expect(within(table()).getByText('Old Client')).toBeInTheDocument();
+        expect(within(table()).queryByText('Asha Patil')).toBeNull();
+
+        fireEvent.click(within(screen.getByRole('group', { name: /filter clients/i })).getByRole('button', { name: /^all/i }));
+        fireEvent.click(screen.getByRole('button', { name: /resolution rate/i }));
+        const first = within(table()).getAllByRole('row')[1];
+        expect(first).toHaveTextContent('Asha Patil'); // 75% before 50%
     });
 
     it('refetches when the period changes', async () => {
-        apiMocks.partnerClients.mockResolvedValue(clientsPayload());
         render(<PartnerDashboardPage />);
-        await screen.findByText('Asha Patil');
-
+        await screen.findByRole('table');
         fireEvent.click(screen.getByRole('button', { name: '90 days' }));
         await waitFor(() => expect(apiMocks.partnerClients).toHaveBeenLastCalledWith(90));
     });
 
     it('shows an unavailable state, not zeros, when the API fails, and retries', async () => {
+        apiMocks.partnerClients.mockReset();
         apiMocks.partnerClients.mockRejectedValueOnce(Object.assign(new Error('Could not reach the server.'), { status: 0 }));
         render(<PartnerDashboardPage />);
 
@@ -130,12 +166,12 @@ describe('partner portfolio page', () => {
 
         apiMocks.partnerClients.mockResolvedValueOnce(clientsPayload());
         fireEvent.click(screen.getByRole('button', { name: /retry/i }));
-        expect(await screen.findByText('Asha Patil')).toBeInTheDocument();
+        expect(await screen.findByRole('table')).toBeInTheDocument();
     });
 
     it('distinguishes an empty portfolio from a failed load', async () => {
         apiMocks.partnerClients.mockResolvedValue(clientsPayload({
-            active_clients: 0, clients: [], portfolio: { total: 0, resolved: 0, open: 0, critical: 0 },
+            active_clients: 0, clients: [], portfolio: { total: 0, resolved: 0, open: 0, critical: 0, weekly: [] },
         }));
         render(<PartnerDashboardPage />);
         expect(await screen.findByText('No clients yet')).toBeInTheDocument();
@@ -143,9 +179,8 @@ describe('partner portfolio page', () => {
     });
 
     it('has no seat-request form, seat-cap indicator or cap warning', async () => {
-        apiMocks.partnerClients.mockResolvedValue(clientsPayload());
         render(<PartnerDashboardPage />);
-        await screen.findByText('Asha Patil');
+        await screen.findByRole('table');
         expect(screen.queryByRole('button', { name: /request client seat/i })).toBeNull();
         expect(screen.queryByText(/seat cap|seats used|awaiting activation|raise/i)).toBeNull();
     });
@@ -155,9 +190,10 @@ describe('partner portfolio page', () => {
             id: 100 + i, client_label: `Client ${i}`, constituency: 'X', seat_type: 'mla', status: 'active', summary: summary(),
         }));
         apiMocks.partnerClients.mockResolvedValue(clientsPayload({ active_clients: 40, clients: many }));
-        render(<PartnerDashboardPage />);
-        expect(await screen.findByText('40 active clients')).toBeInTheDocument();
+        render(<PartnerClientsPage />);
+        await screen.findByRole('table');
         expect(screen.getAllByRole('link', { name: /^open client/i })).toHaveLength(40);
+        expect(screen.getByText('Showing 40 of 40 clients')).toBeInTheDocument();
         expect(screen.queryByRole('alert')).toBeNull();
     });
 
@@ -182,29 +218,80 @@ describe('partner client page', () => {
         summary: {
             ...summary(),
             top_categories: [{ name: 'Water', count: 12 }, { name: 'Roads', count: 5 }],
-            top_locations: [{ name: 'Ward 5', count: 9 }],
+            top_locations: [{ name: 'Bailhongal segment', count: 9 }],
             weekly: Array.from({ length: 8 }, (_, i) => ({ week_ending: `2026-11-${10 + i}`, received: i, resolved: Math.floor(i / 2) })),
         },
     };
-
-    it('renders headline numbers, rankings and an accessible weekly chart', async () => {
+    beforeEach(() => {
         apiMocks.partnerClientSummary.mockResolvedValue(detail);
-        render(<PartnerClientPage />);
+        apiMocks.partnerClientOverview.mockResolvedValue(overviewPayload());
+    });
 
-        await openAnalytics();
-        expect(screen.getByRole('heading', { name: 'Asha Patil' })).toBeInTheDocument();
-        expect(screen.getByText('75%')).toBeInTheDocument();
+    it('opens on the Overview with work waiting on the office, counted once', async () => {
+        render(<PartnerClientPage />);
+        const attention = await screen.findByRole('region', { name: /requires attention/i });
+        expect(within(attention).getByTestId('attention-needs_review')).toHaveTextContent('4');
+        expect(within(attention).getByTestId('attention-unassigned')).toHaveTextContent('13');
+        expect(within(attention).getByTestId('attention-needs_location')).toHaveTextContent('2');
+        // sync issues and ready-to-file live in government tracking only
+        expect(within(attention).queryByText(/sync|ready to file/i)).toBeNull();
+        const updates = screen.getByRole('region', { name: /updates and office workload/i });
+        expect(within(updates).getByText('Government updates received').nextSibling).toHaveTextContent('3');
+        expect(within(updates).getByText('New letters awaiting intake').nextSibling).toHaveTextContent('5');
+        expect(apiMocks.partnerClientOverview).toHaveBeenCalledWith('7');
+    });
+
+    it('shows government tracking as a pipeline, outcomes and health, separate from Needle resolution', async () => {
+        render(<PartnerClientPage />);
+        const govt = await screen.findByRole('region', { name: /government grievance tracking/i });
+        for (const label of ['Ready to file', 'Submitted', 'Registered', 'Forwarded', 'Awaiting action', 'Resolved', 'Disposed', 'Rejected', 'Awaiting verification', 'Portal sync issues']) {
+            expect(within(govt).getByText(label)).toBeInTheDocument();
+        }
+        expect(within(govt).getByTestId('govt-awaiting_action')).toHaveTextContent('8');
+        expect(within(govt).getByTestId('govt-awaiting_verification')).toHaveTextContent('9');
+        expect(within(govt).getByText(/separate from needle.s own resolution/i)).toBeInTheDocument();
+        expect(screen.getByText('Bailhongal')).toBeInTheDocument();
+        expect(screen.getByText('Water supply')).toBeInTheDocument();
+    });
+
+    it('never shows a grievance list or the analytics charts on the Overview', async () => {
+        render(<PartnerClientPage />);
+        await screen.findByRole('region', { name: /government grievance tracking/i });
+        expect(screen.queryByRole('table')).toBeNull();
+        expect(screen.queryByRole('img', { name: /weekly grievances/i })).toBeNull();
+    });
+
+    it('renders headline numbers, rankings and accessible charts on Analytics', async () => {
+        render(<PartnerClientPage />);
+        await openTab('Analytics');
+        expect(screen.getAllByText('75%').length).toBeGreaterThan(0);
         expect(screen.getByText('2.4d')).toBeInTheDocument();
         expect(screen.getByText('Water')).toBeInTheDocument();
         expect(screen.getByRole('img', { name: /weekly grievances/i })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /weekly resolution rate/i })).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: /government grievance tracking/i })).toBeNull();
         expect(apiMocks.partnerClientSummary).toHaveBeenCalledWith('7', 30);
     });
 
+    it('compares the client with the portfolio from aggregate figures', async () => {
+        render(<PartnerClientPage />);
+        await openTab('Analytics');
+        const cmp = await screen.findByRole('region', { name: /against your portfolio/i });
+        expect(within(cmp).getByText('Resolution rate')).toBeInTheDocument();
+        expect(within(cmp).getByText('portfolio 69%')).toBeInTheDocument();
+    });
+
+    it('refetches the client when the Analytics period changes', async () => {
+        render(<PartnerClientPage />);
+        await openTab('Analytics');
+        fireEvent.click(screen.getByRole('button', { name: '90 days' }));
+        await waitFor(() => expect(apiMocks.partnerClientSummary).toHaveBeenLastCalledWith('7', 90));
+    });
+
     it('shows the report only inside a fully sandboxed iframe', async () => {
-        apiMocks.partnerClientSummary.mockResolvedValue(detail);
         apiMocks.partnerClientReport.mockResolvedValue('<html><body>Report body</body></html>');
         render(<PartnerClientPage />);
-        await openAnalytics();
+        await openTab('Reports');
 
         fireEvent.click(screen.getByRole('button', { name: /generate report/i }));
         const frame = await screen.findByTitle(/report preview/i);
@@ -214,10 +301,9 @@ describe('partner client page', () => {
     });
 
     it('drops a generated report when the period changes', async () => {
-        apiMocks.partnerClientSummary.mockResolvedValue(detail);
         apiMocks.partnerClientReport.mockResolvedValue('<html>30d</html>');
         render(<PartnerClientPage />);
-        await openAnalytics();
+        await openTab('Reports');
         fireEvent.click(screen.getByRole('button', { name: /generate report/i }));
         await screen.findByTitle(/report preview/i);
 
@@ -226,57 +312,36 @@ describe('partner client page', () => {
         expect(screen.getByRole('button', { name: /generate report/i })).toBeInTheDocument();
     });
 
-    it('opens on the Overview tab with attention counts and prominent government tracking', async () => {
-        apiMocks.partnerClientSummary.mockResolvedValue(detail);
-        apiMocks.partnerClientOverview.mockResolvedValue(overviewPayload());
+    it('switches between clients and does not link paused ones', async () => {
         render(<PartnerClientPage />);
-
-        const attention = await screen.findByRole('region', { name: /needs attention/i });
-        expect(within(attention).getByText('Needs review').previousSibling).toHaveTextContent('4');
-        const govt = screen.getByRole('region', { name: /government tracking/i });
-        for (const label of ['Submitted', 'Registered', 'Forwarded', 'Awaiting action', 'Resolved', 'Disposed', 'Rejected', 'Awaiting verification']) {
-            expect(within(govt).getByText(label)).toBeInTheDocument();
-        }
-        expect(within(govt).getByText('Awaiting verification').previousSibling).toHaveTextContent('9');
-        expect(within(govt).getByText(/separate from needle.s own resolution/i)).toBeInTheDocument();
-        expect(screen.getByText('Bailhongal')).toBeInTheDocument();
-        expect(screen.getByText('Water supply')).toBeInTheDocument();
-        expect(apiMocks.partnerClientOverview).toHaveBeenCalledWith('7');
-        // analytics content is not shown on the Overview tab, and there is no grievance list
-        expect(screen.queryByRole('img', { name: /weekly grievances/i })).toBeNull();
-        expect(screen.queryByRole('table')).toBeNull();
-    });
-
-    it('keeps the existing analytics and report under the Analytics tab', async () => {
-        apiMocks.partnerClientSummary.mockResolvedValue(detail);
-        apiMocks.partnerClientOverview.mockResolvedValue(overviewPayload());
-        render(<PartnerClientPage />);
-        await screen.findByRole('region', { name: /government tracking/i });
-
-        fireEvent.click(screen.getByRole('tab', { name: 'Analytics' }));
-        expect(screen.getByRole('img', { name: /weekly grievances/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /generate report/i })).toBeInTheDocument();
-        expect(screen.queryByRole('region', { name: /government tracking/i })).toBeNull();
+        await screen.findByRole('heading', { name: 'Asha Patil', level: 1 });
+        fireEvent.click(screen.getByRole('button', { name: /switch client/i }));
+        const dialog = await screen.findByRole('dialog', { name: /switch client/i });
+        expect(await within(dialog).findByRole('link', { name: /ravi kulkarni/i })).toHaveAttribute('href', '/partner/dashboard/clients/8');
+        expect(within(dialog).queryByRole('link', { name: /old client/i })).toBeNull();
+        fireEvent.change(within(dialog).getByLabelText('Find a client'), { target: { value: 'ravi' } });
+        expect(within(dialog).queryByRole('link', { name: /asha patil/i })).toBeNull();
     });
 
     it('shows an unavailable state, not zeros, when the overview fails, and retries', async () => {
-        apiMocks.partnerClientSummary.mockResolvedValue(detail);
+        apiMocks.partnerClientOverview.mockReset();
         apiMocks.partnerClientOverview.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(overviewPayload());
         render(<PartnerClientPage />);
         expect(await screen.findByRole('alert')).toHaveTextContent(/overview is unavailable/i);
-        expect(screen.queryByRole('region', { name: /government tracking/i })).toBeNull();
+        expect(screen.queryByRole('region', { name: /government grievance tracking/i })).toBeNull();
         fireEvent.click(screen.getByRole('button', { name: /retry/i }));
-        expect(await screen.findByRole('region', { name: /government tracking/i })).toBeInTheDocument();
+        expect(await screen.findByRole('region', { name: /government grievance tracking/i })).toBeInTheDocument();
     });
 
     it('sends the partner to sign-in when the overview call returns 401', async () => {
-        apiMocks.partnerClientSummary.mockResolvedValue(detail);
+        apiMocks.partnerClientOverview.mockReset();
         apiMocks.partnerClientOverview.mockRejectedValue(Object.assign(new Error('expired'), { status: 401 }));
         render(<PartnerClientPage />);
         await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/partner'));
     });
 
     it('explains an unavailable client instead of showing blanks', async () => {
+        apiMocks.partnerClientSummary.mockReset();
         apiMocks.partnerClientSummary.mockRejectedValue(Object.assign(new Error('Client not found'), { status: 404 }));
         render(<PartnerClientPage />);
         expect(await screen.findByRole('alert')).toHaveTextContent(/isn.t available/i);
