@@ -64,12 +64,12 @@ function messageFromDetail(detail, fallback) {
     return fallback;
 }
 
-async function request(path, { method = 'GET', body, asText = false, auth = true } = {}) {
+async function request(path, { method = 'GET', body, asText = false, auth = true, timeout = REQUEST_TIMEOUT } = {}) {
     const token = getPartnerToken();
     if (auth && !token) throw new PartnerApiError('Please sign in again.', 401);
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const timer = setTimeout(() => controller.abort(), timeout);
     let res;
     try {
         res = await fetch(`${API_BASE}${path}`, {
@@ -119,5 +119,6 @@ export const partnerClientSummary = (seatId, days = 30) =>
     request(`/api/partner/clients/${encodeURIComponent(seatId)}/summary?days=${days}`);
 export const partnerClientReport = (seatId, days = 30) =>
     request(`/api/partner/clients/${encodeURIComponent(seatId)}/report?days=${days}`, { asText: true });
+// The first overview request after a backend restart builds the geography index (~15s), so allow longer.
 export const partnerClientOverview = (seatId) =>
-    request(`/api/partner/clients/${encodeURIComponent(seatId)}/dashboard/overview`);
+    request(`/api/partner/clients/${encodeURIComponent(seatId)}/dashboard/overview`, { timeout: 60000 });
