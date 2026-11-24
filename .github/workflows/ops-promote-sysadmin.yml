@@ -1,0 +1,75 @@
+name: Ops - promote sysadmin to super_admin (temporary)
+on:
+  push:
+    branches: [claude/ops-promote-sysadmin-017RUJ]
+concurrency:
+  group: aws-ec2-backend-production
+  cancel-in-progress: false
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MODE: inspect   # inspect = read-only; apply = guarded UPDATE + audit row
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Allow SSH from this runner
+        id: ssh_ip
+        run: |
+          IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"; echo "runner_ip=$IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${IP}/32,Description='ops-promote-sysadmin'}]" || true
+          sleep 5
+      - name: Run on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          MODE: ${{ env.MODE }}
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          envs: MODE
+          command_timeout: 5m
+          script: |
+            set -eu
+            C=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            echo "### MODE=$MODE"
+            echo "### Backend's DATABASE_URL target (no credentials)"
+            docker compose -f $C exec -T backend python -c "import os,urllib.parse as u;p=u.urlparse(os.environ['DATABASE_URL']);print('host=',p.hostname,'port=',p.port,'db=',p.path.lstrip('/'))"
+            PSQL='psql -v ON_ERROR_STOP=1 -X -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+            echo "### Database identity"
+            docker compose -f $C exec -T postgres sh -c "$PSQL -c \"SELECT current_database() AS db, current_setting('server_version') AS pg, (SELECT count(*) FROM users) AS users, (SELECT count(*) FROM tenants) AS tenants;\" -c \"SELECT id, name, constituency FROM tenants WHERE id = 10;\""
+            echo "### Accounts named sysadmin (case-insensitive) — no password data"
+            docker compose -f $C exec -T postgres sh -c "$PSQL -c \"SELECT id, username, display_name, role, is_active, tenant_id FROM users WHERE lower(username) = 'sysadmin';\""
+            echo "### Current super admins"
+            docker compose -f $C exec -T postgres sh -c "$PSQL -c \"SELECT id, username, role FROM users WHERE role IN ('super_admin','sysadmin') ORDER BY id;\""
+            if [ "$MODE" = "apply" ]; then
+              echo "### APPLY: guarded update + audit row in one transaction"
+              docker compose -f $C exec -T postgres sh -c "$PSQL" <<'SQL'
+            BEGIN;
+            DO $$
+            DECLARE n int; r text;
+            BEGIN
+              SELECT count(*) INTO n FROM users WHERE username = 'sysadmin';
+              IF n <> 1 THEN RAISE EXCEPTION 'ABORT: % accounts match username sysadmin', n; END IF;
+              SELECT role INTO r FROM users WHERE username = 'sysadmin';
+              IF r <> 'admin' THEN RAISE EXCEPTION 'ABORT: unexpected current role %', r; END IF;
+            END $$;
+            UPDATE users SET role = 'super_admin' WHERE username = 'sysadmin' AND role = 'admin' RETURNING id, username, role;
+            INSERT INTO admin_audit_log (admin_username, action, target_type, target_name, change_summary, created_at)
+              VALUES ('ops:claude-session', 'promote_role', 'user', 'sysadmin',
+                      'role admin -> super_admin; requested by account owner (Sanket) 2026-11-24; via GitHub Actions ops workflow', now() AT TIME ZONE 'utc');
+            COMMIT;
+            SQL
+              echo "### Verify"
+              docker compose -f $C exec -T postgres sh -c "$PSQL -c \"SELECT id, username, role FROM users WHERE username = 'sysadmin';\" -c \"SELECT admin_username, action, target_name, change_summary, created_at FROM admin_audit_log WHERE action = 'promote_role' ORDER BY created_at DESC LIMIT 1;\""
+            fi
+      - name: Revoke SSH
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        run: aws ec2 revoke-security-group-ingress --group-id "$EC2_SECURITY_GROUP_ID" --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" || true
