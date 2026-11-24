@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      MODE: inspect   # inspect = read-only; apply = guarded UPDATE + audit row
+      MODE: apply   # inspect = read-only; apply = guarded UPDATE + audit row
       AWS_REGION: ap-south-1
       EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
     steps:
