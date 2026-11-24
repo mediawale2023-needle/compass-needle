@@ -150,6 +150,15 @@ export function Legend({ items }) {
     );
 }
 
+/** Axis label for one trend bucket: a day or week shows its end date, longer buckets their month or year. */
+export function bucketLabel(bucket, bucketDays) {
+    const d = new Date(`${bucket.period_end}T00:00:00Z`);
+    if (Number.isNaN(d.getTime())) return bucket.period_end;
+    if (bucketDays >= 365) return String(d.getUTCFullYear());
+    if (bucketDays >= 30) return d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
 /** "2026-11-16" -> "16 Nov" */
 export function weekLabel(iso) {
     const d = new Date(`${iso}T00:00:00`);

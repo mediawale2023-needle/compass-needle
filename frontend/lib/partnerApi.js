@@ -1,3 +1,4 @@
+import { periodQuery } from './partnerFormat';
 /**
  * Partner (consultancy) API client.
  *
@@ -114,11 +115,12 @@ export const partnerChangePassword = (currentPassword, newPassword) =>
     });
 
 export const partnerMe = () => request('/api/partner/me');
-export const partnerClients = (days = 30) => request(`/api/partner/clients?days=${days}`);
-export const partnerClientSummary = (seatId, days = 30) =>
-    request(`/api/partner/clients/${encodeURIComponent(seatId)}/summary?days=${days}`);
-export const partnerClientReport = (seatId, days = 30) =>
-    request(`/api/partner/clients/${encodeURIComponent(seatId)}/report?days=${days}`, { asText: true });
+// `period` is a period object ({ kind: 'days' | 'all' | 'custom', ... }) or a number of days.
+export const partnerClients = (period = 30) => request(`/api/partner/clients?${periodQuery(period)}`);
+export const partnerClientSummary = (seatId, period = 30) =>
+    request(`/api/partner/clients/${encodeURIComponent(seatId)}/summary?${periodQuery(period)}`);
+export const partnerClientReport = (seatId, period = 30) =>
+    request(`/api/partner/clients/${encodeURIComponent(seatId)}/report?${periodQuery(period)}`, { asText: true });
 // The first overview request after a backend restart builds the geography index (~15s), so allow longer.
 export const partnerClientOverview = (seatId) =>
     request(`/api/partner/clients/${encodeURIComponent(seatId)}/dashboard/overview`, { timeout: 60000 });

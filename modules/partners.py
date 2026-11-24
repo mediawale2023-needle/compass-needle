@@ -26,7 +26,7 @@ import html
 import logging
 import os
 import re
-from collections import Counter
+import math
 from datetime import datetime, timedelta
 
 from sqlalchemy import (
@@ -35,6 +35,7 @@ from sqlalchemy import (
 
 from sansadx_backend.db import Base
 from core.db_helpers import _q
+from modules.synthetic_cases import sql_is_live
 
 SEAT_TYPES = ("mp", "mla")
 # Seat status vocabulary. "requested"/"rejected" are LEGACY (the partner seat-request
@@ -182,73 +183,179 @@ def _as_dt(value) -> datetime | None:
     return None
 
 
-def _fetch_case_rows(tenant_id: int, since: datetime) -> list[dict]:
-    # Columns are aggregate-safe only: no phone, no raw message.
-    return _q(
-        "SELECT status, category, ward, assembly, is_critical, created_at, resolved_at "
-        "FROM cases WHERE tenant_id = :tid AND COALESCE(is_deleted, FALSE) = FALSE "
-        "AND created_at >= :since",
-        {"tid": int(tenant_id), "since": since},
+class ReportWindow:
+    """The date range a partner metric covers: [start, end) in UTC. start=None means all time.
+
+    Built only from validated query parameters (see resolve_window); never from free text.
+    """
+
+    def __init__(self, start: datetime | None, end: datetime, kind: str):
+        self.start, self.end, self.kind = start, end, kind  # kind: days | custom | all
+
+    def bounded(self, first_case: datetime | None) -> "ReportWindow":
+        """All-time windows start at the earliest case, so trend buckets have a real span."""
+        if self.start is not None:
+            return self
+        start = first_case or (self.end - timedelta(days=30))
+        return ReportWindow(min(start, self.end - timedelta(days=1)), self.end, self.kind)
+
+    @property
+    def span_days(self) -> float:
+        return max((self.end - (self.start or self.end)).total_seconds() / 86400, 0)
+
+    def describe(self) -> dict:
+        return {
+            "kind": self.kind,
+            "from": self.start.date().isoformat() if self.start else None,
+            "to": (self.end - timedelta(microseconds=1)).date().isoformat(),
+            "days": max(round(self.span_days), 1) if self.start else None,
+        }
+
+
+MAX_WINDOW_DAYS = 3650
+
+
+class WindowError(ValueError):
+    pass
+
+
+def resolve_window(days=None, range_=None, from_=None, to=None, now: datetime | None = None) -> ReportWindow:
+    """One of: days=N (1..3650, ending now), range='all', or from/to calendar dates (inclusive)."""
+    now = now or datetime.utcnow()
+    if range_ not in (None, "", "all"):
+        raise WindowError("range must be 'all'")
+    if range_ == "all":
+        if days is not None or from_ or to:
+            raise WindowError("range=all cannot be combined with days or from/to")
+        return ReportWindow(None, now, "all")
+    if from_ or to:
+        if days is not None:
+            raise WindowError("Use either days or from/to, not both")
+        if not (from_ and to):
+            raise WindowError("from and to must be given together")
+        if from_ > to:
+            raise WindowError("from must be on or before to")
+        start = datetime.combine(from_, datetime.min.time())
+        end = datetime.combine(to, datetime.min.time()) + timedelta(days=1)
+        if (end - start).days > MAX_WINDOW_DAYS:
+            raise WindowError(f"A custom range can cover at most {MAX_WINDOW_DAYS} days; use range=all for everything")
+        return ReportWindow(start, end, "custom")
+    days = 30 if days is None else int(days)
+    if not 1 <= days <= MAX_WINDOW_DAYS:
+        raise WindowError(f"days must be between 1 and {MAX_WINDOW_DAYS}")
+    return ReportWindow(now - timedelta(days=days), now, "days")
+
+
+# Trend bucket sizes in days; the smallest one that keeps the chart at <= 14 points.
+_BUCKETS = (1, 7, 14, 30, 91, 182, 365)
+
+
+def bucket_days_for(span_days: float) -> int:
+    for b in _BUCKETS:
+        if span_days / b <= 14:
+            return b
+    return _BUCKETS[-1] * max(1, math.ceil(span_days / (14 * _BUCKETS[-1])))
+
+
+def _dialect() -> str:
+    import core.db_helpers as dbh  # read at call time so tests' engine swap is honoured
+    return dbh.engine.dialect.name
+
+
+def _case_scope_sql() -> str:
+    # Aggregate-safe columns only are ever read below: no phone, no message text.
+    return (
+        "FROM cases c WHERE c.tenant_id = :tid AND COALESCE(c.is_deleted, FALSE) = FALSE "
+        f"AND {sql_is_live('c')} AND c.created_at >= :start AND c.created_at < :end"
     )
 
 
-def summarize_cases(rows: list[dict], days: int, now: datetime | None = None) -> dict:
-    now = now or datetime.utcnow()
-    window_start = now - timedelta(days=days)
-    in_window = []
-    for r in rows:
-        created = _as_dt(r.get("created_at"))
-        if created and created >= window_start:
-            in_window.append({**r, "_created": created})
+def first_case_at(tenant_ids: list[int]) -> datetime | None:
+    """Earliest live case across the given tenants (one indexed MIN per tenant set)."""
+    ids = [int(t) for t in tenant_ids if t]
+    if not ids:
+        return None
+    params = {f"t{i}": t for i, t in enumerate(ids)}
+    row = _q(
+        f"SELECT MIN(c.created_at) AS first FROM cases c WHERE c.tenant_id IN ({', '.join(':' + k for k in params)}) "
+        f"AND COALESCE(c.is_deleted, FALSE) = FALSE AND {sql_is_live('c')}",
+        params,
+    )
+    return _as_dt(row[0]["first"]) if row else None
 
-    def is_resolved(r) -> bool:
-        return str(r.get("status") or "").lower() in RESOLVED_STATUSES
 
-    total = len(in_window)
-    resolved = [r for r in in_window if is_resolved(r)]
-    critical = sum(1 for r in in_window if r.get("is_critical"))
+def tenant_summary(tenant_id: int, window: "ReportWindow | int" = 30, now: datetime | None = None) -> dict:
+    """Aggregate figures for one tenant over a window, computed in SQL (bounded result sizes).
 
-    durations = []
-    for r in resolved:
-        done = _as_dt(r.get("resolved_at"))
-        if done:
-            durations.append(max((done - r["_created"]).total_seconds() / 86400, 0))
+    Counts every live, non-deleted case created inside the window exactly once. Resolution is
+    "of the grievances received in the window, how many are resolved now" — as before.
+    """
+    if not isinstance(window, ReportWindow):  # legacy callers: an int number of days
+        window = resolve_window(days=int(window), now=now)
+    window = window.bounded(first_case_at([tenant_id]) if window.start is None else None)
+    p = {"tid": int(tenant_id), "start": window.start, "end": window.end}
+    scope = _case_scope_sql()
+    resolved_sql = "LOWER(COALESCE(c.status, '')) IN ('resolved', 'completed')"
+    if _dialect() == "postgresql":
+        duration = "GREATEST(EXTRACT(EPOCH FROM (c.resolved_at - c.created_at)) / 86400.0, 0)"
+        age_days = "EXTRACT(EPOCH FROM (CAST(:end AS timestamp) - c.created_at)) / 86400.0"
+        bucket_expr = f"CAST(FLOOR(({age_days}) / :bucket) AS INTEGER)"
+    else:  # SQLite (tests)
+        duration = "MAX(julianday(c.resolved_at) - julianday(c.created_at), 0)"
+        bucket_expr = "CAST((julianday(:end) - julianday(c.created_at)) / :bucket AS INTEGER)"
 
-    categories = Counter((r.get("category") or "Uncategorised") for r in in_window)
-    places = Counter((r.get("ward") or r.get("assembly") or "Unmapped") for r in in_window)
+    head = _q(
+        f"SELECT COUNT(*) AS total, "
+        f"COALESCE(SUM(CASE WHEN {resolved_sql} THEN 1 ELSE 0 END), 0) AS resolved, "
+        f"COALESCE(SUM(CASE WHEN c.is_critical THEN 1 ELSE 0 END), 0) AS critical, "
+        f"AVG(CASE WHEN {resolved_sql} AND c.resolved_at IS NOT NULL THEN {duration} END) AS avg_days "
+        f"{scope}", p,
+    )[0]
+    total, resolved = int(head["total"] or 0), int(head["resolved"] or 0)
+    categories = _q(
+        f"SELECT COALESCE(NULLIF(c.category, ''), 'Uncategorised') AS name, COUNT(*) AS count {scope} "
+        "GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 5", p,
+    )
+    places = _q(
+        f"SELECT COALESCE(NULLIF(c.ward, ''), NULLIF(c.assembly, ''), 'Unmapped') AS name, COUNT(*) AS count {scope} "
+        "GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 5", p,
+    )
 
-    weekly = []
-    for i in range(7, -1, -1):  # 8 weeks, oldest first
-        end = now - timedelta(days=7 * i)
-        start = end - timedelta(days=7)
-        received = resolved_n = 0
-        for r in rows:
-            created = _as_dt(r.get("created_at"))
-            if created and start < created <= end:
-                received += 1
-                if is_resolved(r):
-                    resolved_n += 1
-        weekly.append({"week_ending": end.date().isoformat(), "received": received, "resolved": resolved_n})
+    bucket = bucket_days_for(window.span_days)
+    n_buckets = max(1, math.ceil(window.span_days / bucket))
+    grouped = _q(
+        f"SELECT {bucket_expr} AS b, COUNT(*) AS received, "
+        f"COALESCE(SUM(CASE WHEN {resolved_sql} THEN 1 ELSE 0 END), 0) AS resolved {scope} GROUP BY 1",
+        {**p, "bucket": bucket},
+    )
+    by_index = {int(r["b"]): r for r in grouped if r["b"] is not None}
+    trend = []
+    for i in range(n_buckets - 1, -1, -1):  # oldest first; bucket 0 ends at window.end
+        b_end = window.end - timedelta(days=bucket * i)
+        b_start = max(b_end - timedelta(days=bucket), window.start) if window.start else b_end - timedelta(days=bucket)
+        r = by_index.get(i, {})
+        trend.append({
+            "period_start": b_start.date().isoformat(),
+            "period_end": (b_end - timedelta(microseconds=1)).date().isoformat(),
+            "received": int(r.get("received") or 0),
+            "resolved": int(r.get("resolved") or 0),
+        })
 
+    avg = head["avg_days"]
     return {
-        "days": days,
+        "window": window.describe(),
+        "days": window.describe()["days"],
+        "bucket_days": bucket,
         "total": total,
-        "resolved": len(resolved),
-        "open": total - len(resolved),
-        "critical": critical,
-        "resolution_rate": round(len(resolved) / total, 3) if total else None,
-        "avg_resolution_days": round(sum(durations) / len(durations), 1) if durations else None,
-        "top_categories": [{"name": k, "count": v} for k, v in categories.most_common(5)],
-        "top_locations": [{"name": k, "count": v} for k, v in places.most_common(5)],
-        "weekly": weekly,
+        "resolved": resolved,
+        "open": total - resolved,
+        "critical": int(head["critical"] or 0),
+        "resolution_rate": round(resolved / total, 3) if total else None,
+        "avg_resolution_days": round(float(avg), 1) if avg is not None else None,
+        "top_categories": [{"name": r["name"], "count": int(r["count"])} for r in categories],
+        "top_locations": [{"name": r["name"], "count": int(r["count"])} for r in places],
+        "trend": trend,
     }
-
-
-def tenant_summary(tenant_id: int, days: int = 30, now: datetime | None = None) -> dict:
-    now = now or datetime.utcnow()
-    horizon = max(days, 56)  # 56 days feeds the 8-week trend
-    rows = _fetch_case_rows(tenant_id, now - timedelta(days=horizon))
-    return summarize_cases(rows, days, now)
 
 
 # ─────────────────────────────────────────
@@ -276,12 +383,19 @@ def render_client_report(partner: dict, seat: dict, summary: dict, generated_at:
     powered = (
         '<p class="muted">Intelligence by Compass Needle</p>' if partner.get("show_powered_by") else ""
     )
-    weekly_max = max([w["received"] for w in summary["weekly"]] + [1])
+    trend_max = max([w["received"] for w in summary["trend"]] + [1])
     bars = "".join(
-        f'<div class="bar" title="{esc(w["week_ending"])}: {w["received"]} received" '
-        f'style="height:{max(round(w["received"] / weekly_max * 100), 2)}%"></div>'
-        for w in summary["weekly"]
+        f'<div class="bar" title="{esc(w["period_start"])} to {esc(w["period_end"])}: {w["received"]} received" '
+        f'style="height:{max(round(w["received"] / trend_max * 100), 2)}%"></div>'
+        for w in summary["trend"]
     )
+    win = summary["window"]
+    period = "All time" if win["kind"] == "all" else (
+        f"last {win['days']} days" if win["kind"] == "days" else f"{win['from']} to {win['to']}")
+    if win["kind"] == "all" and win.get("from"):
+        period = f"All time (since {win['from']})"
+    unit = {1: "day", 7: "week", 14: "fortnight", 30: "month", 91: "quarter", 182: "half-year", 365: "year"}.get(
+        summary["bucket_days"], f"{summary['bucket_days']} days")
     avg = summary["avg_resolution_days"]
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
@@ -299,7 +413,7 @@ table{{width:100%;border-collapse:collapse}} td{{padding:6px 4px;border-bottom:1
 @media print{{body{{padding:0}}}}
 </style></head><body>
 <header><div><h1>{esc(seat["client_label"])}</h1>
-<span class="muted">{esc(seat.get("constituency") or "")} · last {summary["days"]} days · {generated_at:%d %b %Y}</span></div>
+<span class="muted">{esc(seat.get("constituency") or "")} · {esc(period)} · {generated_at:%d %b %Y}</span></div>
 {logo_html}</header>
 <div class="kpis">
 <div class="kpi"><b>{summary["total"]}</b>Grievances received</div>
@@ -308,7 +422,7 @@ table{{width:100%;border-collapse:collapse}} td{{padding:6px 4px;border-bottom:1
 <div class="kpi"><b>{summary["critical"]}</b>Critical</div>
 <div class="kpi"><b>{"—" if avg is None else f"{avg}d"}</b>Avg. time to resolve</div>
 </div>
-<h2>Weekly volume (last 8 weeks)</h2><div class="chart">{bars}</div>
+<h2>Grievances received, by {esc(unit)}</h2><div class="chart">{bars}</div>
 <h2>Top issue categories</h2><table>{_rows_html(summary["top_categories"])}</table>
 <h2>Where complaints come from</h2><table>{_rows_html(summary["top_locations"])}</table>
 <p class="muted" style="margin-top:32px">Prepared by {esc(partner["brand_name"])}. Aggregate figures only; no citizen details are included.</p>

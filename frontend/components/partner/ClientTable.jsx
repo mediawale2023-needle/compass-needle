@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { SEAT_LABEL, clientHealth, fmtCount, fmtDays, fmtPct } from '@/lib/partnerFormat';
+import { SEAT_LABEL, clientHealth, fmtCount, fmtDays, fmtPct, periodPhrase } from '@/lib/partnerFormat';
 import { Badge, Icon } from './ui';
 
 export function HealthBadge({ client }) {
@@ -48,7 +48,7 @@ function place(c) {
     return [c.constituency, SEAT_LABEL[c.seat_type] || 'MP'].filter(Boolean).join(' · ');
 }
 
-export default function ClientTable({ clients, days, title = 'Clients', compact = false, onSeeAll }) {
+export default function ClientTable({ clients, period, title = 'Clients', compact = false, onSeeAll }) {
     const router = useRouter();
     const [q, setQ] = useState('');
     const [filter, setFilter] = useState('all');
@@ -76,7 +76,7 @@ export default function ClientTable({ clients, days, title = 'Clients', compact 
             <div className="pd-sechead" style={{ padding: '18px 16px 0', margin: 0 }}>
                 <div>
                     <h2 className="pd-sec" id="pd-ct-h">{title}</h2>
-                    <div className="pd-secsub">Grievances received in the last {days} days. Select a live client to open it.</div>
+                    <div className="pd-secsub">Grievances received in {periodPhrase(period)}. Select a live client to open it.</div>
                 </div>
                 {compact && onSeeAll ? <Link className="pd-link" href={onSeeAll}>View all clients →</Link> : null}
             </div>
