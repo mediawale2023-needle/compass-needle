@@ -3,6 +3,7 @@ import {
     PartnerApiError,
     clearPartnerSession,
     getPartnerToken,
+    partnerClientBriefing,
     partnerClientOverview,
     partnerClientSummary,
     partnerClients,
@@ -43,6 +44,16 @@ describe('partner API client', () => {
         expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer partner-token');
         expect(sessionStorage.getItem('needle_token')).toBe('mp-token');
         expect(localStorage.getItem('needle_partner_token')).toBeNull(); // sessionStorage only
+    });
+
+    it('requests the briefing for one seat with the period and no tenant parameter', async () => {
+        storePartnerSession({ token: 'partner-token', partner: { brand_name: 'X' }, mustChangePassword: false });
+        const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ briefing: {} }));
+        await partnerClientBriefing(7, { kind: 'days', days: 90 });
+        const [url, init] = fetchMock.mock.calls[0];
+        expect(url).toContain('/api/partner/clients/7/briefing?days=90');
+        expect(url).not.toMatch(/tenant/i);
+        expect(init.headers.Authorization).toBe('Bearer partner-token');
     });
 
     it('requests the counts-only overview for one seat with the partner token and no tenant parameter', async () => {

@@ -9,18 +9,18 @@ import { DEFAULT_PERIOD, SEAT_LABEL, fmtTimeIST, periodKey } from '@/lib/partner
 import { HealthBadge } from '@/components/partner/ClientTable';
 import ClientSwitcher from '@/components/partner/ClientSwitcher';
 import PartnerAnalytics from '@/components/partner/PartnerAnalytics';
-import PartnerOverview from '@/components/partner/PartnerOverview';
+import ClientBriefing from '@/components/partner/ClientBriefing';
 import ReportPanel from '@/components/partner/ReportPanel';
 import { ErrorState, Icon, PeriodSelect, Skel, useCrumbs } from '@/components/partner/ui';
 
-const TABS = [['overview', 'Overview'], ['analytics', 'Analytics'], ['reports', 'Reports']];
+const TABS = [['briefing', 'Briefing'], ['analytics', 'Analytics'], ['reports', 'Reports']];
 
 export default function PartnerClientPage() {
     const router = useRouter();
     const params = useParams();
     const seatId = params?.seatId;
     const { ready, token, partner, mustChangePassword } = usePartnerSession();
-    const [tab, setTab] = useState('overview');
+    const [tab, setTab] = useState('briefing');
     const [period, setPeriod] = useState(DEFAULT_PERIOD);
     const [result, setResult] = useState(null);
     const [status, setStatus] = useState('loading'); // loading | ready | error | missing
@@ -115,9 +115,10 @@ export default function PartnerClientPage() {
                         ))}
                     </div>
 
-                    {tab === 'overview' && (
-                        <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
-                            <PartnerOverview seatId={seatId} summary={s} period={period} onUnauthorized={signOutRedirect} />
+                    {tab === 'briefing' && (
+                        <div role="tabpanel" id="panel-briefing" aria-labelledby="tab-briefing">
+                            <ClientBriefing seatId={seatId} period={period} onPeriodChange={setPeriod}
+                                onOpenReports={() => setTab('reports')} onUnauthorized={signOutRedirect} />
                         </div>
                     )}
                     {tab === 'analytics' && (

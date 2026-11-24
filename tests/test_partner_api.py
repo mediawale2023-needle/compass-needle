@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from datetime import datetime, timedelta
 
 from fastapi.testclient import TestClient
@@ -1088,3 +1089,109 @@ def test_direct_tenants_never_appear_in_any_partner_portfolio_or_by_id():
     # tenant ids / partner ids supplied by the caller are ignored: query params cannot widen scope
     sneaky = client.get(f"/api/partner/clients?tenant_id={direct_tid}&partner_id={pa}", headers=hb)
     assert sneaky.status_code == 200 and sneaky.json()["clients"] == []
+
+
+# ── consultant briefing ──
+def _add_briefing_cases():
+    """Tenant 2 gains filed, government-resolved, office-actioned, ready-to-file, noise and unmapped cases."""
+    now = datetime.utcnow()
+    rows = [
+        # id, days ago, category, status, govt_status, govt_ref, govt_updated_days_ago, matched_value, free-text location
+        (301, 3, "Roads", "in_progress", "submitted", "CPG/2026/1", 2, "Shahpur", None),
+        (302, 4, "Roads", "in_progress", "resolved", "CPG/2026/2", 1, "Shahpur", None),
+        (303, 6, "Drainage", "closed", "not_forwarded", None, None, "Anagol", None),
+        (304, 7, "Drainage", "new", "pending_staff_submit", None, 5, "Anagol", None),
+        (305, 8, "Drainage", "irrelevant", "not_forwarded", None, None, "Anagol", None),   # not a grievance
+        (306, 40, "Drainage", "new", "not_forwarded", None, None, "Anagol", None),         # previous period
+        (307, 9, "Roads", "new", "not_forwarded", None, None, "", "Behind Ramesh Patil house, Lane 4"),
+    ]
+    with test_engine.begin() as conn:
+        for cid, ago, cat, st, gs, ref, gago, loc, free in rows:
+            conn.execute(text(
+                "INSERT INTO cases (id, tenant_id, user_phone, raw_message, category, status, location, ward, is_critical, "
+                "is_deleted, created_at, govt_status, govt_reference_number, govt_status_updated_at, case_metadata) "
+                "VALUES (:id, 2, :ph, :msg, :cat, :st, :free, 'Ward 9', 0, 0, :cr, :gs, :ref, :gup, :meta)"),
+                {"id": cid, "ph": PHONE, "msg": RAW_MESSAGE, "cat": cat, "st": st, "free": free,
+                 "cr": now - timedelta(days=ago), "gs": gs, "ref": ref,
+                 "gup": now - timedelta(days=gago) if gago is not None else None,
+                 "meta": json.dumps({"matched_value": loc, "location_resolved": bool(loc)})})
+
+
+def _briefing(headers, seat_id, query="days=30"):
+    resp = client.get(f"/api/partner/clients/{seat_id}/briefing?{query}", headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["briefing"]
+
+
+def test_briefing_momentum_funnel_and_comparison():
+    _seed_database()
+    _add_briefing_cases()
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    seat_id = _attach(admin, pid, 2)
+
+    b = _briefing(headers, seat_id)
+    m = b["momentum"]
+    # now: cases 1-4 + 301-304 + 307 (deleted 5, noise 305 and older 6/306 excluded)
+    assert {k: v["now"] for k, v in m.items()} == {
+        "received": 9, "filed": 2, "resolved_by_government": 1, "other_actions": 3, "pending": 4}
+    assert m["received"]["previous"] == 2  # cases 6 and 306
+    for v in m.values():
+        assert sum(v["trend"]) == v["now"] and len(v["trend"]) == len(b["periods"])
+    assert b["funnel"] == {"received": 9, "action_taken": 5, "filed": 2, "resolved_by_government": 1,
+                           "pending": 4, "ready_to_file": 1, "oldest_ready_days": 5}
+    assert b["compare"] is not None and b["window"]["kind"] == "days"
+
+    everything = _briefing(headers, seat_id, "range=all")
+    assert everything["compare"] is None and everything["momentum"]["received"]["previous"] is None
+    assert everything["momentum"]["received"]["now"] == 11
+
+
+def test_briefing_issues_hotspots_and_wins_use_mapped_localities_only():
+    _seed_database()
+    _add_briefing_cases()
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    seat_id = _attach(admin, pid, 2)
+
+    b = _briefing(headers, seat_id)
+    issues = {i["name"]: i for i in b["issues"]}
+    assert (issues["Roads"]["count"], issues["Roads"]["previous"]) == (4, 0)
+    assert (issues["Water"]["count"], issues["Water"]["previous"]) == (3, 1)
+    assert (issues["Drainage"]["count"], issues["Drainage"]["previous"]) == (2, 1)
+    assert [x["name"] for x in issues["Roads"]["top_localities"]] == ["Shahpur"]
+    assert sum(issues["Roads"]["trend"]) == 4
+
+    hot = b["hotspots"]
+    assert hot["columns"] == ["Roads", "Water", "Drainage"]
+    assert hot["localities"] == [
+        {"name": "Anagol", "total": 2, "counts": [0, 0, 2]},
+        {"name": "Shahpur", "total": 2, "counts": [2, 0, 0]},
+    ]
+    assert hot["total_localities"] == 2 and hot["unmapped"] == 5
+    assert b["wins"] == [{"name": "Roads", "count": 1, "localities": ["Shahpur"]}] and b["wins_total"] == 1
+
+    body = json.dumps(b)
+    for leaked in ("Ramesh", "Lane 4", PHONE, "Sewage overflow", "CPG/2026", "Ward 9"):
+        assert leaked not in body
+
+
+def test_briefing_is_seat_scoped():
+    _seed_database()
+    _add_briefing_cases()
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    other = _create_partner(admin, name="Other Strategy")
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    other_headers = _partner_session(admin, other, "ops@other.in")
+    seat_id = _attach(admin, pid, 2)
+    other_seat = _attach(admin, other, 3)
+
+    assert client.get(f"/api/partner/clients/{other_seat}/briefing?days=30", headers=headers).status_code == 404
+    assert client.get(f"/api/partner/clients/{seat_id}/briefing?days=30", headers=other_headers).status_code == 404
+    assert client.get(f"/api/partner/clients/{seat_id}/briefing?days=30").status_code in (401, 403)
+    assert client.get(f"/api/partner/clients/{seat_id}/briefing?days=0", headers=headers).status_code == 422
+    theirs = _briefing(other_headers, other_seat)
+    assert theirs["momentum"]["received"]["now"] == 2 and theirs["hotspots"]["localities"] == []
