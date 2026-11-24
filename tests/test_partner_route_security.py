@@ -267,8 +267,8 @@ def test_no_partner_get_route_exposes_citizen_or_case_level_data():
         params = re.findall(r"\{([^}:]+)", r["path"])
         unknown = [p for p in params if p != "seat_id"]
         assert not unknown, f"{r['path']}: test cannot fill path parameter(s) {unknown}; extend this test deliberately"
-        for days in (7, 30, 90):
-            resp = client.get(_fill(r["path"], seat_id=seat_id), params={"days": days}, headers=w["partner_a"])
+        for params in ({"days": 7}, {"days": 30}, {"days": 90}, {"days": 3650}, {"range": "all"}):
+            resp = client.get(_fill(r["path"], seat_id=seat_id), params=params, headers=w["partner_a"])
             assert resp.status_code == 200, f"{r['path']} -> {resp.status_code} {resp.text[:200]}"
             body = resp.json() if "json" in resp.headers.get("content-type", "") else resp.text
             # /me legitimately returns the signed-in partner user's own email.

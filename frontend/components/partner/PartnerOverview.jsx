@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { partnerClientOverview } from '@/lib/partnerApi';
-import { fmtCount, fmtDays, fmtPct } from '@/lib/partnerFormat';
+import { fmtCount, fmtDays, fmtPct, periodPhrase } from '@/lib/partnerFormat';
 import { Badge, ErrorState, Kpis, RankedBars, SectionHead, Skel } from './ui';
 
 const PIPELINE = [
@@ -27,7 +27,7 @@ function count(list, key) {
  * Client Overview: work waiting on the office, the government filing pipeline, and where pressure comes from.
  * Counts only — partners never see individual grievances or citizen details.
  */
-export default function PartnerOverview({ seatId, summary, days, onUnauthorized }) {
+export default function PartnerOverview({ seatId, summary, period, onUnauthorized }) {
     const [overview, setOverview] = useState(null);
     const [status, setStatus] = useState('loading');
     const [error, setError] = useState('');
@@ -77,7 +77,7 @@ export default function PartnerOverview({ seatId, summary, days, onUnauthorized 
         <div>
             {summary ? (
                 <section aria-labelledby="pd-perf-h">
-                    <SectionHead id="pd-perf-h" title="Constituency performance" sub={`Grievances received in the last ${days} days`} />
+                    <SectionHead id="pd-perf-h" title="Constituency performance" sub={`Grievances received in ${periodPhrase(period)} · change the period on Analytics`} />
                     <Kpis label="Constituency performance" items={[
                         { label: 'Received', value: fmtCount(summary.total) },
                         { label: 'Resolved', value: fmtCount(summary.resolved), foot: `${fmtCount(summary.open)} still open` },

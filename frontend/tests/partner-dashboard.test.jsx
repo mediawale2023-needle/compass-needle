@@ -35,10 +35,10 @@ const summary = (over = {}) => ({
     total: 40, resolved: 30, open: 10, critical: 3, resolution_rate: 0.75, avg_resolution_days: 2.4, ...over,
 });
 
-const weeks = Array.from({ length: 8 }, (_, i) => ({ week_ending: `2026-11-${10 + i}`, received: 10 + i, resolved: 5 + i }));
+const weeks = Array.from({ length: 8 }, (_, i) => ({ period_start: `2026-11-0${1 + i}`, period_end: `2026-11-${10 + i}`, received: 10 + i, resolved: 5 + i }));
 const clientsPayload = (over = {}) => ({
-    days: 30, active_clients: 2,
-    portfolio: { total: 52, resolved: 36, open: 16, critical: 9, weekly: weeks },
+    days: 30, active_clients: 2, window: { kind: 'days', from: '2026-10-19', to: '2026-11-17', days: 30 },
+    portfolio: { total: 52, resolved: 36, open: 16, critical: 9, trend: weeks, bucket_days: 7 },
     clients: [
         { id: 7, client_label: 'Asha Patil', constituency: 'Belagavi South', seat_type: 'mla', status: 'active', summary: summary() },
         { id: 8, client_label: 'Ravi Kulkarni', constituency: 'Pune Cantonment', seat_type: 'mp', status: 'active', summary: summary({ total: 12, resolved: 6, open: 6, critical: 6, resolution_rate: 0.5 }) },
@@ -125,10 +125,10 @@ describe('partner portfolio page', () => {
         expect(names.join(' ')).not.toMatch(/Old Client/);
     });
 
-    it('draws the portfolio weekly chart from aggregate counts with an accessible description', async () => {
+    it('draws the portfolio trend chart from aggregate counts with an accessible description', async () => {
         render(<PartnerDashboardPage />);
         const chart = await screen.findByRole('img', { name: /portfolio grievances by week/i });
-        expect(chart.getAttribute('aria-label')).toContain('week ending 2026-11-17: 17 received, 12 resolved');
+        expect(chart.getAttribute('aria-label')).toContain('2026-11-08 to 2026-11-17: 17 received, 12 resolved');
     });
 
     it('searches, filters and sorts the client table', async () => {
@@ -153,7 +153,33 @@ describe('partner portfolio page', () => {
         render(<PartnerDashboardPage />);
         await screen.findByRole('table');
         fireEvent.click(screen.getByRole('button', { name: '90 days' }));
-        await waitFor(() => expect(apiMocks.partnerClients).toHaveBeenLastCalledWith(90));
+        await waitFor(() => expect(apiMocks.partnerClients).toHaveBeenLastCalledWith({ kind: 'days', days: 90 }));
+    });
+
+    it('offers all-time and a custom date range, and queries the API with them', async () => {
+        render(<PartnerDashboardPage />);
+        await screen.findByRole('table');
+        fireEvent.click(screen.getByRole('button', { name: 'All time' }));
+        await waitFor(() => expect(apiMocks.partnerClients).toHaveBeenLastCalledWith({ kind: 'all' }));
+        expect(screen.getByRole('button', { name: 'All time' })).toHaveAttribute('aria-pressed', 'true');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Custom' }));
+        const dialog = screen.getByRole('dialog', { name: /custom date range/i });
+        fireEvent.change(within(dialog).getByLabelText('From'), { target: { value: '2025-03-01' } });
+        fireEvent.change(within(dialog).getByLabelText('To'), { target: { value: '2025-01-01' } });
+        fireEvent.submit(dialog); // bypass the browser's own min/max check to exercise ours
+        expect(within(dialog).getByRole('alert')).toHaveTextContent(/on or before/i);
+
+        fireEvent.change(within(dialog).getByLabelText('To'), { target: { value: '2025-06-30' } });
+        fireEvent.click(within(dialog).getByRole('button', { name: /apply range/i }));
+        await waitFor(() => expect(apiMocks.partnerClients).toHaveBeenLastCalledWith({ kind: 'custom', from: '2025-03-01', to: '2025-06-30' }));
+        expect(screen.getByRole('button', { name: /1 Mar 2025 – 30 Jun 2025/ })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('labels an all-time portfolio with the date history starts from', async () => {
+        apiMocks.partnerClients.mockResolvedValue(clientsPayload({ window: { kind: 'all', from: '2024-05-03', to: '2026-11-24', days: 935 } }));
+        render(<PartnerDashboardPage />);
+        expect(await screen.findByText(/All time \(since 3 May 2024\)/)).toBeInTheDocument();
     });
 
     it('shows an unavailable state, not zeros, when the API fails, and retries', async () => {
@@ -171,7 +197,7 @@ describe('partner portfolio page', () => {
 
     it('distinguishes an empty portfolio from a failed load', async () => {
         apiMocks.partnerClients.mockResolvedValue(clientsPayload({
-            active_clients: 0, clients: [], portfolio: { total: 0, resolved: 0, open: 0, critical: 0, weekly: [] },
+            active_clients: 0, clients: [], portfolio: { total: 0, resolved: 0, open: 0, critical: 0, trend: [], bucket_days: 7 },
         }));
         render(<PartnerDashboardPage />);
         expect(await screen.findByText('No clients yet')).toBeInTheDocument();
@@ -219,7 +245,9 @@ describe('partner client page', () => {
             ...summary(),
             top_categories: [{ name: 'Water', count: 12 }, { name: 'Roads', count: 5 }],
             top_locations: [{ name: 'Bailhongal segment', count: 9 }],
-            weekly: Array.from({ length: 8 }, (_, i) => ({ week_ending: `2026-11-${10 + i}`, received: i, resolved: Math.floor(i / 2) })),
+            window: { kind: 'days', from: '2026-10-19', to: '2026-11-17', days: 30 },
+            bucket_days: 7,
+            trend: Array.from({ length: 8 }, (_, i) => ({ period_start: `2026-11-0${1 + i}`, period_end: `2026-11-${10 + i}`, received: i, resolved: Math.floor(i / 2) })),
         },
     };
     beforeEach(() => {
@@ -258,7 +286,7 @@ describe('partner client page', () => {
         render(<PartnerClientPage />);
         await screen.findByRole('region', { name: /government grievance tracking/i });
         expect(screen.queryByRole('table')).toBeNull();
-        expect(screen.queryByRole('img', { name: /weekly grievances/i })).toBeNull();
+        expect(screen.queryByRole('img', { name: /grievances by week/i })).toBeNull();
     });
 
     it('renders headline numbers, rankings and accessible charts on Analytics', async () => {
@@ -267,10 +295,10 @@ describe('partner client page', () => {
         expect(screen.getAllByText('75%').length).toBeGreaterThan(0);
         expect(screen.getByText('2.4d')).toBeInTheDocument();
         expect(screen.getByText('Water')).toBeInTheDocument();
-        expect(screen.getByRole('img', { name: /weekly grievances/i })).toBeInTheDocument();
-        expect(screen.getByRole('img', { name: /weekly resolution rate/i })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /grievances by week/i })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /resolution rate by week/i })).toBeInTheDocument();
         expect(screen.queryByRole('region', { name: /government grievance tracking/i })).toBeNull();
-        expect(apiMocks.partnerClientSummary).toHaveBeenCalledWith('7', 30);
+        expect(apiMocks.partnerClientSummary).toHaveBeenCalledWith('7', { kind: 'days', days: 30 });
     });
 
     it('compares the client with the portfolio from aggregate figures', async () => {
@@ -285,7 +313,7 @@ describe('partner client page', () => {
         render(<PartnerClientPage />);
         await openTab('Analytics');
         fireEvent.click(screen.getByRole('button', { name: '90 days' }));
-        await waitFor(() => expect(apiMocks.partnerClientSummary).toHaveBeenLastCalledWith('7', 90));
+        await waitFor(() => expect(apiMocks.partnerClientSummary).toHaveBeenLastCalledWith('7', { kind: 'days', days: 90 }));
     });
 
     it('shows the report only inside a fully sandboxed iframe', async () => {

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { usePartnerSession } from '@/lib/partnerSession';
 import { partnerClientSummary } from '@/lib/partnerApi';
-import { SEAT_LABEL, fmtTimeIST } from '@/lib/partnerFormat';
+import { DEFAULT_PERIOD, SEAT_LABEL, fmtTimeIST, periodKey } from '@/lib/partnerFormat';
 import { HealthBadge } from '@/components/partner/ClientTable';
 import ClientSwitcher from '@/components/partner/ClientSwitcher';
 import PartnerAnalytics from '@/components/partner/PartnerAnalytics';
@@ -21,7 +21,7 @@ export default function PartnerClientPage() {
     const seatId = params?.seatId;
     const { ready, token, partner, mustChangePassword } = usePartnerSession();
     const [tab, setTab] = useState('overview');
-    const [days, setDays] = useState(30);
+    const [period, setPeriod] = useState(DEFAULT_PERIOD);
     const [result, setResult] = useState(null);
     const [status, setStatus] = useState('loading'); // loading | ready | error | missing
     const [error, setError] = useState('');
@@ -31,7 +31,7 @@ export default function PartnerClientPage() {
         setStatus('loading');
         setError('');
         try {
-            setResult(await partnerClientSummary(seatId, days));
+            setResult(await partnerClientSummary(seatId, period));
             setLoadedAt(new Date());
             setStatus('ready');
         } catch (err) {
@@ -44,7 +44,8 @@ export default function PartnerClientPage() {
             setError(err.message || 'Client data could not be loaded.');
             setStatus('error');
         }
-    }, [seatId, days, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [seatId, periodKey(period), router]);
 
     useEffect(() => {
         if (!ready) return;
@@ -116,21 +117,21 @@ export default function PartnerClientPage() {
 
                     {tab === 'overview' && (
                         <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
-                            <PartnerOverview seatId={seatId} summary={s} days={days} onUnauthorized={signOutRedirect} />
+                            <PartnerOverview seatId={seatId} summary={s} period={period} onUnauthorized={signOutRedirect} />
                         </div>
                     )}
                     {tab === 'analytics' && (
                         <div role="tabpanel" id="panel-analytics" aria-labelledby="tab-analytics">
-                            <PartnerAnalytics summary={s} days={days} onDaysChange={setDays} clientLabel={client.client_label} />
+                            <PartnerAnalytics summary={s} period={period} onPeriodChange={setPeriod} clientLabel={client.client_label} />
                         </div>
                     )}
                     {tab === 'reports' && (
                         <div role="tabpanel" id="panel-reports" aria-labelledby="tab-reports">
                             <div className="pd-pagehead" style={{ marginBottom: 18 }}>
                                 <div><h2 className="pd-sec" style={{ fontSize: 17 }}>Reports</h2><div className="pd-secsub">The report uses the same figures as the Analytics tab for the chosen period.</div></div>
-                                <PeriodSelect days={days} onChange={setDays} />
+                                <PeriodSelect period={period} onChange={setPeriod} />
                             </div>
-                            <ReportPanel seatId={seatId} days={days} clientLabel={client.client_label} partner={partner} />
+                            <ReportPanel seatId={seatId} period={period} summaryWindow={s?.window} clientLabel={client.client_label} partner={partner} />
                         </div>
                     )}
                 </>

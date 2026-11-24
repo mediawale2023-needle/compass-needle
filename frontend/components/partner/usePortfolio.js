@@ -6,7 +6,7 @@ import { usePartnerSession } from '@/lib/partnerSession';
 import { partnerClients } from '@/lib/partnerApi';
 import { fmtTimeIST } from '@/lib/partnerFormat';
 
-export function usePortfolio(days) {
+export function usePortfolio(period) {
     const router = useRouter();
     const { ready, token, mustChangePassword } = usePartnerSession();
     const [data, setData] = useState(null);
@@ -18,7 +18,7 @@ export function usePortfolio(days) {
         setStatus('loading');
         setError('');
         try {
-            setData(await partnerClients(days));
+            setData(await partnerClients(period));
             setLoadedAt(new Date());
             setStatus('ready');
         } catch (err) {
@@ -29,7 +29,7 @@ export function usePortfolio(days) {
             setError(err.message || 'Client data could not be loaded.');
             setStatus('error');
         }
-    }, [days, router]);
+    }, [period, router]);
 
     useEffect(() => {
         if (!ready) return;

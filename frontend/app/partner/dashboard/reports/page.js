@@ -20,7 +20,7 @@ export default function PartnerReportsPage() {
                     <h1 className="pd-title">Reports</h1>
                     <p className="pd-lede">
                         A branded report for each client, under your organisation&apos;s name. Reports carry aggregate figures only
-                        and are generated on demand for the last 7, 30 or 90 days.
+                        and are generated on demand for any period, from the last 7 days to the client's complete history.
                     </p>
                 </div>
             </div>

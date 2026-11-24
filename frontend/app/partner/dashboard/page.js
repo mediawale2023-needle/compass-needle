@@ -3,14 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Updated, usePortfolio } from '@/components/partner/usePortfolio';
-import { clientHealth, fmtCount, healthReasons } from '@/lib/partnerFormat';
+import { DEFAULT_PERIOD, bucketName, clientHealth, fmtCount, healthReasons, periodPhrase, windowLabel } from '@/lib/partnerFormat';
 import ClientTable from '@/components/partner/ClientTable';
-import { LineChart, Legend, weekLabel } from '@/components/partner/charts';
+import { LineChart, Legend, bucketLabel } from '@/components/partner/charts';
 import { ErrorState, Icon, Kpis, PeriodSelect, SectionHead, Skel, useCrumbs } from '@/components/partner/ui';
 
 export default function PartnerDashboardPage() {
-    const [days, setDays] = useState(30);
-    const { ready, token, data, status, error, load, loadedAt } = usePortfolio(days);
+    const [period, setPeriod] = useState(DEFAULT_PERIOD);
+    const { ready, token, data, status, error, load, loadedAt } = usePortfolio(period);
     useCrumbs([{ label: 'Overview' }]);
 
     if (!ready || !token) return null;
@@ -22,13 +22,14 @@ export default function PartnerDashboardPage() {
     const urgent = attention.filter((x) => x.h.level === 'attention').length;
     const p = data?.portfolio;
     const rate = p && p.total ? p.resolved / p.total : null;
-    const weekly = p?.weekly || [];
+    const trend = p?.trend || [];
+    const bucketDays = p?.bucket_days || 7;
 
     return (
         <div>
             <div className="pd-pagehead">
                 <div>
-                    <div className="pd-eyebrow">Portfolio · last {days} days</div>
+                    <div className="pd-eyebrow">Portfolio · {windowLabel(data?.window, period)}</div>
                     <h1 className="pd-title">Your clients</h1>
                     <p className="pd-lede">
                         {data ? (
@@ -42,7 +43,7 @@ export default function PartnerDashboardPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                     <Updated at={status === 'ready' ? loadedAt : null} />
-                    <PeriodSelect days={days} onChange={setDays} />
+                    <PeriodSelect period={period} onChange={setPeriod} />
                 </div>
             </div>
 
@@ -64,7 +65,7 @@ export default function PartnerDashboardPage() {
                 </div>
             ) : (
                 <>
-                    <Kpis label={`Portfolio totals, last ${days} days`} items={[
+                    <Kpis label={`Portfolio totals, ${periodPhrase(period)}`} items={[
                         { label: 'Grievances received', value: fmtCount(p.total), foot: `Across ${live.length} active clients` },
                         { label: 'Resolved', value: fmtCount(p.resolved), foot: 'Of those received in the period' },
                         { label: 'Still open', value: fmtCount(p.open), foot: 'Received in the period, not yet resolved' },
@@ -73,15 +74,15 @@ export default function PartnerDashboardPage() {
 
                     <div className="pd-grid pd-g21 pd-mt">
                         <section className="pd-panel pd-pad" aria-labelledby="pd-trend-h">
-                            <SectionHead id="pd-trend-h" title="Received and resolved" sub="All active clients · weekly, by week ending"
+                            <SectionHead id="pd-trend-h" title="Received and resolved" sub={`All active clients · by ${bucketName(bucketDays)}, ${periodPhrase(period)}`}
                                 right={<Legend items={[{ label: 'Received', color: 'var(--s2)', line: true }, { label: 'Resolved', color: 'var(--s1)', line: true }]} />} />
-                            {weekly.length ? (
-                                <LineChart ariaLabel={`Portfolio grievances by week, last 8 weeks. ${weekly.map((w) => `week ending ${w.week_ending}: ${w.received} received, ${w.resolved} resolved`).join('; ')}`}
-                                    labels={weekly.map((w) => weekLabel(w.week_ending))} height={290}
-                                    series={[{ name: 'Received', values: weekly.map((w) => w.received), color: 'var(--s2)' },
-                                        { name: 'Resolved', values: weekly.map((w) => w.resolved), color: 'var(--s1)', width: 2.4 }]} />
-                            ) : <p className="muted" style={{ fontSize: 13 }}>No weekly figures yet.</p>}
-                            <p className="pd-note">Weeks end on the date shown. The gap between the lines is backlog added that week.</p>
+                            {trend.length ? (
+                                <LineChart ariaLabel={`Portfolio grievances by ${bucketName(bucketDays)}, ${periodPhrase(period)}. ${trend.map((w) => `${w.period_start} to ${w.period_end}: ${w.received} received, ${w.resolved} resolved`).join('; ')}`}
+                                    labels={trend.map((w) => bucketLabel(w, bucketDays))} height={290}
+                                    series={[{ name: 'Received', values: trend.map((w) => w.received), color: 'var(--s2)' },
+                                        { name: 'Resolved', values: trend.map((w) => w.resolved), color: 'var(--s1)', width: 2.4 }]} />
+                            ) : <p className="muted" style={{ fontSize: 13 }}>No figures for this period yet.</p>}
+                            <p className="pd-note">Each point covers one {bucketName(bucketDays)} and ends on the date shown. The gap between the lines is backlog added in that {bucketName(bucketDays)}.</p>
                         </section>
                         <section className="pd-panel pd-first" aria-labelledby="pd-att-h">
                             <div style={{ padding: '18px 20px 6px' }}><SectionHead id="pd-att-h" title="Needs attention" sub="Ranked by critical threads and resolution rate" /></div>
@@ -102,7 +103,7 @@ export default function PartnerDashboardPage() {
                         </section>
                     </div>
 
-                    <div className="pd-mt"><ClientTable clients={clients} days={days} compact onSeeAll="/partner/dashboard/clients" /></div>
+                    <div className="pd-mt"><ClientTable clients={clients} period={period} compact onSeeAll="/partner/dashboard/clients" /></div>
                 </>
             ))}
         </div>

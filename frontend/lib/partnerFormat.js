@@ -1,5 +1,78 @@
 export const PERIODS = [7, 30, 90];
 
+/*
+ * Reporting periods. A period is one of:
+ *   { kind: 'days', days: 30 }               last N days, ending now
+ *   { kind: 'all' }                          complete history
+ *   { kind: 'custom', from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' }   inclusive calendar dates
+ */
+export const DEFAULT_PERIOD = { kind: 'days', days: 30 };
+export const PERIOD_PRESETS = [
+    { key: 'd7', label: '7 days', period: { kind: 'days', days: 7 } },
+    { key: 'd30', label: '30 days', period: { kind: 'days', days: 30 } },
+    { key: 'd90', label: '90 days', period: { kind: 'days', days: 90 } },
+    { key: 'd365', label: '1 year', period: { kind: 'days', days: 365 } },
+    { key: 'all', label: 'All time', period: { kind: 'all' } },
+];
+
+/** Accepts a period object or a bare number of days (older callers). */
+export function toPeriod(value) {
+    if (typeof value === 'number') return { kind: 'days', days: value };
+    return value && value.kind ? value : DEFAULT_PERIOD;
+}
+
+export function periodKey(value) {
+    const p = toPeriod(value);
+    if (p.kind === 'all') return 'all';
+    if (p.kind === 'custom') return `${p.from}_${p.to}`;
+    return `d${p.days}`;
+}
+
+/** Query string for the partner API: days=N | range=all | from=…&to=… */
+export function periodQuery(value) {
+    const p = toPeriod(value);
+    if (p.kind === 'all') return 'range=all';
+    if (p.kind === 'custom') return `from=${encodeURIComponent(p.from)}&to=${encodeURIComponent(p.to)}`;
+    return `days=${encodeURIComponent(p.days)}`;
+}
+
+const DATE_FMT = { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' };
+export function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(`${iso}T00:00:00Z`);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', DATE_FMT);
+}
+
+/** Lower-case phrase for sentences: "the last 30 days", "all time", "1 Jan 2026 – 24 Nov 2026". */
+export function periodPhrase(value) {
+    const p = toPeriod(value);
+    if (p.kind === 'all') return 'all time';
+    if (p.kind === 'custom') return `${fmtDate(p.from)} – ${fmtDate(p.to)}`;
+    if (p.days === 365) return 'the last 12 months';
+    return `the last ${p.days} days`;
+}
+
+/** Title-case label for eyebrows and headings. */
+export function periodLabel(value) {
+    const p = toPeriod(value);
+    if (p.kind === 'all') return 'All time';
+    if (p.kind === 'custom') return `${fmtDate(p.from)} – ${fmtDate(p.to)}`;
+    return p.days === 365 ? 'Last 12 months' : `Last ${p.days} days`;
+}
+
+/** What the server actually covered, e.g. all time starts at the first case: "All time (since 3 May 2025)". */
+export function windowLabel(win, fallback) {
+    if (!win) return periodLabel(fallback);
+    if (win.kind === 'all') return win.from ? `All time (since ${fmtDate(win.from)})` : 'All time';
+    if (win.kind === 'custom') return `${fmtDate(win.from)} – ${fmtDate(win.to)}`;
+    return periodLabel({ kind: 'days', days: win.days });
+}
+
+const BUCKET_NAMES = { 1: 'day', 7: 'week', 14: 'fortnight', 30: 'month', 91: 'quarter', 182: 'half-year', 365: 'year' };
+export function bucketName(days) {
+    return BUCKET_NAMES[days] || `${days} days`;
+}
+
 export function fmtPct(value) {
     return value === null || value === undefined ? '—' : `${Math.round(value * 100)}%`;
 }

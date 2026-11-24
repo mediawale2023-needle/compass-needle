@@ -1,5 +1,5 @@
 import { buildPartnerTheme, contrast, DEFAULT_BRAND_COLOR, initials } from '@/lib/partnerTheme';
-import { clientHealth } from '@/lib/partnerFormat';
+import { bucketName, clientHealth, periodKey, periodLabel, periodQuery, toPeriod, windowLabel } from '@/lib/partnerFormat';
 
 describe('partner theme engine', () => {
     it('keeps white button text and the brand as link colour for a dark brand', () => {
@@ -44,5 +44,24 @@ describe('client health', () => {
     it('treats paused or summary-less clients as paused', () => {
         expect(clientHealth(c(null, 'paused')).level).toBe('paused');
         expect(clientHealth(c({ total: 1 }, 'paused')).level).toBe('paused');
+    });
+});
+
+describe('reporting periods', () => {
+    it('builds the partner API query for each kind of period', () => {
+        expect(periodQuery({ kind: 'days', days: 90 })).toBe('days=90');
+        expect(periodQuery(365)).toBe('days=365');
+        expect(periodQuery({ kind: 'all' })).toBe('range=all');
+        expect(periodQuery({ kind: 'custom', from: '2025-01-01', to: '2025-03-31' })).toBe('from=2025-01-01&to=2025-03-31');
+        expect(periodQuery(undefined)).toBe('days=30');
+    });
+    it('gives stable keys and readable labels', () => {
+        expect(periodKey({ kind: 'days', days: 7 })).toBe('d7');
+        expect(periodKey(toPeriod(7))).toBe('d7');
+        expect(periodLabel({ kind: 'all' })).toBe('All time');
+        expect(periodLabel({ kind: 'days', days: 365 })).toBe('Last 12 months');
+        expect(periodLabel({ kind: 'custom', from: '2025-01-01', to: '2025-03-31' })).toBe('1 Jan 2025 – 31 Mar 2025');
+        expect(windowLabel({ kind: 'all', from: '2024-05-03' })).toBe('All time (since 3 May 2024)');
+        expect(bucketName(30)).toBe('month');
     });
 });

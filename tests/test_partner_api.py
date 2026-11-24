@@ -390,7 +390,8 @@ def test_summary_numbers_scope_to_tenant_and_exclude_deleted():
     assert resp.status_code == 200, resp.text
     s = resp.json()["summary"]
     assert (s["total"], s["resolved"], s["open"], s["critical"], s["resolution_rate"], s["avg_resolution_days"]) == (4, 2, 2, 1, 0.5, 2.0)
-    assert {c["name"] for c in s["top_categories"]} == {"Water", "Roads"} and len(s["weekly"]) == 8
+    assert {c["name"] for c in s["top_categories"]} == {"Water", "Roads"}
+    assert s["bucket_days"] == 7 and len(s["trend"]) == 5 and sum(b["received"] for b in s["trend"]) == 4
     assert PHONE not in resp.text and "Ramesh" not in resp.text
 
 
@@ -905,7 +906,7 @@ def test_deactivating_a_partner_keeps_attribution_history_and_billing_records():
     assert listed["clients_active"] == 2 and listed["is_active"] is False                 # still visible to staff for billing review
 
 
-def test_portfolio_weekly_series_sums_client_weekly_counts_and_skips_paused_clients():
+def test_portfolio_trend_sums_client_trends_and_skips_paused_clients():
     _seed_database()
     admin = _admin_headers()
     pid = _create_partner(admin)
@@ -914,18 +915,139 @@ def test_portfolio_weekly_series_sums_client_weekly_counts_and_skips_paused_clie
     seat_b = _attach(admin, pid, 3)
     view = _portfolio(headers)
     by_id = {c["id"]: c for c in view["clients"]}
-    weeks = view["portfolio"]["weekly"]
-    assert len(weeks) == 8 and [w["week_ending"] for w in weeks] == sorted(w["week_ending"] for w in weeks)
-    for i, w in enumerate(weeks):
-        assert set(w) == {"week_ending", "received", "resolved"}                          # aggregate counts only
-        parts = [by_id[s]["summary"]["weekly"][i] for s in (seat_a, seat_b)]
-        assert all(p["week_ending"] == w["week_ending"] for p in parts)
-        assert w["received"] == sum(p["received"] for p in parts) and w["resolved"] == sum(p["resolved"] for p in parts)
+    buckets = view["portfolio"]["trend"]
+    assert len(buckets) == 5 and [b["period_end"] for b in buckets] == sorted(b["period_end"] for b in buckets)
+    for i, b in enumerate(buckets):
+        assert set(b) == {"period_start", "period_end", "received", "resolved"}            # aggregate counts only
+        parts = [by_id[s]["summary"]["trend"][i] for s in (seat_a, seat_b)]
+        assert all(p["period_end"] == b["period_end"] for p in parts)
+        assert b["received"] == sum(p["received"] for p in parts) and b["resolved"] == sum(p["resolved"] for p in parts)
 
     assert client.post(f"/api/admin/partners/{pid}/seats/{seat_b}/status", json={"status": "paused"}, headers=admin).status_code == 200
     paused_view = _portfolio(headers)
-    only_a = {c["id"]: c for c in paused_view["clients"]}[seat_a]["summary"]["weekly"]
-    assert [w["received"] for w in paused_view["portfolio"]["weekly"]] == [w["received"] for w in only_a]
+    only_a = {c["id"]: c for c in paused_view["clients"]}[seat_a]["summary"]["trend"]
+    assert [b["received"] for b in paused_view["portfolio"]["trend"]] == [b["received"] for b in only_a]
+
+
+# ───────────────────────── historical data / date windows ─────────────────────────
+def _add_history():
+    """Tenant 2 gains older cases, a deleted old case and a synthetic test case; tenant 3 gains an old case."""
+    now = datetime.utcnow()
+    rows = [
+        (101, 2, "resolved", 200, 0, 0, "Health", now - timedelta(days=200) + timedelta(days=10), "{}"),
+        (102, 2, "new", 400, 1, 0, "Land", None, "{}"),
+        (103, 2, "new", 300, 0, 1, "Water", None, "{}"),                       # deleted: never counted
+        (104, 2, "new", 1, 0, 0, "Water", None, '{"synthetic_test_data": true}'),  # synthetic: never counted
+        (105, 3, "new", 500, 0, 0, "Roads", None, "{}"),                        # other tenant
+    ]
+    with test_engine.begin() as conn:
+        for cid, t, st, ago, crit, dele, cat, res, meta in rows:
+            conn.execute(text(
+                "INSERT INTO cases (id, tenant_id, user_phone, raw_message, category, status, ward, is_critical, "
+                "is_deleted, created_at, resolved_at, case_metadata) VALUES (:id, :t, :ph, :msg, :cat, :st, 'Ward 9', "
+                ":crit, :del, :cr, :rs, :meta)"),
+                {"id": cid, "t": t, "ph": PHONE, "msg": RAW_MESSAGE, "cat": cat, "st": st, "crit": crit, "del": dele,
+                 "cr": now - timedelta(days=ago), "rs": res, "meta": meta})
+
+
+def _summary(headers, seat_id, query):
+    resp = client.get(f"/api/partner/clients/{seat_id}/summary?{query}", headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["summary"]
+
+
+def test_all_time_includes_records_older_than_90_days_exactly_once():
+    _seed_database()
+    _add_history()
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    seat_id = _attach(admin, pid, 2)
+
+    recent = _summary(headers, seat_id, "days=90")
+    assert recent["total"] == 5  # cases 1-4 and 6; synthetic 104 and deleted 5 excluded
+    everything = _summary(headers, seat_id, "range=all")
+    # + case 101 (200 days) and 102 (400 days); deleted 103, synthetic 104 and tenant 3's 105 never counted
+    assert (everything["total"], everything["resolved"], everything["critical"]) == (7, 3, 2)
+    assert everything["window"]["kind"] == "all" and everything["window"]["from"] == (
+        (datetime.utcnow() - timedelta(days=400)).date().isoformat())
+    assert sum(b["received"] for b in everything["trend"]) == 7                       # no bucket double-counts
+    assert sum(b["resolved"] for b in everything["trend"]) == 3
+    assert len(everything["trend"]) <= 14 and everything["bucket_days"] == 30
+    assert {c["name"] for c in everything["top_categories"]} == {"Water", "Roads", "Health", "Land"}
+    assert everything["avg_resolution_days"] == round((1 + 3 + 10) / 3, 1)
+
+
+def test_long_day_windows_and_custom_ranges_count_the_right_records():
+    _seed_database()
+    _add_history()
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    seat_id = _attach(admin, pid, 2)
+
+    assert _summary(headers, seat_id, "days=365")["total"] == 6                          # adds case 101 only
+    today = datetime.utcnow().date()
+    older = _summary(headers, seat_id, f"from={(today - timedelta(days=450)).isoformat()}&to={(today - timedelta(days=100)).isoformat()}")
+    assert (older["total"], older["resolved"]) == (2, 1)                                  # 101 and 102 only
+    assert older["window"] == {"kind": "custom", "from": (today - timedelta(days=450)).isoformat(),
+                               "to": (today - timedelta(days=100)).isoformat(), "days": 351}
+    empty = _summary(headers, seat_id, f"from={(today - timedelta(days=150)).isoformat()}&to={(today - timedelta(days=120)).isoformat()}")
+    assert (empty["total"], empty["resolution_rate"], empty["avg_resolution_days"], empty["top_categories"]) == (0, None, None, [])
+    assert all(b["received"] == 0 for b in empty["trend"])
+    single_day = _summary(headers, seat_id, f"from={(today - timedelta(days=2)).isoformat()}&to={(today - timedelta(days=2)).isoformat()}")
+    assert single_day["total"] == 1 and single_day["bucket_days"] == 1
+
+
+def test_portfolio_all_time_shares_one_window_across_clients():
+    _seed_database()
+    _add_history()
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    seat_a = _attach(admin, pid, 2)
+    seat_b = _attach(admin, pid, 3)
+    resp = client.get("/api/partner/clients?range=all", headers=headers)
+    assert resp.status_code == 200, resp.text
+    view = resp.json()
+    # all time starts at the earliest case across this partner's clients (tenant 3's 500-day-old case)
+    assert view["window"]["from"] == (datetime.utcnow() - timedelta(days=500)).date().isoformat()
+    by_id = {c["id"]: c for c in view["clients"]}
+    assert by_id[seat_a]["summary"]["total"] == 7 and by_id[seat_b]["summary"]["total"] == 3
+    assert view["portfolio"]["total"] == 10 == sum(b["received"] for b in view["portfolio"]["trend"])
+    assert view["portfolio"]["bucket_days"] == 91  # 500 days of history -> quarters, <= 14 points
+    assert len(by_id[seat_a]["summary"]["trend"]) == len(by_id[seat_b]["summary"]["trend"]) == len(view["portfolio"]["trend"])
+
+
+def test_window_parameters_are_validated():
+    _seed_database()
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    seat_id = _attach(admin, pid, 2)
+    base = f"/api/partner/clients/{seat_id}/summary"
+    for bad in ("days=0", "days=3651", "range=forever", "range=all&days=30", "from=2026-01-10",
+                "from=2026-02-01&to=2026-01-01", "from=2010-01-01&to=2026-01-01", "days=30&from=2026-01-01&to=2026-01-02",
+                "from=not-a-date&to=2026-01-02"):
+        assert client.get(f"{base}?{bad}", headers=headers).status_code == 422, bad
+    assert client.get(base, headers=headers).json()["summary"]["window"]["days"] == 30          # default unchanged
+
+
+def test_historical_windows_keep_tenant_isolation():
+    _seed_database()
+    _add_history()
+    admin = _admin_headers()
+    pid_a = _create_partner(admin, "Partner A")
+    pid_b = _create_partner(admin, "Partner B")
+    a = _partner_session(admin, pid_a, "a@a.in")
+    b = _partner_session(admin, pid_b, "b@b.in")
+    seat_a = _attach(admin, pid_a, 2)
+    for q in ("range=all", "days=3650", "from=2005-01-01&to=2009-12-31"):
+        assert client.get(f"/api/partner/clients/{seat_a}/summary?{q}", headers=b).status_code == 404, q
+        assert client.get(f"/api/partner/clients/{seat_a}/report?{q}", headers=b).status_code == 404, q
+    assert client.get("/api/partner/clients?range=all", headers=b).json()["clients"] == []
+    report = client.get(f"/api/partner/clients/{seat_a}/report?range=all", headers=a)
+    assert report.status_code == 200 and "All time" in report.text and PHONE not in report.text and RAW_MESSAGE not in report.text
 
 
 def test_partner_payloads_never_contain_citizen_level_data():

@@ -2,23 +2,25 @@
 
 import { useEffect, useState } from 'react';
 import { partnerClientReport } from '@/lib/partnerApi';
+import { periodKey, windowLabel } from '@/lib/partnerFormat';
 import { BrandMark } from './PartnerShell';
 import { Icon, SectionHead } from './ui';
 
 /** Branded client report: generate, preview in a fully sandboxed frame, print to PDF or download. */
-export default function ReportPanel({ seatId, days, clientLabel, partner }) {
+export default function ReportPanel({ seatId, period, summaryWindow, clientLabel, partner }) {
     const [html, setHtml] = useState(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
 
     // A report for another period or client is stale; drop it rather than show mismatched numbers.
-    useEffect(() => { setHtml(null); setError(''); }, [seatId, days]);
+    const key = periodKey(period);
+    useEffect(() => { setHtml(null); setError(''); }, [seatId, key]);
 
     async function generate() {
         setBusy(true);
         setError('');
         try {
-            setHtml(await partnerClientReport(seatId, days));
+            setHtml(await partnerClientReport(seatId, period));
         } catch (err) {
             setError(err.message || 'The report could not be generated.');
         } finally {
@@ -36,7 +38,7 @@ export default function ReportPanel({ seatId, days, clientLabel, partner }) {
         const url = blobUrl();
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${String(clientLabel).replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'client'}-report-${days}d.html`;
+        a.download = `${String(clientLabel).replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'client'}-report-${key}.html`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -46,7 +48,7 @@ export default function ReportPanel({ seatId, days, clientLabel, partner }) {
     return (
         <section className="pd-panel pd-pad" aria-labelledby="pd-rep-h">
             <SectionHead id="pd-rep-h" title="Client report"
-                sub={`Branded as ${partner?.brand_name || 'your organisation'} · last ${days} days · aggregate figures only, no citizen details`} />
+                sub={`Branded as ${partner?.brand_name || 'your organisation'} · ${windowLabel(summaryWindow, period)} · aggregate figures only, no citizen details`} />
             <div className="pd-rep">
                 <div className="pd-sheet" aria-hidden="true">
                     <div className="band" />
@@ -60,7 +62,7 @@ export default function ReportPanel({ seatId, days, clientLabel, partner }) {
                     <p style={{ margin: '0 0 6px', fontWeight: 600 }}>What the report contains</p>
                     <ul className="muted" style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.8 }}>
                         <li>Headline figures: received, resolved, still open, critical, time to resolve</li>
-                        <li>Weekly volume for the last 8 weeks</li>
+                        <li>Volume over the chosen period</li>
                         <li>Top issue categories and where complaints come from</li>
                     </ul>
                     <div style={{ display: 'flex', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>

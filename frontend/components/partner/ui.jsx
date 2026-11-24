@@ -1,7 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
-import { PERIODS } from '@/lib/partnerFormat';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { PERIOD_PRESETS, fmtDate, periodKey, toPeriod } from '@/lib/partnerFormat';
 
 /* ─────────── Icons (stroke, 20-unit grid) ─────────── */
 const PATHS = {
@@ -57,12 +57,62 @@ export function Badge({ tone = 'neutral', children }) {
     return <span className={`pd-badge pd-b-${tone}`}>{children}</span>;
 }
 
-export function PeriodSelect({ days, onChange }) {
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+/** Presets (7 / 30 / 90 days, 1 year, All time) plus a custom inclusive date range. */
+export function PeriodSelect({ period, onChange, days }) {
+    const current = toPeriod(period ?? days);
+    const key = periodKey(current);
+    const [open, setOpen] = useState(false);
+    const [from, setFrom] = useState(current.kind === 'custom' ? current.from : '');
+    const [to, setTo] = useState(current.kind === 'custom' ? current.to : todayIso());
+    const [error, setError] = useState('');
+    const ref = useRef(null);
+
+    useEffect(() => {
+        if (!open) return undefined;
+        const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        const esc = (e) => { if (e.key === 'Escape') setOpen(false); };
+        document.addEventListener('mousedown', close);
+        document.addEventListener('keydown', esc);
+        return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); };
+    }, [open]);
+
+    function apply(e) {
+        e.preventDefault();
+        if (!from || !to) return setError('Choose both dates.');
+        if (from > to) return setError('The start date must be on or before the end date.');
+        if (to > todayIso()) return setError('The end date cannot be in the future.');
+        setError('');
+        setOpen(false);
+        onChange({ kind: 'custom', from, to });
+    }
+
     return (
-        <div role="group" aria-label="Reporting period" className="pd-seg">
-            {PERIODS.map((p) => (
-                <button key={p} type="button" aria-pressed={days === p} onClick={() => onChange(p)}>{p} days</button>
-            ))}
+        <div className="pd-dd" ref={ref} style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div role="group" aria-label="Reporting period" className="pd-seg">
+                {PERIOD_PRESETS.map((p) => (
+                    <button key={p.key} type="button" aria-pressed={key === periodKey(p.period)} onClick={() => onChange(p.period)}>{p.label}</button>
+                ))}
+                <button type="button" aria-pressed={current.kind === 'custom'} aria-expanded={open} aria-haspopup="dialog"
+                    onClick={() => setOpen((o) => !o)}>
+                    {current.kind === 'custom' ? `${fmtDate(current.from)} – ${fmtDate(current.to)}` : 'Custom'}
+                </button>
+            </div>
+            {open ? (
+                <form className="pd-pop" role="dialog" aria-label="Custom date range" onSubmit={apply} style={{ padding: 14, width: 280 }}>
+                    <div style={{ display: 'grid', gap: 10 }}>
+                        <label className="pd-label" style={{ margin: 0 }}>From
+                            <input className="pd-input" type="date" value={from} max={to || todayIso()} onChange={(e) => setFrom(e.target.value)} style={{ marginTop: 4 }} />
+                        </label>
+                        <label className="pd-label" style={{ margin: 0 }}>To
+                            <input className="pd-input" type="date" value={to} min={from || undefined} max={todayIso()} onChange={(e) => setTo(e.target.value)} style={{ marginTop: 4 }} />
+                        </label>
+                        {error ? <div role="alert" className="pd-csub" style={{ color: 'var(--crit)' }}>{error}</div> : null}
+                        <button type="submit" className="pd-btn primary" style={{ justifyContent: 'center' }}>Apply range</button>
+                    </div>
+                </form>
+            ) : null}
         </div>
     );
 }

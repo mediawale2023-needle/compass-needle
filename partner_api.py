@@ -10,7 +10,7 @@ see modules/partners.py). Admin routes reuse the existing admin auth.
 """
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import bcrypt
 import jwt
@@ -32,6 +32,7 @@ from modules.partners import (
     AttributionError, PORTFOLIO_STATUSES, PartnerOrg, PartnerSeat, PartnerUser,
     billing_summary, clean_color, clean_logo_url, get_tenant_attribution, link_legacy_request,
     list_attribution_events, make_slug, partner_jwt_key, reassign_tenant, render_client_report, tenant_summary,
+    MAX_WINDOW_DAYS, ReportWindow, WindowError, bucket_days_for, first_case_at, resolve_window,
 )
 
 try:
@@ -214,8 +215,21 @@ def _owned_seat(db, partner_id: int, seat_id: int, require_active: bool = True) 
     return seat
 
 
+def report_window(
+    days: int | None = Query(None, ge=1, le=MAX_WINDOW_DAYS, description="Last N days, ending now"),
+    range_: str | None = Query(None, alias="range", pattern="^all$", description="'all' = complete history"),
+    from_: date | None = Query(None, alias="from", description="Custom range start (inclusive, YYYY-MM-DD)"),
+    to: date | None = Query(None, description="Custom range end (inclusive, YYYY-MM-DD)"),
+) -> ReportWindow:
+    """The period a partner metric covers. Defaults to the last 30 days; never unbounded rows (SQL aggregates)."""
+    try:
+        return resolve_window(days=days, range_=range_, from_=from_, to=to)
+    except WindowError as exc:
+        raise HTTPException(422, str(exc))
+
+
 @router.get("/clients")
-def partner_clients(days: int = Query(30, ge=7, le=90), me: dict = Depends(get_partner_user)):
+def partner_clients(window: ReportWindow = Depends(report_window), me: dict = Depends(get_partner_user)):
     db = dbmod.SessionLocal()
     try:
         # Portfolio = active + paused attributed clients only. Legacy requested/rejected rows
@@ -223,37 +237,44 @@ def partner_clients(days: int = Query(30, ge=7, le=90), me: dict = Depends(get_p
         seats = (db.query(PartnerSeat)
                  .filter(PartnerSeat.partner_id == me["partner_id"], PartnerSeat.status.in_(PORTFOLIO_STATUSES))
                  .order_by(PartnerSeat.id).all())
+        live = [s for s in seats if s.status == "active" and s.tenant_id]
+        # One shared window (all time = from the earliest case across this partner's clients) so every
+        # client's trend uses identical buckets and the portfolio trend is a straight sum.
+        if window.start is None:
+            window = window.bounded(first_case_at([s.tenant_id for s in live]))
         clients, totals = [], {k: 0 for k in ("total", "resolved", "open", "critical")}
-        weekly: dict[str, dict] = {}  # week_ending -> portfolio received/resolved (aggregate counts only)
+        trend: list[dict] | None = None
         for seat in seats:
             item = _seat_dict(seat)
             item["summary"] = None
-            if seat.status == "active" and seat.tenant_id:
-                full = tenant_summary(seat.tenant_id, days)
+            if seat in live:
+                full = tenant_summary(seat.tenant_id, window)
                 item["summary"] = {k: full[k] for k in _HEADLINE_KEYS}
-                item["summary"]["weekly"] = full["weekly"]
+                item["summary"]["trend"] = full["trend"]
                 for k in totals:
                     totals[k] += full[k]
-                for w in full["weekly"]:
-                    agg = weekly.setdefault(w["week_ending"], {"week_ending": w["week_ending"], "received": 0, "resolved": 0})
-                    agg["received"] += w["received"]
-                    agg["resolved"] += w["resolved"]
+                if trend is None:
+                    trend = [{**b, "received": 0, "resolved": 0} for b in full["trend"]]
+                for agg, b in zip(trend, full["trend"]):
+                    agg["received"] += b["received"]
+                    agg["resolved"] += b["resolved"]
             clients.append(item)
-        totals["weekly"] = [weekly[k] for k in sorted(weekly)]
+        totals["trend"] = trend or []
+        totals["bucket_days"] = bucket_days_for(window.span_days)
         return {
-            "days": days, "active_clients": sum(1 for s in seats if s.status == "active"),
-            "portfolio": totals, "clients": clients,
+            "window": window.describe(), "days": window.describe()["days"],
+            "active_clients": len(live), "portfolio": totals, "clients": clients,
         }
     finally:
         db.close()
 
 
 @router.get("/clients/{seat_id}/summary")
-def partner_client_summary(seat_id: int, days: int = Query(30, ge=7, le=90), me: dict = Depends(get_partner_user)):
+def partner_client_summary(seat_id: int, window: ReportWindow = Depends(report_window), me: dict = Depends(get_partner_user)):
     db = dbmod.SessionLocal()
     try:
         seat = _owned_seat(db, me["partner_id"], seat_id)
-        return {"client": _seat_dict(seat), "summary": tenant_summary(seat.tenant_id, days)}
+        return {"client": _seat_dict(seat), "summary": tenant_summary(seat.tenant_id, window)}
     finally:
         db.close()
 
@@ -284,13 +305,13 @@ def partner_client_dashboard_overview(seat_id: int, me: dict = Depends(get_partn
 
 
 @router.get("/clients/{seat_id}/report", response_class=HTMLResponse)
-def partner_client_report(seat_id: int, days: int = Query(30, ge=7, le=90), me: dict = Depends(get_partner_user)):
+def partner_client_report(seat_id: int, window: ReportWindow = Depends(report_window), me: dict = Depends(get_partner_user)):
     db = dbmod.SessionLocal()
     try:
         seat = _owned_seat(db, me["partner_id"], seat_id)
         partner = db.query(PartnerOrg).filter(PartnerOrg.id == me["partner_id"]).first()
         html_doc = render_client_report(
-            _brand_dict(partner), _seat_dict(seat), tenant_summary(seat.tenant_id, days)
+            _brand_dict(partner), _seat_dict(seat), tenant_summary(seat.tenant_id, window)
         )
         return HTMLResponse(html_doc, headers={"Cache-Control": "no-store"})
     finally:
