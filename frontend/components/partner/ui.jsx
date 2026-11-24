@@ -20,6 +20,7 @@ const PATHS = {
     clock: <><circle cx="10" cy="10" r="7.5" /><path d="M10 6v4l2.5 2" /></>,
     retry: <path d="M15.5 8A6 6 0 1 0 16 12M16 4v4h-4" />,
     alert: <><circle cx="10" cy="10" r="7.5" /><path d="M10 6v4.5M10 13.5v.1" /></>,
+    copy: <><rect x="6" y="6" width="10" height="11" rx="1.5" /><path d="M4 13V4.5A1.5 1.5 0 0 1 5.5 3H12" /></>,
 };
 export function Icon({ name, size = 18 }) {
     return (

@@ -124,3 +124,6 @@ export const partnerClientReport = (seatId, period = 30) =>
 // The first overview request after a backend restart builds the geography index (~15s), so allow longer.
 export const partnerClientOverview = (seatId) =>
     request(`/api/partner/clients/${encodeURIComponent(seatId)}/dashboard/overview`, { timeout: 60000 });
+// Consultant briefing: momentum, issues, locality hotspots, delivery funnel and wins (counts only).
+export const partnerClientBriefing = (seatId, period = 30) =>
+    request(`/api/partner/clients/${encodeURIComponent(seatId)}/briefing?${periodQuery(period)}`, { timeout: 30000 });

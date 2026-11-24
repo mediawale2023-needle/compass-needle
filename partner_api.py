@@ -31,7 +31,7 @@ from modules.dashboard_overview import build_partner_overview
 from modules.partners import (
     AttributionError, PORTFOLIO_STATUSES, PartnerOrg, PartnerSeat, PartnerUser,
     billing_summary, clean_color, clean_logo_url, get_tenant_attribution, link_legacy_request,
-    list_attribution_events, make_slug, partner_jwt_key, reassign_tenant, render_client_report, tenant_summary,
+    list_attribution_events, make_slug, partner_jwt_key, reassign_tenant, render_client_report, tenant_summary, client_briefing,
     MAX_WINDOW_DAYS, ReportWindow, WindowError, bucket_days_for, first_case_at, resolve_window,
 )
 
@@ -277,6 +277,24 @@ def partner_client_summary(seat_id: int, window: ReportWindow = Depends(report_w
         return {"client": _seat_dict(seat), "summary": tenant_summary(seat.tenant_id, window)}
     finally:
         db.close()
+
+
+@router.get("/clients/{seat_id}/briefing")
+def partner_client_briefing(seat_id: int, window: ReportWindow = Depends(report_window), me: dict = Depends(get_partner_user)):
+    """Consultant briefing for one client: counts only, tenant taken solely from the partner's own seat."""
+    db = dbmod.SessionLocal()
+    try:
+        seat = _owned_seat(db, me["partner_id"], seat_id)
+        tenant_id = seat.tenant_id
+        client = _seat_dict(seat)
+    finally:
+        db.close()
+    try:
+        briefing = client_briefing(tenant_id, window)
+    except Exception:
+        logger.exception("partner briefing failed seat=%s tenant=%s", seat_id, tenant_id)
+        raise HTTPException(status_code=500, detail="The briefing could not be built. Please try again shortly.")
+    return {"client": client, "briefing": briefing}
 
 
 @router.get("/clients/{seat_id}/dashboard/overview")

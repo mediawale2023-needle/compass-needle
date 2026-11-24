@@ -262,12 +262,37 @@ def _dialect() -> str:
     return dbh.engine.dialect.name
 
 
-def _case_scope_sql() -> str:
+# Statuses that are not grievances (spam, abuse, comments on another case, intake buffers). They are
+# never counted as complaints in partner views.
+NON_GRIEVANCE_STATUSES = ("irrelevant", "offensive", "case_comment", "contact_buffered")
+_NOT_NOISE_SQL = "LOWER(COALESCE(c.status, '')) NOT IN (" + ", ".join(f"'{s}'" for s in NON_GRIEVANCE_STATUSES) + ")"
+
+
+def _case_scope_sql(start_param: str = "start", end_param: str = "end") -> str:
     # Aggregate-safe columns only are ever read below: no phone, no message text.
     return (
         "FROM cases c WHERE c.tenant_id = :tid AND COALESCE(c.is_deleted, FALSE) = FALSE "
-        f"AND {sql_is_live('c')} AND c.created_at >= :start AND c.created_at < :end"
+        f"AND {sql_is_live('c')} AND {_NOT_NOISE_SQL} "
+        f"AND c.created_at >= :{start_param} AND c.created_at < :{end_param}"
     )
+
+
+def _bucket_sql() -> str:
+    """Bucket index of a case, counted back from :end in steps of :bucket days (0 = the latest bucket)."""
+    if _dialect() == "postgresql":
+        return "CAST(FLOOR((EXTRACT(EPOCH FROM (CAST(:end AS timestamp) - c.created_at)) / 86400.0) / :bucket) AS INTEGER)"
+    return "CAST((julianday(:end) - julianday(c.created_at)) / :bucket AS INTEGER)"
+
+
+def _bucket_bounds(window: "ReportWindow", bucket: int) -> list[tuple[datetime, datetime]]:
+    """[(start, end)] oldest first, bucket 0 ending at window.end."""
+    n = max(1, math.ceil(window.span_days / bucket))
+    out = []
+    for i in range(n - 1, -1, -1):
+        b_end = window.end - timedelta(days=bucket * i)
+        b_start = max(b_end - timedelta(days=bucket), window.start) if window.start else b_end - timedelta(days=bucket)
+        out.append((b_start, b_end))
+    return out
 
 
 def first_case_at(tenant_ids: list[int]) -> datetime | None:
@@ -298,11 +323,9 @@ def tenant_summary(tenant_id: int, window: "ReportWindow | int" = 30, now: datet
     resolved_sql = "LOWER(COALESCE(c.status, '')) IN ('resolved', 'completed')"
     if _dialect() == "postgresql":
         duration = "GREATEST(EXTRACT(EPOCH FROM (c.resolved_at - c.created_at)) / 86400.0, 0)"
-        age_days = "EXTRACT(EPOCH FROM (CAST(:end AS timestamp) - c.created_at)) / 86400.0"
-        bucket_expr = f"CAST(FLOOR(({age_days}) / :bucket) AS INTEGER)"
     else:  # SQLite (tests)
         duration = "MAX(julianday(c.resolved_at) - julianday(c.created_at), 0)"
-        bucket_expr = "CAST((julianday(:end) - julianday(c.created_at)) / :bucket AS INTEGER)"
+    bucket_expr = _bucket_sql()
 
     head = _q(
         f"SELECT COUNT(*) AS total, "
@@ -322,7 +345,6 @@ def tenant_summary(tenant_id: int, window: "ReportWindow | int" = 30, now: datet
     )
 
     bucket = bucket_days_for(window.span_days)
-    n_buckets = max(1, math.ceil(window.span_days / bucket))
     grouped = _q(
         f"SELECT {bucket_expr} AS b, COUNT(*) AS received, "
         f"COALESCE(SUM(CASE WHEN {resolved_sql} THEN 1 ELSE 0 END), 0) AS resolved {scope} GROUP BY 1",
@@ -330,10 +352,9 @@ def tenant_summary(tenant_id: int, window: "ReportWindow | int" = 30, now: datet
     )
     by_index = {int(r["b"]): r for r in grouped if r["b"] is not None}
     trend = []
-    for i in range(n_buckets - 1, -1, -1):  # oldest first; bucket 0 ends at window.end
-        b_end = window.end - timedelta(days=bucket * i)
-        b_start = max(b_end - timedelta(days=bucket), window.start) if window.start else b_end - timedelta(days=bucket)
-        r = by_index.get(i, {})
+    bounds = _bucket_bounds(window, bucket)
+    for pos, (b_start, b_end) in enumerate(bounds):  # oldest first; bucket 0 ends at window.end
+        r = by_index.get(len(bounds) - 1 - pos, {})
         trend.append({
             "period_start": b_start.date().isoformat(),
             "period_end": (b_end - timedelta(microseconds=1)).date().isoformat(),
@@ -355,6 +376,193 @@ def tenant_summary(tenant_id: int, window: "ReportWindow | int" = 30, now: datet
         "top_categories": [{"name": r["name"], "count": int(r["count"])} for r in categories],
         "top_locations": [{"name": r["name"], "count": int(r["count"])} for r in places],
         "trend": trend,
+    }
+
+
+# ─────────────────────────────────────────
+# CLIENT BRIEFING (consultant view) — counts only
+# ─────────────────────────────────────────
+# Portal statuses that mean a grievance has been filed with government (mirrors modules.case_lifecycle).
+GOVT_FILED_STATUSES = ("submitted", "registered", "forwarded", "under_review", "escalated", "resolved", "rejected", "disposed")
+GOVT_RESOLVED_STATUSES = ("resolved", "disposed")
+# Office statuses that mean the office acted on (or closed) a grievance itself.
+OFFICE_ACTION_STATUSES = ("in_progress", "resolved", "completed", "closed")
+
+_FILED_SQL = (
+    "(NULLIF(TRIM(COALESCE(c.govt_reference_number, '')), '') IS NOT NULL "
+    "OR LOWER(COALESCE(c.govt_status, '')) IN (" + ", ".join(f"'{s}'" for s in GOVT_FILED_STATUSES) + "))"
+)
+_GOVT_RESOLVED_SQL = "LOWER(COALESCE(c.govt_status, '')) IN (" + ", ".join(f"'{s}'" for s in GOVT_RESOLVED_STATUSES) + ")"
+_OTHER_ACTION_SQL = (
+    f"(NOT {_FILED_SQL} AND LOWER(COALESCE(c.status, '')) IN ("
+    + ", ".join(f"'{s}'" for s in OFFICE_ACTION_STATUSES) + "))"
+)
+_READY_SQL = f"(NOT {_FILED_SQL} AND LOWER(COALESCE(c.govt_status, '')) = 'pending_staff_submit')"
+# The office's mapped locality (gazetteer match). Free-text addresses (c.location) are never read.
+_LOCALITY_SQL = "NULLIF(TRIM(CAST(c.case_metadata->>'matched_value' AS TEXT)), '')"
+_CATEGORY_SQL = "COALESCE(NULLIF(TRIM(c.category), ''), 'Uncategorised')"
+
+MAX_BRIEFING_ISSUES = 12
+MAX_HOTSPOT_COLUMNS = 4
+MAX_HOTSPOT_LOCALITIES = 500
+MAX_WINS = 5
+
+
+def _outcome_counts(p: dict, start_param: str, end_param: str) -> dict:
+    row = _q(
+        "SELECT COUNT(*) AS received, "
+        f"COALESCE(SUM(CASE WHEN {_FILED_SQL} THEN 1 ELSE 0 END), 0) AS filed, "
+        f"COALESCE(SUM(CASE WHEN {_FILED_SQL} AND {_GOVT_RESOLVED_SQL} THEN 1 ELSE 0 END), 0) AS gov_resolved, "
+        f"COALESCE(SUM(CASE WHEN {_OTHER_ACTION_SQL} THEN 1 ELSE 0 END), 0) AS other, "
+        f"COALESCE(SUM(CASE WHEN {_READY_SQL} THEN 1 ELSE 0 END), 0) AS ready, "
+        f"MIN(CASE WHEN {_READY_SQL} THEN COALESCE(c.govt_status_updated_at, c.created_at) END) AS oldest_ready "
+        f"{_case_scope_sql(start_param, end_param)}", p,
+    )[0]
+    received, filed, other = int(row["received"] or 0), int(row["filed"] or 0), int(row["other"] or 0)
+    return {
+        "received": received, "filed": filed, "resolved_by_government": int(row["gov_resolved"] or 0),
+        "other_actions": other, "pending": max(received - filed - other, 0),
+        "ready_to_file": int(row["ready"] or 0), "oldest_ready": _as_dt(row["oldest_ready"]),
+    }
+
+
+def client_briefing(tenant_id: int, window: "ReportWindow", now: datetime | None = None) -> dict:
+    """Consultant briefing for one tenant: momentum, issues, locality hotspots, delivery and wins.
+
+    Cohort semantics: every figure is about grievances RECEIVED in the window and where they stand now.
+    The comparison period is the same length immediately before the window (none for all time).
+    All queries are tenant-scoped GROUP BYs with bounded results; no case rows, text, phones or addresses.
+    """
+    now = now or datetime.utcnow()
+    window = window.bounded(first_case_at([tenant_id]) if window.start is None else None)
+    prev = None
+    if window.kind != "all":
+        span = window.end - window.start
+        prev = (window.start - span, window.start)
+    p = {"tid": int(tenant_id), "start": window.start, "end": window.end,
+         "pstart": prev[0] if prev else window.start, "pend": prev[1] if prev else window.start}
+    scope = _case_scope_sql()
+
+    cur = _outcome_counts(p, "start", "end")
+    before = _outcome_counts(p, "pstart", "pend") if prev else None
+
+    # Trend buckets for the momentum sparklines.
+    bucket = bucket_days_for(window.span_days)
+    bounds = _bucket_bounds(window, bucket)
+    nb = len(bounds)
+    bp = {**p, "bucket": bucket}
+    bexpr = _bucket_sql()
+    rows = _q(
+        f"SELECT {bexpr} AS b, COUNT(*) AS received, "
+        f"COALESCE(SUM(CASE WHEN {_FILED_SQL} THEN 1 ELSE 0 END), 0) AS filed, "
+        f"COALESCE(SUM(CASE WHEN {_FILED_SQL} AND {_GOVT_RESOLVED_SQL} THEN 1 ELSE 0 END), 0) AS gov_resolved, "
+        f"COALESCE(SUM(CASE WHEN {_OTHER_ACTION_SQL} THEN 1 ELSE 0 END), 0) AS other {scope} GROUP BY 1", bp,
+    )
+    series = {k: [0] * nb for k in ("received", "filed", "resolved_by_government", "other_actions", "pending")}
+    for r in rows:
+        if r["b"] is None:
+            continue
+        pos = nb - 1 - int(r["b"])
+        if not 0 <= pos < nb:
+            continue
+        rec, fil, oth = int(r["received"] or 0), int(r["filed"] or 0), int(r["other"] or 0)
+        series["received"][pos] = rec
+        series["filed"][pos] = fil
+        series["resolved_by_government"][pos] = int(r["gov_resolved"] or 0)
+        series["other_actions"][pos] = oth
+        series["pending"][pos] = max(rec - fil - oth, 0)
+
+    momentum = {
+        key: {"now": cur[key], "previous": before[key] if before else None, "trend": series[key]}
+        for key in ("received", "filed", "resolved_by_government", "other_actions", "pending")
+    }
+
+    # Issues: count now vs before, trend, and the localities driving each.
+    cat_rows = _q(
+        f"SELECT {_CATEGORY_SQL} AS name, "
+        "COALESCE(SUM(CASE WHEN c.created_at >= :start THEN 1 ELSE 0 END), 0) AS now_count, "
+        "COALESCE(SUM(CASE WHEN c.created_at < :start THEN 1 ELSE 0 END), 0) AS prev_count "
+        f"{_case_scope_sql('pstart', 'end')} GROUP BY 1", p,
+    )
+    cats = sorted(
+        ({"name": r["name"], "count": int(r["now_count"] or 0), "previous": int(r["prev_count"] or 0) if prev else None}
+         for r in cat_rows),
+        key=lambda c: (-c["count"], -(c["previous"] or 0), c["name"]),
+    )
+    cats = [c for c in cats if c["count"] or c["previous"]][:MAX_BRIEFING_ISSUES]
+    names = {c["name"] for c in cats}
+    trend_rows = _q(f"SELECT {_CATEGORY_SQL} AS name, {bexpr} AS b, COUNT(*) AS n {scope} GROUP BY 1, 2", bp)
+    cat_trend = {c["name"]: [0] * nb for c in cats}
+    for r in trend_rows:
+        if r["name"] in names and r["b"] is not None and 0 <= nb - 1 - int(r["b"]) < nb:
+            cat_trend[r["name"]][nb - 1 - int(r["b"])] = int(r["n"] or 0)
+
+    pair_rows = _q(
+        f"SELECT {_LOCALITY_SQL} AS loc, {_CATEGORY_SQL} AS name, COUNT(*) AS n, "
+        f"COALESCE(SUM(CASE WHEN {_FILED_SQL} AND {_GOVT_RESOLVED_SQL} THEN 1 ELSE 0 END), 0) AS won "
+        f"{scope} GROUP BY 1, 2", p,
+    )
+    by_loc: dict[str, dict[str, int]] = {}
+    cat_locs: dict[str, dict[str, int]] = {}
+    win_locs: dict[str, dict[str, int]] = {}
+    unmapped = 0
+    for r in pair_rows:
+        n, loc, name = int(r["n"] or 0), r["loc"], r["name"]
+        if not loc:
+            unmapped += n
+            continue
+        by_loc.setdefault(loc, {})[name] = by_loc.get(loc, {}).get(name, 0) + n
+        cat_locs.setdefault(name, {})[loc] = n
+        if int(r["won"] or 0):
+            win_locs.setdefault(name, {})[loc] = int(r["won"])
+
+    def _top(d: dict[str, int], k: int) -> list[dict]:
+        return [{"name": n, "count": c} for n, c in sorted(d.items(), key=lambda kv: (-kv[1], kv[0]))[:k]]
+
+    issues = [{**c, "trend": cat_trend.get(c["name"], [0] * nb), "top_localities": _top(cat_locs.get(c["name"], {}), 3)}
+              for c in cats]
+
+    columns = [c["name"] for c in cats if c["count"]][:MAX_HOTSPOT_COLUMNS]
+    loc_list = sorted(
+        ({"name": loc, "total": sum(v.values()), "counts": [v.get(col, 0) for col in columns]} for loc, v in by_loc.items()),
+        key=lambda x: (-x["total"], x["name"]),
+    )
+
+    # Wins: resolved by government, grouped by issue, with the localities they came from.
+    win_rows = _q(
+        f"SELECT {_CATEGORY_SQL} AS name, COUNT(*) AS n {scope} AND {_FILED_SQL} AND {_GOVT_RESOLVED_SQL} "
+        "GROUP BY 1 ORDER BY 2 DESC, 1", p,
+    )
+    wins = [{"name": r["name"], "count": int(r["n"] or 0), "localities": [x["name"] for x in _top(win_locs.get(r["name"], {}), 2)]}
+            for r in win_rows[:MAX_WINS]]
+
+    oldest = cur["oldest_ready"]
+    return {
+        "window": window.describe(),
+        "compare": ({"from": prev[0].date().isoformat(), "to": (prev[1] - timedelta(microseconds=1)).date().isoformat()}
+                    if prev else None),
+        "bucket_days": bucket,
+        "periods": [{"period_start": a.date().isoformat(), "period_end": (b - timedelta(microseconds=1)).date().isoformat()}
+                    for a, b in bounds],
+        "momentum": momentum,
+        "funnel": {
+            "received": cur["received"],
+            "action_taken": cur["filed"] + cur["other_actions"],
+            "filed": cur["filed"],
+            "resolved_by_government": cur["resolved_by_government"],
+            "pending": cur["pending"],
+            "ready_to_file": cur["ready_to_file"],
+            "oldest_ready_days": max(int((now - oldest).total_seconds() // 86400), 0) if oldest else None,
+        },
+        "issues": issues,
+        "hotspots": {
+            "columns": columns,
+            "localities": loc_list[:MAX_HOTSPOT_LOCALITIES],
+            "total_localities": len(loc_list),
+            "unmapped": unmapped,
+        },
+        "wins": wins,
+        "wins_total": cur["resolved_by_government"],
     }
 
 

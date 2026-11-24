@@ -10,7 +10,7 @@ const { replaceMock, pushMock, sessionState, apiMocks } = vi.hoisted(() => ({
         partnerClients: vi.fn(),
         partnerClientSummary: vi.fn(),
         partnerClientReport: vi.fn(),
-        partnerClientOverview: vi.fn(),
+        partnerClientBriefing: vi.fn(),
     },
 }));
 
@@ -47,29 +47,39 @@ const clientsPayload = (over = {}) => ({
     ...over,
 });
 
-const overviewPayload = (over = {}) => ({
+const trend = (n) => Array.from({ length: 5 }, (_, i) => (i === 4 ? n : 0));
+const briefingPayload = (over = {}) => ({
     client: { id: 7, client_label: 'Asha Patil' },
-    overview: {
-        mode: 'partner', seat: 'Belagavi', date_label: 'Today',
-        attention_counts: [
-            { key: 'needs_review', label: 'Needs review', value: 4, tone: 'red' },
-            { key: 'needs_location', label: 'Needs location', value: 2, tone: 'amber' },
-            { key: 'sync_issues', label: 'Sync issues', value: 1, tone: 'rust' },
-            { key: 'govt_updates', label: 'Govt updates', value: 3, tone: 'green' },
-            { key: 'ready_to_file', label: 'Ready to file', value: 6, tone: 'green' },
-        ],
-        government_tracking: {
-            ready: 6, submitted: 5, registered: 7, forwarded: 2, awaiting_action: 8, resolved: 11,
-            disposed: 1, rejected: 3, awaiting_verification: 9, sync_issues: 1,
+    briefing: {
+        window: { kind: 'days', from: '2026-10-25', to: '2026-11-24', days: 30 },
+        compare: { from: '2026-09-25', to: '2026-10-24' },
+        bucket_days: 7,
+        periods: Array.from({ length: 5 }, (_, i) => ({ period_start: `2026-10-${20 + i}`, period_end: `2026-10-${21 + i}` })),
+        momentum: {
+            received: { now: 146, previous: 124, trend: trend(146) },
+            filed: { now: 12, previous: 31, trend: trend(12) },
+            resolved_by_government: { now: 9, previous: 7, trend: trend(9) },
+            other_actions: { now: 38, previous: 35, trend: trend(38) },
+            pending: { now: 96, previous: 71, trend: trend(96) },
         },
-        constituency_pressure: [{ name: 'Bailhongal', count: 12 }],
-        issue_pressure: [{ title: 'Water supply', count: 14 }],
-        office_pending: [
-            { key: 'letters', label: 'New letters awaiting intake review', value: 5 },
-            { key: 'drafts', label: 'Drafts awaiting MP approval', value: 2 },
-            { key: 'unassigned', label: 'Cases needing an owner', value: 13 },
+        funnel: { received: 146, action_taken: 50, filed: 12, resolved_by_government: 9, pending: 96, ready_to_file: 9, oldest_ready_days: 16 },
+        issues: [
+            { name: 'Roads & bridges', count: 64, previous: 44, trend: trend(64), top_localities: [{ name: 'Shahpur', count: 19 }, { name: 'Tilakwadi', count: 14 }] },
+            { name: 'Water supply', count: 31, previous: 33, trend: trend(31), top_localities: [{ name: 'Tilakwadi', count: 9 }, { name: 'Camp', count: 7 }] },
+            { name: 'Drainage & sewage', count: 22, previous: 11, trend: trend(22), top_localities: [{ name: 'Shahpur', count: 9 }, { name: 'Anagol', count: 6 }] },
+            { name: 'Electricity', count: 14, previous: 16, trend: trend(14), top_localities: [{ name: 'Camp', count: 5 }] },
+            { name: 'Land & revenue', count: 6, previous: 9, trend: trend(6), top_localities: [] },
         ],
-        validation: { thread_count: 40, counts_only: true },
+        hotspots: {
+            columns: ['Roads & bridges', 'Water supply', 'Drainage & sewage', 'Electricity'],
+            localities: Array.from({ length: 9 }, (_, i) => ({
+                name: ['Shahpur', 'Tilakwadi', 'Anagol', 'Camp', 'Vadgaon', 'Hindwadi', 'Khasbag', 'Bhagya Nagar', 'Shastri Nagar'][i],
+                total: 30 - i * 3, counts: [10 - i, 8 - i, 6 - Math.min(i, 6), 6 - Math.min(i, 6)],
+            })),
+            total_localities: 9, unmapped: 4,
+        },
+        wins: [{ name: 'Water supply', count: 5, localities: ['Tilakwadi', 'Camp'] }, { name: 'Electricity', count: 3, localities: ['Anagol'] }, { name: 'Pensions', count: 1, localities: [] }],
+        wins_total: 9,
         ...over,
     },
 });
@@ -252,41 +262,67 @@ describe('partner client page', () => {
     };
     beforeEach(() => {
         apiMocks.partnerClientSummary.mockResolvedValue(detail);
-        apiMocks.partnerClientOverview.mockResolvedValue(overviewPayload());
+        apiMocks.partnerClientBriefing.mockResolvedValue(briefingPayload());
     });
 
-    it('opens on the Overview with work waiting on the office, counted once', async () => {
+    it('opens on the Briefing with an issue-only headline and the wins beside it', async () => {
         render(<PartnerClientPage />);
-        const attention = await screen.findByRole('region', { name: /requires attention/i });
-        expect(within(attention).getByTestId('attention-needs_review')).toHaveTextContent('4');
-        expect(within(attention).getByTestId('attention-unassigned')).toHaveTextContent('13');
-        expect(within(attention).getByTestId('attention-needs_location')).toHaveTextContent('2');
-        // sync issues and ready-to-file live in government tracking only
-        expect(within(attention).queryByText(/sync|ready to file/i)).toBeNull();
-        const updates = screen.getByRole('region', { name: /updates and office workload/i });
-        expect(within(updates).getByText('Government updates received').nextSibling).toHaveTextContent('3');
-        expect(within(updates).getByText('New letters awaiting intake').nextSibling).toHaveTextContent('5');
-        expect(apiMocks.partnerClientOverview).toHaveBeenCalledWith('7');
+        const brief = await screen.findByRole('region', { name: 'Briefing' });
+        expect(within(brief).getByText(/roads & bridges accounts for 44% of complaints, and/i)).toBeInTheDocument();
+        expect(within(brief).getByText(/drainage & sewage complaints doubled in shahpur and anagol/i)).toBeInTheDocument();
+        expect(within(brief).getByText(/biggest issue: 64 complaints, up 45%/i)).toBeInTheDocument();
+        expect(within(brief).getByText(/water supply remains a steady concern/i)).toBeInTheDocument();
+        expect(within(brief).getByText(/electricity and land & revenue complaints eased/i)).toBeInTheDocument();
+        // the prose is about issues only: no delivery figures
+        expect(within(brief).queryByText(/pending|filed with government/i)).toBeNull();
+        expect(within(brief).getByText('Wins to publicise')).toBeInTheDocument();
+        expect(within(brief).getByText('Tilakwadi and Camp')).toBeInTheDocument();
+        expect(within(brief).queryByText(/ready-to-use/i)).toBeNull();
+        expect(apiMocks.partnerClientBriefing).toHaveBeenCalledWith('7', { kind: 'days', days: 30 });
     });
 
-    it('shows government tracking as a pipeline, outcomes and health, separate from Needle resolution', async () => {
+    it('shows five momentum cards with the change on the previous period', async () => {
         render(<PartnerClientPage />);
-        const govt = await screen.findByRole('region', { name: /government grievance tracking/i });
-        for (const label of ['Ready to file', 'Submitted', 'Registered', 'Forwarded', 'Awaiting action', 'Resolved', 'Disposed', 'Rejected', 'Awaiting verification', 'Portal sync issues']) {
-            expect(within(govt).getByText(label)).toBeInTheDocument();
+        const mom = await screen.findByRole('region', { name: 'Momentum' });
+        for (const [label, value] of [['Complaints received', '146'], ['Filed with government', '12'], ['Resolved by government', '9'], ['Other actions taken', '38'], ['Pending', '96']]) {
+            const card = within(mom).getByText(label).closest('.pd-kpi');
+            expect(card).toHaveTextContent(value);
         }
-        expect(within(govt).getByTestId('govt-awaiting_action')).toHaveTextContent('8');
-        expect(within(govt).getByTestId('govt-awaiting_verification')).toHaveTextContent('9');
-        expect(within(govt).getByText(/separate from needle.s own resolution/i)).toBeInTheDocument();
-        expect(screen.getByText('Bailhongal')).toBeInTheDocument();
-        expect(screen.getByText('Water supply')).toBeInTheDocument();
+        expect(within(mom).getByText('↓ 61%')).toHaveClass('bad');   // fewer filings is bad
+        expect(within(mom).getByText('↑ 35%')).toHaveClass('bad');   // more pending is bad
+        expect(within(mom).getByText('↑ 29%')).toHaveClass('good');  // more resolved is good
     });
 
-    it('never shows a grievance list or the analytics charts on the Overview', async () => {
+    it('lists localities by name, top six first, with see-all and search', async () => {
         render(<PartnerClientPage />);
-        await screen.findByRole('region', { name: /government grievance tracking/i });
-        expect(screen.queryByRole('table')).toBeNull();
-        expect(screen.queryByRole('img', { name: /grievances by week/i })).toBeNull();
+        const hot = await screen.findByRole('region', { name: 'Hotspots' });
+        expect(within(hot).getByText('Shahpur')).toBeInTheDocument();
+        expect(within(hot).queryByText('Bhagya Nagar')).toBeNull();
+        expect(within(hot).queryByText(/ward/i)).toBeNull();
+        fireEvent.click(within(hot).getByRole('button', { name: /see all 9 localities/i }));
+        expect(within(hot).getByText('Bhagya Nagar')).toBeInTheDocument();
+        fireEvent.change(within(hot).getByLabelText('Search localities'), { target: { value: 'nagar' } });
+        expect(within(hot).queryByText('Shahpur')).toBeNull();
+        expect(within(hot).getByText('2 shown')).toBeInTheDocument();
+        fireEvent.click(within(hot).getByRole('button', { name: /show top 6/i }));
+        expect(within(hot).queryByText('Bhagya Nagar')).toBeNull();
+    });
+
+    it('shows the delivery funnel with the filing callout and no office-execution panel', async () => {
+        render(<PartnerClientPage />);
+        const del = await screen.findByRole('region', { name: /from complaint to government action/i });
+        expect(within(del).getByText('Action taken').nextSibling.nextSibling).toHaveTextContent('50');
+        expect(within(del).getByText(/the drop is at filing/i)).toBeInTheDocument();
+        expect(within(del).getByText(/9 grievances are prepared for filing/i)).toBeInTheDocument();
+        expect(screen.queryByText(/office execution/i)).toBeNull();
+        expect(screen.queryByText(/where things stand/i)).toBeNull();
+    });
+
+    it('refetches the briefing when the period changes', async () => {
+        render(<PartnerClientPage />);
+        await screen.findByRole('region', { name: 'Briefing' });
+        fireEvent.click(screen.getByRole('button', { name: '90 days' }));
+        await waitFor(() => expect(apiMocks.partnerClientBriefing).toHaveBeenLastCalledWith('7', { kind: 'days', days: 90 }));
     });
 
     it('renders headline numbers, rankings and accessible charts on Analytics', async () => {
@@ -351,19 +387,19 @@ describe('partner client page', () => {
         expect(within(dialog).queryByRole('link', { name: /asha patil/i })).toBeNull();
     });
 
-    it('shows an unavailable state, not zeros, when the overview fails, and retries', async () => {
-        apiMocks.partnerClientOverview.mockReset();
-        apiMocks.partnerClientOverview.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(overviewPayload());
+    it('shows an unavailable state, not zeros, when the briefing fails, and retries', async () => {
+        apiMocks.partnerClientBriefing.mockReset();
+        apiMocks.partnerClientBriefing.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(briefingPayload());
         render(<PartnerClientPage />);
-        expect(await screen.findByRole('alert')).toHaveTextContent(/overview is unavailable/i);
-        expect(screen.queryByRole('region', { name: /government grievance tracking/i })).toBeNull();
+        expect(await screen.findByRole('alert')).toHaveTextContent(/briefing is unavailable/i);
+        expect(screen.queryByRole('region', { name: 'Momentum' })).toBeNull();
         fireEvent.click(screen.getByRole('button', { name: /retry/i }));
-        expect(await screen.findByRole('region', { name: /government grievance tracking/i })).toBeInTheDocument();
+        expect(await screen.findByRole('region', { name: 'Momentum' })).toBeInTheDocument();
     });
 
-    it('sends the partner to sign-in when the overview call returns 401', async () => {
-        apiMocks.partnerClientOverview.mockReset();
-        apiMocks.partnerClientOverview.mockRejectedValue(Object.assign(new Error('expired'), { status: 401 }));
+    it('sends the partner to sign-in when the briefing call returns 401', async () => {
+        apiMocks.partnerClientBriefing.mockReset();
+        apiMocks.partnerClientBriefing.mockRejectedValue(Object.assign(new Error('expired'), { status: 401 }));
         render(<PartnerClientPage />);
         await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/partner'));
     });
