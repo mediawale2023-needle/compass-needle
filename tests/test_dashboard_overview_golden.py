@@ -221,5 +221,5 @@ def test_mp_overview_key_order_and_shape(client, monkeypatch):
     body = _fetch(client, monkeypatch)
     assert list(body.keys()) == [
         "seat", "date_label", "attention_counts", "attention_queue", "government_tracking",
-        "constituency_pressure", "issue_pressure", "office_pending", "recent_movement", "validation",
+        "presence_map", "issue_pressure", "office_pending", "recent_movement", "validation",
     ]

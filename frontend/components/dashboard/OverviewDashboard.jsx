@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
 
@@ -181,21 +182,53 @@ function GovernmentTracking({ govt }) {
     );
 }
 
-function PressureMap({ hotspots }) {
+const PRESENCE_LABEL = { strong: 'Strong', growing: 'Growing', thin: 'Thin', none: 'No presence' };
+const PRESENCE_SHOWN = 6;
+
+// Localities to show collapsed: the strongest, plus a couple with no contact yet
+// (they are the point of a presence map).
+export function presenceRows(localities, showAll) {
+    if (showAll) return localities;
+    const reached = localities.filter((l) => l.people > 0);
+    const none = localities.filter((l) => l.people === 0);
+    const keepNone = Math.min(2, none.length);
+    return [...reached.slice(0, PRESENCE_SHOWN - keepNone), ...none.slice(0, PRESENCE_SHOWN - Math.min(reached.length, PRESENCE_SHOWN - keepNone))];
+}
+
+function PresenceMap({ presence }) {
+    const [showAll, setShowAll] = useState(false);
+    const { localities, withPresence, total, gazetteerKnown } = presence;
+    const rows = presenceRows(localities, showAll);
+    const max = Math.max(1, ...localities.map((l) => l.people));
     return (
-        <Section title="Constituency Pressure">
-            <div className="map-card">
-                <div className="hotspot-list">
-                    {hotspots.length === 0 ? (
-                        <div><span>No location pressure yet</span><strong>0</strong></div>
-                    ) : null}
-                    {hotspots.map((spot) => (
-                        <div key={spot.name}>
-                            <span>{spot.name}</span>
-                            <strong>{spot.count}</strong>
+        <Section title="Presence Map">
+            <div className="presence-card">
+                {localities.length === 0 ? (
+                    <p className="presence-summary">No mapped localities yet.</p>
+                ) : (
+                    <p className="presence-summary">
+                        <strong>{withPresence} of {total}</strong> localities are in touch with the office.
+                        {!gazetteerKnown ? ' Add the constituency locality list to see places with no contact.' : ''}
+                    </p>
+                )}
+                <div className="presence-list">
+                    {rows.map((l) => (
+                        <div className="presence-row" key={l.name}>
+                            <span className="presence-name" title={l.name}>{l.name}</span>
+                            <span className="presence-bar" aria-hidden="true">
+                                <b className={`presence-fill ${l.status}`} style={{ width: `${(l.people / max) * 100}%` }} />
+                            </span>
+                            <strong title={`${l.people} ${l.people === 1 ? 'person' : 'people'} in touch`}>{l.people}</strong>
+                            <span className={`presence-chip ${l.status}`}>{PRESENCE_LABEL[l.status]}</span>
                         </div>
                     ))}
                 </div>
+                {localities.length > rows.length || showAll ? (
+                    <button type="button" className="presence-more" aria-expanded={showAll} onClick={() => setShowAll(!showAll)}>
+                        {showAll ? 'Show fewer' : `Show all ${localities.length} localities`}
+                    </button>
+                ) : null}
+                <p className="presence-note">People in touch = distinct people who have raised a grievance from that locality.</p>
             </div>
         </Section>
     );
@@ -361,7 +394,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 </div>
                 <div className="overview-col overview-col-right">
                     <GovernmentTracking govt={data.govt} />
-                    <PressureMap hotspots={data.hotspots} />
+                    <PresenceMap presence={data.presence} />
                     <TodayAgenda items={data.today} />
                     <RecentMovement items={data.movement} />
                 </div>
@@ -839,30 +872,96 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     color: #514B3F;
                 }
 
-                .map-card {
-                    padding: 9px 13px 10px;
+                .presence-card {
+                    padding: 10px 16px 12px;
                 }
 
-                .hotspot-list {
-                    display: grid;
-                    gap: 0;
-                }
-
-                .hotspot-list div {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: baseline;
-                    border-top: 1px solid ${C.border};
-                    padding-top: 6px;
-                    padding-bottom: 6px;
+                .presence-summary {
+                    margin: 0 0 6px;
                     color: #514B3F;
                     font-size: 12px;
                 }
 
-                .hotspot-list strong {
+                .presence-summary strong {
+                    color: ${C.ink};
+                }
+
+                .presence-list {
+                    display: grid;
+                }
+
+                .presence-row {
+                    display: grid;
+                    grid-template-columns: minmax(0, 1.4fr) minmax(40px, 1fr) 30px 86px;
+                    gap: 10px;
+                    align-items: center;
+                    border-top: 1px solid ${C.border};
+                    padding: 7px 0;
+                    font-size: 12px;
+                    color: #514B3F;
+                }
+
+                .presence-name {
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    color: ${C.ink};
+                }
+
+                .presence-bar {
+                    height: 6px;
+                    background: ${C.border};
+                    border-radius: 3px;
+                    overflow: hidden;
+                }
+
+                .presence-fill {
+                    display: block;
+                    height: 100%;
+                    border-radius: 3px;
+                    background: ${C.green};
+                }
+
+                .presence-fill.thin { background: ${C.amber}; }
+
+                .presence-row strong {
                     font-family: ${MONO};
                     color: ${C.ink};
                     font-size: 12px;
+                    text-align: right;
+                }
+
+                .presence-chip {
+                    font-family: ${MONO};
+                    font-size: 9.5px;
+                    letter-spacing: .05em;
+                    text-transform: uppercase;
+                    padding: 2px 6px;
+                    border-radius: 2px;
+                    justify-self: end;
+                    white-space: nowrap;
+                }
+
+                .presence-chip.strong { background: ${C.greenSoft}; color: ${C.green}; }
+                .presence-chip.growing { background: ${C.blueSoft}; color: ${C.blue}; }
+                .presence-chip.thin { background: ${C.amberSoft}; color: ${C.amber}; }
+                .presence-chip.none { background: ${C.redSoft}; color: ${C.red}; }
+
+                .presence-more {
+                    margin-top: 8px;
+                    border: 1px solid ${C.borderStrong};
+                    background: transparent;
+                    border-radius: 3px;
+                    padding: 5px 10px;
+                    font: 600 12px ${SANS};
+                    color: ${C.green};
+                    cursor: pointer;
+                }
+
+                .presence-note {
+                    margin: 8px 0 0;
+                    color: ${C.faint};
+                    font-size: 11px;
                 }
 
                 .pressure-list,
@@ -1030,7 +1129,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 /* Below ~1440 the fixed 220px app rail leaves too little room for
                    the intended ~65/35 two-column composition, so fall back to the
                    approved responsive stack: Attention Queue full width, then
-                   Government Tracking + Constituency Pressure paired where space
+                   Government Tracking + Presence Map paired where space
                    allows, then every other section full width, all in the
                    approved order. The two column wrappers are flattened with
                    display:contents so order can interleave their children;
@@ -1054,7 +1153,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
 
                     .overview-col-left > :nth-child(1) { order: 1; flex: 1 1 100%; }                       /* Attention Queue */
                     .overview-col-right > :nth-child(1) { order: 2; flex: 1 1 calc(50% - 7px); min-width: 0; }  /* Government Tracking */
-                    .overview-col-right > :nth-child(2) { order: 3; flex: 1 1 calc(50% - 7px); min-width: 0; }  /* Constituency Pressure */
+                    .overview-col-right > :nth-child(2) { order: 3; flex: 1 1 calc(50% - 7px); min-width: 0; }  /* Presence Map */
                     .overview-col-left > :nth-child(2) { order: 4; flex: 1 1 100%; }                       /* Issue Pressure */
                     .overview-col-right > :nth-child(3) { order: 5; flex: 1 1 100%; }                      /* Today */
                     .overview-col-left > :nth-child(3) { order: 6; flex: 1 1 100%; }                       /* Office Pending */
@@ -1102,7 +1201,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     }
 
                     /* Not enough width to pair them — Government Tracking and
-                       Constituency Pressure go full width, keeping the stack. */
+                       Presence Map go full width, keeping the stack. */
                     .overview-col-right > :nth-child(1),
                     .overview-col-right > :nth-child(2) {
                         flex-basis: 100%;
@@ -1282,7 +1381,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     }
 
                     .journey,
-                    .map-card {
+                    .presence-card {
                         padding-left: 14px;
                         padding-right: 14px;
                     }
