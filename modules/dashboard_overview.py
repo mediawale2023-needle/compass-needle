@@ -335,6 +335,8 @@ def build_mp_overview(tid: int, user: dict, deps: OverviewDeps) -> dict:
         SELECT id, activity_type, title, metadata, created_at
         FROM activity_history
         WHERE tenant_id = :tid
+          AND COALESCE(activity_type, '') NOT IN ('copilot_chat', 'analysis')
+          AND COALESCE(activity_type, '') NOT LIKE 'research%'
         ORDER BY created_at DESC
         LIMIT 4
         """,
