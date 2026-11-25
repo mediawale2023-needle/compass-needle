@@ -533,3 +533,199 @@ def fetch_categorized_news(tenant_id=None, language="English"):
         result[label] = items
 
     return result
+
+
+# ============================================================
+# LOCAL SIGNALS (staff Overview) — constituency news, cached
+# ============================================================
+# Renamed Indian cities: news uses both spellings, so search both.
+_CITY_ALIASES = [
+    {"belgaum", "belagavi"}, {"bangalore", "bengaluru"}, {"mysore", "mysuru"}, {"hubli", "hubballi"},
+    {"gulbarga", "kalaburagi"}, {"bellary", "ballari"}, {"bijapur", "vijayapura"}, {"shimoga", "shivamogga"},
+    {"mangalore", "mangaluru"}, {"tumkur", "tumakuru"}, {"bombay", "mumbai"}, {"poona", "pune"},
+    {"gurgaon", "gurugram"}, {"allahabad", "prayagraj"}, {"calcutta", "kolkata"}, {"madras", "chennai"},
+    {"trivandrum", "thiruvananthapuram"}, {"baroda", "vadodara"}, {"aurangabad", "chhatrapati sambhajinagar"},
+]
+# Seat-name suffixes that are not part of the city ("Belgaum Dakshin" -> "Belgaum").
+_SEAT_SUFFIXES = {
+    "dakshin", "uttar", "north", "south", "east", "west", "central", "rural", "city", "urban",
+    "cantonment", "cantt", "purva", "paschim", "madhya", "gramin", "nagar",
+}
+LOCAL_SIGNAL_TTL_SECONDS = 30 * 60
+LOCAL_SIGNAL_EMPTY_TTL_SECONDS = 5 * 60
+LOCAL_SIGNAL_BUDGET_SECONDS = 8.0
+_LOCAL_SIGNAL_CACHE: dict = {}
+_USER_AGENT = "Mozilla/5.0 (compatible; NeedleLocalDesk/1.0)"
+
+
+def _title_case(value: str) -> str:
+    return " ".join(w[:1].upper() + w[1:] for w in value.split())
+
+
+def _city_variants(*names: str) -> list[str]:
+    """Constituency / seat names -> the city names news actually uses (both spellings)."""
+    out = []
+    for name in names:
+        words = [w for w in re.split(r"[\s\-]+", (name or "").strip()) if w]
+        while words and words[-1].lower() in _SEAT_SUFFIXES:
+            words = words[:-1]
+        base = " ".join(words).strip()
+        if not base:
+            continue
+        out.append(_title_case(base))
+        for group in _CITY_ALIASES:
+            if base.lower() in group:
+                out.extend(_title_case(v) for v in sorted(group - {base.lower()}))
+    return _unique_nonempty(out)
+
+
+def _local_signal_context(tenant_id) -> dict:
+    """Place terms for one tenant, from its own records (never the legacy profile file)."""
+    from core.db_helpers import _q
+
+    ctx = {"constituency": "", "leader": "", "state": "", "cities": [], "localities": []}
+    try:
+        trow = _q("SELECT name, constituency, seat_type FROM tenants WHERE id = :tid", {"tid": int(tenant_id)})
+    except Exception:
+        trow = []
+    if not trow:
+        return ctx
+    t = trow[0]
+    constituency = (t.get("constituency") or "").strip()
+    ctx["constituency"] = constituency
+    ctx["leader"] = (t.get("name") or "").strip()
+    try:
+        prof = _q("SELECT state, mp_name FROM tenant_profiles WHERE tenant_id = :tid", {"tid": int(tenant_id)})
+    except Exception:
+        prof = []
+    if prof:
+        ctx["state"] = (prof[0].get("state") or "").strip()
+        ctx["leader"] = (prof[0].get("mp_name") or ctx["leader"]).strip()
+    parent = ""
+    try:
+        pc = _q(
+            "SELECT parliamentary_constituency AS pc FROM geo_places WHERE seat_name = :sn AND status != 'deprecated' "
+            "AND parliamentary_constituency IS NOT NULL LIMIT 1", {"sn": constituency})
+        parent = (pc[0].get("pc") or "") if pc else ""
+    except Exception:
+        parent = ""
+    ctx["cities"] = _city_variants(constituency, parent)
+    try:
+        rows = _q(
+            "SELECT NULLIF(TRIM(CAST(case_metadata->>'matched_value' AS TEXT)), '') AS loc, COUNT(*) AS n FROM cases "
+            "WHERE tenant_id = :tid AND COALESCE(is_deleted, FALSE) = FALSE AND created_at >= :since GROUP BY 1",
+            {"tid": int(tenant_id), "since": datetime.utcnow() - timedelta(days=90)})
+        locs = sorted(((r["loc"], int(r["n"] or 0)) for r in rows if r.get("loc")), key=lambda kv: (-kv[1], kv[0]))
+        city_l = {c.lower() for c in ctx["cities"]}
+        ctx["localities"] = [l for l, _ in locs if l.lower() not in city_l and len(l) >= 4][:6]
+    except Exception:
+        ctx["localities"] = []
+    return ctx
+
+
+def _local_signal_queries(ctx: dict) -> list[tuple[str, str]]:
+    cities = ctx["cities"][:2]
+    city_q = " OR ".join(f'"{c}"' for c in cities)
+    queries: list[tuple[str, str]] = []
+    if ctx["constituency"]:
+        queries.append((f'"{ctx["constituency"]}"', "English"))
+    if city_q and ctx["localities"]:
+        locs = " OR ".join(f'"{l}"' for l in ctx["localities"][:4])
+        queries.append((f"({city_q}) ({locs})", "English"))
+    if city_q:
+        queries.append((f"({city_q}) (road OR water OR police OR corporation OR MLA OR protest)", "English"))
+        media = _state_media_terms(ctx["state"])[:4]
+        if media:
+            queries.append((f"({city_q}) (" + " OR ".join(f'"{m}"' for m in media) + ")", "English"))
+    leader = ctx["leader"]
+    if leader and len(leader.split()) >= 2 and city_q:
+        queries.append((f'"{leader}" ({city_q})', "English"))
+    for lang in LOCAL_LANGUAGES_BY_STATE.get(ctx["state"].lower(), [])[1:2]:
+        if city_q:
+            queries.append((f"({city_q})", lang))
+    return queries[:6]
+
+
+def _fetch_rss_timed(query: str, language: str, limit: int, timeout: float) -> list[dict]:
+    """Thread-safe RSS fetch (per-request timeout; no process-wide socket timeout)."""
+    import requests
+
+    lang_code = get_language_code(language)
+    ceid = f"IN:{lang_code}" if lang_code != "en-IN" else "IN:en"
+    url = (f"https://news.google.com/rss/search?q={urllib.parse.quote(query)}&hl={lang_code}&gl=IN&ceid={ceid}")
+    try:
+        resp = requests.get(url, timeout=timeout, headers={"User-Agent": _USER_AGENT})
+        if resp.status_code != 200:
+            return []
+        feed = feedparser.parse(resp.content)
+    except Exception:
+        return []
+    items = []
+    for entry in feed.entries[:limit]:
+        try:
+            pub = _as_naive_utc(parsedate_to_datetime(entry.published))
+        except Exception:
+            continue  # undated items can't be placed in time; skip rather than pretend they're new
+        source = entry.source.title if hasattr(entry, "source") and hasattr(entry.source, "title") else "News"
+        title = re.sub(rf"\s+-\s+{re.escape(source)}\s*$", "", entry.title or "").strip()
+        items.append({"title": title, "link": entry.link, "source": source, "published": pub})
+    return items
+
+
+def _mentions_place(title: str, ctx: dict) -> bool:
+    low = title.lower()
+    terms = [ctx["constituency"], *ctx["cities"], *ctx["localities"]]
+    if ctx["leader"] and len(ctx["leader"].split()) >= 2:
+        terms.append(ctx["leader"])
+    return any(t and t.lower() in low for t in terms)
+
+
+def fetch_local_signals(tenant_id, limit: int = 8, now: datetime | None = None) -> list[dict]:
+    """Recent local news about the tenant's constituency, its city and its busiest localities.
+
+    Queries run in parallel within a fixed time budget; results must name a local place;
+    newest first. Cached per tenant in-process (30 min, or 5 min when nothing was found).
+    """
+    from concurrent.futures import ThreadPoolExecutor, wait
+
+    now = now or datetime.utcnow()
+    key = int(tenant_id) if tenant_id is not None else None
+    hit = _LOCAL_SIGNAL_CACHE.get(key)
+    if hit and hit[0] > time.time():
+        return [dict(a) for a in hit[1]][:limit]
+
+    ctx = _local_signal_context(tenant_id) if key is not None else None
+    if not ctx or not (ctx["constituency"] or ctx["cities"]):
+        return []
+    queries = _local_signal_queries(ctx)
+    items: list[dict] = []
+    pool = ThreadPoolExecutor(max_workers=max(1, len(queries)))
+    try:
+        futures = [pool.submit(_fetch_rss_timed, q, lang, 10, 5.0) for q, lang in queries]
+        done, _ = wait(futures, timeout=LOCAL_SIGNAL_BUDGET_SECONDS)
+        for f in done:
+            try:
+                items.extend(f.result())
+            except Exception:
+                pass
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+    relevant = [i for i in items if _mentions_place(i["title"], ctx)]
+    out: list[dict] = []
+    for max_age in (14, 30):
+        cutoff = now - timedelta(days=max_age)
+        seen = set()
+        out = []
+        for it in sorted(relevant, key=lambda x: x["published"], reverse=True):
+            k = re.sub(r"\W+", " ", it["title"].lower()).strip()[:80]
+            if it["published"] < cutoff or k in seen:
+                continue
+            seen.add(k)
+            out.append(it)
+        if len(out) >= 3:
+            break
+    result = _serialize_article_dates([dict(a) for a in out[:limit]])
+    ttl = LOCAL_SIGNAL_TTL_SECONDS if result else LOCAL_SIGNAL_EMPTY_TTL_SECONDS
+    _LOCAL_SIGNAL_CACHE[key] = (time.time() + ttl, result)
+    return [dict(a) for a in result]

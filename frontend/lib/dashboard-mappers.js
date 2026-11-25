@@ -105,12 +105,23 @@ function normalizeOverviewToday(engagements) {
     }));
 }
 
+export function newsAge(published, now = Date.now()) {
+    if (!published) return '';
+    const t = Date.parse(/Z|[+-]\d\d:?\d\d$/.test(published) ? published : `${published}Z`);
+    if (Number.isNaN(t)) return '';
+    const days = Math.floor((now - t) / 86400000);
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    return `${days} days ago`;
+}
+
 function normalizeOverviewMedia(localNews) {
     const articles = localNews && Array.isArray(localNews.articles) ? localNews.articles : [];
-    return articles.slice(0, 3).map((article) => ({
+    return articles.slice(0, 4).map((article) => ({
         source: article.source || 'Local desk',
         title: article.title || '',
         href: article.link || article.url || null,
+        age: newsAge(article.published),
     }));
 }
 

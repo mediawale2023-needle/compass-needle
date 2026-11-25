@@ -156,6 +156,13 @@ def seed():
                 "INSERT INTO activity_history (tenant_id, username, activity_type, title, metadata, "
                 "created_at) VALUES (1, 'mp1', :a, :ti, :m, :t)"),
                 {"a": atype, "ti": title, "m": json.dumps(meta), "t": _ts(10, 8 + i)})
+        # Research-chat activity is the leader's own research, not constituency movement: it must
+        # never appear in Recent Movement even when newest (the golden fixture stays unchanged).
+        for i, atype in enumerate(("copilot_chat", "analysis", "research_note")):
+            conn.execute(text(
+                "INSERT INTO activity_history (tenant_id, username, activity_type, title, metadata, "
+                "created_at) VALUES (1, 'mp1', :a, :ti, '{}', :t)"),
+                {"a": atype, "ti": "What are the three biggest political risks here? — Research Chat", "t": _ts(10, 20 + i)})
 
 
 @pytest.fixture()
@@ -202,6 +209,12 @@ def test_mp_overview_is_tenant_scoped(client, monkeypatch):
     assert 312 not in {row["id"] for row in mine["attention_queue"]}
     assert [row["id"] for row in other["attention_queue"]] == [312]
     assert mine["validation"]["thread_count"] != other["validation"]["thread_count"]
+
+
+def test_recent_movement_excludes_research_chat(client, monkeypatch):
+    body = _fetch(client, monkeypatch)
+    assert body["recent_movement"], "seeded movement should still show"
+    assert not any("Research Chat" in (m["item"] or "") for m in body["recent_movement"])
 
 
 def test_mp_overview_key_order_and_shape(client, monkeypatch):

@@ -185,11 +185,6 @@ function PressureMap({ hotspots }) {
     return (
         <Section title="Constituency Pressure">
             <div className="map-card">
-                <div className="map-shape" aria-label="Constituency pressure map">
-                    <span className="map-road road-a" />
-                    <span className="map-road road-b" />
-                    <span className="map-road road-c" />
-                </div>
                 <div className="hotspot-list">
                     {hotspots.length === 0 ? (
                         <div><span>No location pressure yet</span><strong>0</strong></div>
@@ -302,7 +297,7 @@ function LocalSignals({ items }) {
                 {items.map((item) => {
                     const body = (
                         <>
-                            <span>{item.source}</span>
+                            <span>{item.age ? `${item.source} · ${item.age}` : item.source}</span>
                             <p>{item.title}</p>
                         </>
                     );
@@ -848,38 +843,9 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     padding: 9px 13px 10px;
                 }
 
-                .map-shape {
-                    position: relative;
-                    height: 184px;
-                    background: ${C.greenSoft};
-                    border: 1px solid ${C.borderStrong};
-                    clip-path: polygon(13% 2%, 63% 6%, 91% 27%, 83% 70%, 59% 98%, 19% 88%, 3% 52%);
-                    overflow: hidden;
-                }
-
-                .map-shape::before {
-                    content: '';
-                    position: absolute;
-                    inset: 12px;
-                    border: 1px solid rgba(36, 95, 69, 0.16);
-                    clip-path: polygon(11% 8%, 75% 12%, 91% 45%, 64% 90%, 21% 80%, 3% 44%);
-                }
-
-                .map-road {
-                    position: absolute;
-                    height: 1px;
-                    background: rgba(36, 95, 69, 0.22);
-                    transform-origin: left center;
-                }
-
-                .road-a { width: 190px; left: 18%; top: 40%; transform: rotate(17deg); }
-                .road-b { width: 150px; left: 30%; top: 72%; transform: rotate(-25deg); }
-                .road-c { width: 135px; left: 48%; top: 24%; transform: rotate(68deg); }
-
                 .hotspot-list {
                     display: grid;
                     gap: 0;
-                    margin-top: 8px;
                 }
 
                 .hotspot-list div {
@@ -1184,9 +1150,6 @@ export default function OverviewDashboard({ data, onNavigate }) {
                         white-space: normal;
                     }
 
-                    .map-shape {
-                        height: 210px;
-                    }
                 }
 
                 @media (max-width: 640px) {

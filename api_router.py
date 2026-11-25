@@ -5844,10 +5844,12 @@ def update_own_profile(req: UpdateOwnProfileRequest, user=Depends(get_current_us
 def get_news(news_type: str = "national", user=Depends(get_current_user)):
     try:
         tid = get_tenant_or_fail(user)
-        from modules.news_intel import fetch_tenant_media_news
+        from modules.news_intel import fetch_local_signals, fetch_tenant_media_news
 
-        feed_type = "local" if news_type in ("local", "constituency") else "national"
-        articles = fetch_tenant_media_news(tenant_id=tid, news_type=feed_type, limit=8)
+        if news_type in ("local", "constituency"):
+            articles = fetch_local_signals(tid, limit=8)
+        else:
+            articles = fetch_tenant_media_news(tenant_id=tid, news_type="national", limit=8)
         return {"articles": articles or []}
     except Exception:
         logger.exception("Failed to load tenant media news")
