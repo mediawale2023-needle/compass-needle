@@ -157,12 +157,77 @@ def time_ago(value, deps: OverviewDeps) -> str:
 
 
 # --------------------------------------------------------------------------
+# Presence Map: which mapped localities the office is in touch with
+# --------------------------------------------------------------------------
+PRESENCE_STRONG, PRESENCE_GROWING = 10, 3
+PRESENCE_MAX_LOCALITIES = 500
+NON_GRIEVANCE_STATUSES = {"irrelevant", "offensive", "case_comment", "contact_buffered"}
+
+
+def presence_status(people: int) -> str:
+    if people >= PRESENCE_STRONG:
+        return "strong"
+    if people >= PRESENCE_GROWING:
+        return "growing"
+    return "thin" if people else "none"
+
+
+def presence_map(raw_cases: list, tenant_row: dict, deps: OverviewDeps) -> dict:
+    """People in touch per mapped locality (all time), including the seat's gazetteer
+    localities nobody has contacted yet. Uses the mapped locality only, so spelling
+    variants of one place merge; people are distinct senders."""
+    people: dict[str, set] = {}
+    complaints: dict[str, int] = {}
+    for case in raw_cases:
+        if str(case.get("status") or "").strip().lower() in NON_GRIEVANCE_STATUSES:
+            continue
+        meta = deps.parse_meta(case.get("case_metadata")) or {}
+        loc = str(meta.get("matched_value") or "").strip()
+        if not loc:
+            continue
+        complaints[loc] = complaints.get(loc, 0) + 1
+        phone = str(case.get("user_phone") or "").strip()
+        if phone:
+            people.setdefault(loc, set()).add(phone)
+
+    known: list[str] = []
+    seat_name = str(tenant_row.get("constituency") or "").strip()
+    if seat_name:
+        stype = str(tenant_row.get("seat_type") or "").strip().lower()
+        if stype not in {"mp", "mla"}:
+            stype = "mla" if str(tenant_row.get("tenant_type") or "").strip().lower() == "mla" else "mp"
+        try:
+            rows = deps.q(
+                "SELECT DISTINCT canonical_name FROM geo_places WHERE seat_type = :st AND seat_name = :sn "
+                "AND status = 'verified' AND place_type IN ('locality', 'ward', 'sub_locality')",
+                {"st": stype, "sn": seat_name},
+            )
+            known = [str(r.get("canonical_name") or "").strip() for r in rows if r.get("canonical_name")]
+        except Exception:
+            known = []
+
+    names = sorted(set(known) | set(complaints))
+    localities = [
+        {"name": n, "people": len(people.get(n, ())), "complaints": complaints.get(n, 0),
+         "status": presence_status(len(people.get(n, ())))}
+        for n in names
+    ]
+    localities.sort(key=lambda r: (-r["people"], -r["complaints"], r["name"]))
+    return {
+        "localities": localities[:PRESENCE_MAX_LOCALITIES],
+        "with_presence": sum(1 for r in localities if r["people"]),
+        "total": len(localities),
+        "gazetteer_known": bool(known),
+    }
+
+
+# --------------------------------------------------------------------------
 # MP mode (moved verbatim from api_router.dashboard_overview)
 # --------------------------------------------------------------------------
 
 def build_mp_overview(tid: int, user: dict, deps: OverviewDeps) -> dict:
     tenant_row = deps.q_one(
-        "SELECT constituency FROM tenants WHERE id = :tid",
+        "SELECT constituency, seat_type, tenant_type FROM tenants WHERE id = :tid",
         {"tid": tid},
     ) or {}
     tenant_constituency = tenant_row.get("constituency")
@@ -215,7 +280,6 @@ def build_mp_overview(tid: int, user: dict, deps: OverviewDeps) -> dict:
     }
     bucketed = []
     stage_counts = {"ready": 0, "registered": 0, "department": 0, "resolved": 0}
-    location_counts: dict[str, int] = {}
     issue_counts: dict[str, dict] = {}
     unassigned_count = 0
     active_statuses = {"new", "pending", "pending_review", "awaiting_location", "in_progress"}
@@ -233,8 +297,6 @@ def build_mp_overview(tid: int, user: dict, deps: OverviewDeps) -> dict:
             unassigned_count += 1
 
         loc = str(anchor.get("location") or "").strip()
-        if loc:
-            location_counts[loc] = location_counts.get(loc, 0) + 1
         issue = issue_label(anchor)
         bucket = issue_counts.setdefault(issue, {"title": issue, "count": 0, "locations": {}})
         bucket["count"] += 1
@@ -356,10 +418,7 @@ def build_mp_overview(tid: int, user: dict, deps: OverviewDeps) -> dict:
             "href": href,
         })
 
-    hotspots = [
-        {"name": name, "count": count}
-        for name, count in sorted(location_counts.items(), key=lambda kv: (-kv[1], kv[0]))[:3]
-    ]
+    presence = presence_map(raw_cases, tenant_row, deps)
 
     return {
         "seat": tenant_constituency or user.get("constituency") or "Constituency",
@@ -382,7 +441,7 @@ def build_mp_overview(tid: int, user: dict, deps: OverviewDeps) -> dict:
                 f"{item['case_ref']} · {item['state']}" for item in sync_issue_rows
             ],
         },
-        "constituency_pressure": hotspots,
+        "presence_map": presence,
         "issue_pressure": issue_pressure,
         "office_pending": [
             {"key": "letters", "label": f"{int(letter_new.get('cnt') or 0)} new letters need intake review", "href": "/dashboard/letterbox"},

@@ -220,20 +220,12 @@
       "CN-306 · Sync Issue"
     ]
   },
-  "constituency_pressure": [
-    {
-      "name": "Ward 5",
-      "count": 4
-    },
-    {
-      "name": "Tilakwadi",
-      "count": 3
-    },
-    {
-      "name": "Vadgaon",
-      "count": 2
-    }
-  ],
+  "presence_map": {
+    "localities": [],
+    "with_presence": 0,
+    "total": 0,
+    "gazetteer_known": false
+  },
   "issue_pressure": [
     {
       "title": "Supply",

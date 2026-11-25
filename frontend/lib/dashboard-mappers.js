@@ -125,6 +125,26 @@ function normalizeOverviewMedia(localNews) {
     }));
 }
 
+const PRESENCE_STATUSES = new Set(['strong', 'growing', 'thin', 'none']);
+
+export function mapPresence(presence) {
+    const p = presence && typeof presence === 'object' ? presence : {};
+    const localities = Array.isArray(p.localities)
+        ? p.localities.map((l) => ({
+            name: l.name || '',
+            people: l.people ?? 0,
+            complaints: l.complaints ?? 0,
+            status: PRESENCE_STATUSES.has(l.status) ? l.status : 'none',
+        }))
+        : [];
+    return {
+        localities,
+        withPresence: p.with_presence ?? localities.filter((l) => l.people > 0).length,
+        total: p.total ?? localities.length,
+        gazetteerKnown: Boolean(p.gazetteer_known),
+    };
+}
+
 export function mapOverviewResponse(overview, engagements, localNews) {
     const o = overview && typeof overview === 'object' ? overview : {};
     return {
@@ -140,9 +160,7 @@ export function mapOverviewResponse(overview, engagements, localNews) {
             : [],
         queue: Array.isArray(o.attention_queue) ? o.attention_queue.map(mapOverviewQueueRow) : [],
         govt: mapOverviewGovt(o.government_tracking),
-        hotspots: Array.isArray(o.constituency_pressure)
-            ? o.constituency_pressure.map((h) => ({ name: h.name || '', count: h.count ?? 0 }))
-            : [],
+        presence: mapPresence(o.presence_map),
         issuePressure: Array.isArray(o.issue_pressure)
             ? o.issue_pressure.map((i) => ({
                 title: i.title || '',

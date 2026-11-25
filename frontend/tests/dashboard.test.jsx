@@ -66,7 +66,14 @@ const OVERVIEW = {
         },
     ],
     government_tracking: { ready: 4, registered: 6, department: 2, resolved: 3, sync_issues: 1, issues: ['#CN-77 · Sync Issue'] },
-    constituency_pressure: [{ name: 'Whitefield', count: 5 }],
+    presence_map: {
+        localities: [
+            { name: 'Whitefield', people: 12, complaints: 15, status: 'strong' },
+            { name: 'Marathahalli', people: 4, complaints: 5, status: 'growing' },
+            { name: 'Varthur', people: 0, complaints: 0, status: 'none' },
+        ],
+        with_presence: 2, total: 3, gazetteer_known: true,
+    },
     issue_pressure: [{ title: 'Water supply', place: 'Whitefield', count: 5 }],
     office_pending: [
         { key: 'letters', label: '2 new letters need intake review', href: '/dashboard/letterbox' },
@@ -100,7 +107,10 @@ describe('MP dashboard overview', () => {
 
         expect(await screen.findByText('Attention Queue')).toBeInTheDocument();
         expect(screen.getByText('Government Tracking')).toBeInTheDocument();
-        expect(screen.getByText('Constituency Pressure')).toBeInTheDocument();
+        expect(screen.getByText('Presence Map')).toBeInTheDocument();
+        expect(screen.queryByText('Constituency Pressure')).toBeNull();
+        expect(screen.getByText('Varthur')).toBeInTheDocument();
+        expect(screen.getByText('No presence')).toBeInTheDocument();
         expect(screen.getByText('Issue Pressure')).toBeInTheDocument();
         expect(screen.getByText('Today')).toBeInTheDocument();
         expect(screen.getByText('Office Pending')).toBeInTheDocument();
