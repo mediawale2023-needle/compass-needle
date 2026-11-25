@@ -28,10 +28,11 @@ from admin_api import (
     _audit, generate_temporary_password, get_admin_user, hash_password, require_super_admin, verify_password,
 )
 from modules.dashboard_overview import build_partner_overview
+from modules.partner_report import build_report_data, render_report, report_edition
 from modules.partners import (
     AttributionError, PORTFOLIO_STATUSES, PartnerOrg, PartnerSeat, PartnerUser,
     billing_summary, clean_color, clean_logo_url, get_tenant_attribution, link_legacy_request,
-    list_attribution_events, make_slug, partner_jwt_key, reassign_tenant, render_client_report, tenant_summary, client_briefing,
+    list_attribution_events, make_slug, partner_jwt_key, reassign_tenant, tenant_summary, client_briefing,
     MAX_WINDOW_DAYS, ReportWindow, WindowError, bucket_days_for, first_case_at, resolve_window,
 )
 
@@ -328,10 +329,16 @@ def partner_client_report(seat_id: int, window: ReportWindow = Depends(report_wi
     try:
         seat = _owned_seat(db, me["partner_id"], seat_id)
         partner = db.query(PartnerOrg).filter(PartnerOrg.id == me["partner_id"]).first()
-        html_doc = render_client_report(
-            _brand_dict(partner), _seat_dict(seat), tenant_summary(seat.tenant_id, window)
-        )
-        return HTMLResponse(html_doc, headers={"Cache-Control": "no-store"})
+        tenant = db.query(dbmod.Tenant).filter(dbmod.Tenant.id == seat.tenant_id).first()
+        brand, seat_d, tenant_id = _brand_dict(partner), _seat_dict(seat), seat.tenant_id
+        edition = report_edition(tenant, seat.seat_type)
+        try:
+            data = build_report_data(tenant_id, window, edition, tenant=tenant)
+            html_doc = render_report(brand, seat_d, data)
+        except Exception:
+            logger.exception("partner report failed seat=%s tenant=%s edition=%s", seat_id, tenant_id, edition)
+            raise HTTPException(status_code=500, detail="The report could not be built. Please try again shortly.")
+        return HTMLResponse(html_doc, headers={"Cache-Control": "no-store", "X-Report-Edition": edition})
     finally:
         db.close()
 

@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import re
 from datetime import datetime, timedelta
 
 from fastapi.testclient import TestClient
@@ -1195,3 +1196,124 @@ def test_briefing_is_seat_scoped():
     assert client.get(f"/api/partner/clients/{seat_id}/briefing?days=0", headers=headers).status_code == 422
     theirs = _briefing(other_headers, other_seat)
     assert theirs["momentum"]["received"]["now"] == 2 and theirs["hotspots"]["localities"] == []
+
+
+# ── white-label report editions ──
+def _set_edition(tenant_id, stage, seat_type):
+    with test_engine.begin() as conn:
+        conn.execute(text("UPDATE tenants SET account_stage = :s, tenant_type = :tt, seat_type = :st WHERE id = :i"),
+                     {"s": stage, "tt": "aspirant" if stage == "aspirant" else seat_type, "st": seat_type, "i": tenant_id})
+        conn.execute(text("UPDATE partner_seats SET seat_type = :st WHERE tenant_id = :i"), {"st": seat_type, "i": tenant_id})
+
+
+def _report(headers, seat_id, query="days=30"):
+    resp = client.get(f"/api/partner/clients/{seat_id}/report?{query}", headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp
+
+
+def _assert_no_citizen_data(body):
+    low = body.lower()
+    for leaked in (PHONE, RAW_MESSAGE, "Ramesh", "Lane 4", "Sewage overflow", "CPG/2026", "Ward 9"):
+        assert leaked not in body, leaked
+    for forbidden in ("user_phone", "raw_message", "phone_number", "whatsapp", "govt_ref", "reference_no"):
+        assert forbidden not in low, forbidden
+
+
+def test_report_edition_follows_the_tenant_not_the_request():
+    _seed_database()
+    _add_briefing_cases()
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    seat_id = _attach(admin, pid, 2)
+
+    aspirant = _report(headers, seat_id)                    # tenant 2 is seeded as an aspirant
+    assert aspirant.headers["x-report-edition"] == "aspirant"
+    assert "Where the current administration is failing" in aspirant.text and "Presence map" in aspirant.text
+    assert "never “resolved by”" in aspirant.text and "Government departments" not in aspirant.text
+    assert _report(headers, seat_id, "days=30&edition=mla").headers["x-report-edition"] == "aspirant"
+
+    _set_edition(2, "elected", "mla")
+    mla = _report(headers, seat_id)
+    assert mla.headers["x-report-edition"] == "mla"
+    assert "Government departments" in mla.text and "Vidhan Sabha" in mla.text and "Presence map" not in mla.text
+    assert "Assembly segments compared" not in mla.text
+
+    _set_edition(2, "elected", "mp")
+    mp = _report(headers, seat_id)
+    assert mp.headers["x-report-edition"] == "mp"
+    assert "Assembly segments compared" in mp.text and "Lok Sabha" in mp.text
+    for r in (aspirant, mla, mp):
+        _assert_no_citizen_data(r.text)
+
+
+def test_office_report_numbers_departments_and_small_count_suppression():
+    _seed_database()
+    _add_briefing_cases()
+    with test_engine.begin() as conn:
+        conn.execute(text("UPDATE cases SET govt_department = 'Public Works Dept' WHERE id IN (301, 302)"))
+        conn.execute(text("UPDATE cases SET is_critical = 1 WHERE id = 303"))
+    _set_edition(2, "elected", "mla")
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    seat_id = _attach(admin, pid, 2)
+
+    body = _report(headers, seat_id).text
+    # scorecard: received 9, filed 2, resolved by government 1, other 3, pending 4
+    for label, value in (("Complaints received", 9), ("Filed with government", 2), ("Resolved by government", 1),
+                         ("Other actions taken", 3), ("Pending", 4)):
+        assert re.search(rf'{label}</div><div class="v num"[^>]*>{value}<', body), label
+    assert "<b>Public Works Dept</b>" in body
+    # two complaints each in Shahpur and Anagol: printed as "<3", never as 1 or 2
+    assert "&lt;3" in body and ">Shahpur<" in body
+    assert "Recommended actions for the next 30 days" in body
+    assert "Critical received this period</div><div class=\"v num\">2<" in body   # seeded case 4 + case 303
+    _assert_no_citizen_data(body)
+
+
+def test_aspirant_presence_lists_mapped_localities_with_no_contact():
+    _seed_database()
+    _add_briefing_cases()
+    with test_engine.begin() as conn:
+        for name in ("Shahpur", "Anagol", "Hindwadi", "Khasbag"):
+            conn.execute(text(
+                "INSERT INTO geo_places (seat_type, seat_name, parliamentary_constituency, assembly, canonical_name, "
+                "canonical_norm, place_type, status, source, created_at) VALUES ('mla', 'Belagavi South', 'Belagavi', "
+                "'Belagavi South', :n, :norm, 'locality', 'verified', 'test', :now)"),
+                {"n": name, "norm": name.lower(), "now": datetime.utcnow()})
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    seat_id = _attach(admin, pid, 2)
+
+    body = _report(headers, seat_id).text
+    assert "localities have no contact with you yet" in body
+    assert ">Hindwadi<" in body and ">Khasbag<" in body and "No presence" in body
+    assert "2 of 4 localities in the constituency have at least one person in touch with you" in body
+    _assert_no_citizen_data(body)
+
+
+def test_mp_report_compares_assembly_segments_and_flags_the_weak_flank():
+    _seed_database()
+    _set_edition(2, "elected", "mp")
+    now = datetime.utcnow()
+    with test_engine.begin() as conn:
+        rows = [(400 + i, "City", "new") for i in range(12)] + [(420 + i, "Rampur", "closed") for i in range(10)]
+        for cid, seg, st in rows:
+            conn.execute(text(
+                "INSERT INTO cases (id, tenant_id, user_phone, raw_message, category, status, assembly, is_critical, is_deleted, created_at) "
+                "VALUES (:id, 2, :ph, :msg, 'Roads', :st, :seg, 0, 0, :cr)"),
+                {"id": cid, "ph": PHONE, "msg": RAW_MESSAGE, "st": st, "seg": seg, "cr": now - timedelta(days=2)})
+    admin = _admin_headers()
+    pid = _create_partner(admin)
+    headers = _partner_session(admin, pid, "ops@rajdhani.in")
+    seat_id = _attach(admin, pid, 2)
+
+    body = _report(headers, seat_id).text
+    assert "Assembly segments compared" in body
+    city = body[body.index("<b>City</b>"):]
+    assert city.startswith("<b>City</b><span class=\"tagx plank\">Weak flank</span>")
+    assert "<b>Rampur</b></td>" in body       # fully acted on: not flagged
+    _assert_no_citizen_data(body)
