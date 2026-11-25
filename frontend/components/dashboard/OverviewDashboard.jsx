@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
+import OverviewMetricsStrip from '@/components/dashboard/OverviewMetricsStrip';
 
 // Locked Overview design — approved visual baseline. Do not redesign.
 // Data comes from GET /api/dashboard/overview (+ /api/dashboard/engagements,
@@ -54,20 +55,6 @@ function Section({ title, action, children, className = '' }) {
             </div>
             {children}
         </section>
-    );
-}
-
-function AttentionStrip({ items }) {
-    return (
-        <div className="attention-strip" aria-label="Attention counters">
-            {items.map((item) => (
-                <div className="attention-item" key={item.key || item.label}>
-                    <ToneDot tone={item.tone} />
-                    <span className="attention-value">{item.value}</span>
-                    <span className="attention-label">{item.label}</span>
-                </div>
-            ))}
-        </div>
     );
 }
 
@@ -379,7 +366,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 </div>
             </header>
 
-            <AttentionStrip items={data.attention} />
+            <OverviewMetricsStrip onOpenCase={openCase} />
 
             {/* Desktop (>=1440): two independent vertical columns with their own
                 flow/gap so each section starts as soon as the one above it ends.
@@ -431,7 +418,6 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 .overview-kicker,
                 .case-meta,
                 .queue-header,
-                .attention-label,
                 .state-cell,
                 .action-cell button,
                 .action-cell .action-none,
@@ -466,50 +452,11 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     font-size: 13.5px;
                 }
 
-                .attention-strip {
-                    display: grid;
-                    grid-template-columns: repeat(5, minmax(0, 1fr));
-                    background: ${C.surface};
-                    border: 1px solid ${C.border};
-                    margin-bottom: 13px;
-                }
-
-                .attention-item {
-                    min-height: 58px;
-                    display: grid;
-                    grid-template-columns: auto auto 1fr;
-                    align-items: center;
-                    gap: 8px;
-                    padding: 11px 14px;
-                    border-right: 1px solid ${C.border};
-                }
-
-                .attention-item:last-child {
-                    border-right: 0;
-                }
-
                 .op-dot {
                     width: 7px;
                     height: 7px;
                     display: inline-block;
                     border-radius: 999px;
-                }
-
-                .attention-value {
-                    font-family: ${SERIF};
-                    font-size: 26px;
-                    line-height: 1;
-                    font-weight: 690;
-                    letter-spacing: -0.04em;
-                    color: ${C.ink};
-                }
-
-                .attention-label {
-                    color: ${C.muted};
-                    font-size: 10px;
-                    line-height: 1.2;
-                    text-transform: uppercase;
-                    letter-spacing: 0.06em;
                 }
 
                 .overview-columns {
@@ -1207,18 +1154,6 @@ export default function OverviewDashboard({ data, onNavigate }) {
                         flex-basis: 100%;
                     }
 
-                    .attention-strip {
-                        grid-template-columns: repeat(3, minmax(0, 1fr));
-                    }
-
-                    .attention-item:nth-child(3) {
-                        border-right: 0;
-                    }
-
-                    .attention-item:nth-child(n + 4) {
-                        border-top: 1px solid ${C.border};
-                    }
-
                     .queue-header {
                         display: none;
                     }
@@ -1259,44 +1194,6 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     .overview-head {
                         display: grid;
                         gap: 14px;
-                    }
-
-                    .attention-strip {
-                        grid-template-columns: repeat(2, minmax(0, 1fr));
-                    }
-
-                    .attention-item,
-                    .attention-item:nth-child(3) {
-                        border-right: 0;
-                    }
-
-                    .attention-item {
-                        min-height: 54px;
-                        grid-template-columns: auto auto;
-                        align-content: center;
-                        gap: 4px 7px;
-                        padding: 10px 12px;
-                    }
-
-                    .attention-item:nth-child(odd) {
-                        border-right: 1px solid ${C.border};
-                    }
-
-                    .attention-item:nth-child(n + 3) {
-                        border-top: 1px solid ${C.border};
-                    }
-
-                    .attention-item:last-child {
-                        grid-column: 1 / -1;
-                    }
-
-                    .attention-label {
-                        grid-column: 2;
-                        font-size: 9px;
-                    }
-
-                    .attention-value {
-                        font-size: 24px;
                     }
 
                     .op-section-head {
