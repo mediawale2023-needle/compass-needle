@@ -22,7 +22,6 @@ separately in phase 2 (`contract_seat_cap`, scripts/partner_drop_seat_cap.py).
 """
 import hashlib
 import hmac
-import html
 import logging
 import os
 import re
@@ -566,76 +565,7 @@ def client_briefing(tenant_id: int, window: "ReportWindow", now: datetime | None
     }
 
 
-# ─────────────────────────────────────────
-# WHITE-LABEL REPORT
-# ─────────────────────────────────────────
-def _pct(value) -> str:
-    return "—" if value is None else f"{round(value * 100)}%"
-
-
-def _rows_html(items: list[dict]) -> str:
-    if not items:
-        return '<tr><td colspan="2" class="muted">No data in this period</td></tr>'
-    return "".join(
-        f"<tr><td>{html.escape(str(i['name']))}</td><td class='num'>{i['count']}</td></tr>" for i in items
-    )
-
-
-def render_client_report(partner: dict, seat: dict, summary: dict, generated_at: datetime | None = None) -> str:
-    """Self-contained HTML. Every interpolated value is escaped."""
-    esc = html.escape
-    generated_at = generated_at or datetime.utcnow()
-    color = clean_color(partner.get("brand_color"))
-    logo = partner.get("brand_logo_url")
-    logo_html = f'<img src="{esc(logo, quote=True)}" alt="" class="logo">' if logo else ""
-    powered = (
-        '<p class="muted">Intelligence by Compass Needle</p>' if partner.get("show_powered_by") else ""
-    )
-    trend_max = max([w["received"] for w in summary["trend"]] + [1])
-    bars = "".join(
-        f'<div class="bar" title="{esc(w["period_start"])} to {esc(w["period_end"])}: {w["received"]} received" '
-        f'style="height:{max(round(w["received"] / trend_max * 100), 2)}%"></div>'
-        for w in summary["trend"]
-    )
-    win = summary["window"]
-    period = "All time" if win["kind"] == "all" else (
-        f"last {win['days']} days" if win["kind"] == "days" else f"{win['from']} to {win['to']}")
-    if win["kind"] == "all" and win.get("from"):
-        period = f"All time (since {win['from']})"
-    unit = {1: "day", 7: "week", 14: "fortnight", 30: "month", 91: "quarter", 182: "half-year", 365: "year"}.get(
-        summary["bucket_days"], f"{summary['bucket_days']} days")
-    avg = summary["avg_resolution_days"]
-    return f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{esc(seat["client_label"])} — Constituency Snapshot</title>
-<style>
-body{{font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;max-width:860px;margin:0 auto;padding:32px 20px}}
-header{{border-bottom:4px solid {color};padding-bottom:16px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center}}
-h1{{font-size:22px;margin:0;color:{color}}} h2{{font-size:15px;margin:28px 0 8px;color:{color}}}
-.logo{{max-height:48px}} .muted{{color:#777;font-size:12px}}
-.kpis{{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}}
-.kpi{{border:1px solid #e3e3e3;border-radius:8px;padding:12px}} .kpi b{{display:block;font-size:26px;color:{color}}}
-table{{width:100%;border-collapse:collapse}} td{{padding:6px 4px;border-bottom:1px solid #eee}} .num{{text-align:right}}
-.chart{{display:flex;align-items:flex-end;gap:6px;height:90px;border-bottom:1px solid #ccc}} .bar{{flex:1;background:{color};opacity:.85}}
-@media print{{body{{padding:0}}}}
-</style></head><body>
-<header><div><h1>{esc(seat["client_label"])}</h1>
-<span class="muted">{esc(seat.get("constituency") or "")} · {esc(period)} · {generated_at:%d %b %Y}</span></div>
-{logo_html}</header>
-<div class="kpis">
-<div class="kpi"><b>{summary["total"]}</b>Grievances received</div>
-<div class="kpi"><b>{_pct(summary["resolution_rate"])}</b>Resolved</div>
-<div class="kpi"><b>{summary["open"]}</b>Still open</div>
-<div class="kpi"><b>{summary["critical"]}</b>Critical</div>
-<div class="kpi"><b>{"—" if avg is None else f"{avg}d"}</b>Avg. time to resolve</div>
-</div>
-<h2>Grievances received, by {esc(unit)}</h2><div class="chart">{bars}</div>
-<h2>Top issue categories</h2><table>{_rows_html(summary["top_categories"])}</table>
-<h2>Where complaints come from</h2><table>{_rows_html(summary["top_locations"])}</table>
-<p class="muted" style="margin-top:32px">Prepared by {esc(partner["brand_name"])}. Aggregate figures only; no citizen details are included.</p>
-{powered}
-</body></html>"""
+# White-label client report: see modules/partner_report.py
 
 
 # ─────────────────────────────────────────
