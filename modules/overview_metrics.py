@@ -11,7 +11,7 @@ consultant see the same numbers:
   new_contacts   people whose first-ever grievance falls in the period
 
 Everything is tenant-scoped. This is the office's own data, so the row lists show
-case details to staff (the same staff who see them in the Briefcase).
+case details and contact numbers to staff (the same staff who see them in the Briefcase).
 """
 from __future__ import annotations
 
@@ -66,11 +66,15 @@ def overview_metrics(tenant_id: int, window: ReportWindow) -> dict:
     }
 
 
-def _label_for(phone: str | None, name: str | None) -> str:
-    if name and name.strip():
-        return name.strip()
-    digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
-    return f"Citizen ···{digits[-4:]}" if len(digits) >= 4 else "Citizen"
+def format_phone(phone: str | None) -> str:
+    """Indian mobiles as +91 98765 43210; anything else as stored."""
+    raw = str(phone or "").strip()
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if len(digits) == 12 and digits.startswith("91"):
+        return f"+91 {digits[2:7]} {digits[7:]}"
+    if len(digits) == 10:
+        return f"+91 {digits[:5]} {digits[5:]}"
+    return raw
 
 
 def _case_row(r: dict, now: datetime) -> dict:
@@ -136,7 +140,9 @@ def overview_metric_rows(tenant_id: int, window: ReportWindow, key: str, limit: 
     for r in people:
         first = _as_dt(r["first_at"])
         contacts.append({
-            "label": _label_for(r["phone"], names.get(r["phone"])),
+            "name": (names.get(r["phone"]) or "").strip(),
+            "phone": format_phone(r["phone"]),
+            "label": (names.get(r["phone"]) or "").strip() or format_phone(r["phone"]),
             "first_contact": first.isoformat() if first else None,
             "case_count": int(r["n"] or 0),
             "cases": case_rows.get(r["phone"], [])[:20],

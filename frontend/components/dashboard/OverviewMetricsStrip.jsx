@@ -99,7 +99,11 @@ function MetricDrawer({ metric, period, onClose, onOpenCase }) {
                     {d && d.contacts ? d.contacts.map((p, i) => (
                         <section className="om-person" key={`${p.label}-${i}`}>
                             <div className="om-phead">
-                                <strong>{p.label}</strong>
+                                <span className="om-who">
+                                    {p.name ? <strong>{p.name}</strong> : null}
+                                    {p.phone ? <a className="om-phone" href={`tel:${p.phone.replace(/\s+/g, '')}`}>{p.phone}</a> : null}
+                                    {!p.name && !p.phone ? <strong>{p.label}</strong> : null}
+                                </span>
                                 <span>{p.case_count} {p.case_count === 1 ? 'complaint' : 'complaints'}
                                     {p.first_contact ? ` · first contact ${new Date(p.first_contact).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}</span>
                             </div>
@@ -205,7 +209,10 @@ export default function OverviewMetricsStrip({ onOpenCase }) {
                 .om-person { border-bottom: 1px solid ${gen2.hairStrong}; }
                 .om-phead { display: flex; justify-content: space-between; gap: 10px; padding: 12px 20px 6px; background: ${gen2.activeTint}; }
                 .om-phead strong { font-size: 13.5px; color: ${gen2.ink}; }
-                .om-phead span { font-size: 12px; color: ${gen2.muted}; }
+                .om-phead > span:last-child { font-size: 12px; color: ${gen2.muted}; text-align: right; }
+                .om-who { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+                .om-phone { font-family: ${gen2Fonts.mono}; font-size: 13px; font-weight: 600; color: ${gen2.ink}; text-decoration: none; }
+                .om-phone:hover { color: ${gen2.green}; text-decoration: underline; }
                 @media (max-width: 1100px) {
                     .om-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
                     .om-tile:nth-child(3) { border-right: 0; }

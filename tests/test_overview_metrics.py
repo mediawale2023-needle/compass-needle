@@ -124,14 +124,14 @@ def test_each_number_opens_exactly_its_cases(client):
     assert water["preview"] == "Water not coming for 3 days" and water["locality"] == "Khasbag" and water["age_days"] == 6
 
 
-def test_new_contacts_lists_people_with_their_cases_without_exposing_numbers(client):
+def test_new_contacts_lists_people_with_their_mobile_numbers_and_cases(client):
     body = client.get("/api/dashboard/overview/metrics/new_contacts?days=30", headers=_h(client)).json()
     assert body["total"] == 3
-    labels = {c["label"]: c for c in body["contacts"]}
-    assert set(labels) == {"Asha Patil", "Citizen ···0003", "Citizen ···1234"}   # A first wrote 45 days ago
-    assert sorted(c["id"] for c in labels["Asha Patil"]["cases"]) == [3, 4]
-    assert [c["id"] for c in labels["Citizen ···1234"]["cases"]] == [6]          # spam case 7 left out
-    assert "+9198" not in json.dumps(body)
+    people = {c["phone"]: c for c in body["contacts"]}
+    assert set(people) == {"+91 98000 00002", "+91 98000 00003", "+91 98000 01234"}   # A first wrote 45 days ago
+    assert people["+91 98000 00002"]["name"] == "Asha Patil" and people["+91 98000 00003"]["name"] == ""
+    assert sorted(c["id"] for c in people["+91 98000 00002"]["cases"]) == [3, 4]
+    assert [c["id"] for c in people["+91 98000 01234"]["cases"]] == [6]          # spam case 7 left out
 
 
 def test_tenant_isolation_validation_and_auth(client):
@@ -141,3 +141,12 @@ def test_tenant_isolation_validation_and_auth(client):
     assert client.get("/api/dashboard/overview/metrics/nope?days=30", headers=h).status_code == 404
     assert client.get("/api/dashboard/overview/metrics?days=0", headers=h).status_code == 422
     assert client.get("/api/dashboard/overview/metrics?days=30").status_code in (401, 403)
+
+
+def test_phone_formatting():
+    from modules.overview_metrics import format_phone
+    assert format_phone("+919876543210") == "+91 98765 43210"
+    assert format_phone("919876543210") == "+91 98765 43210"
+    assert format_phone("9876543210") == "+91 98765 43210"
+    assert format_phone("+4420 7946 0958") == "+4420 7946 0958"
+    assert format_phone(None) == ""
