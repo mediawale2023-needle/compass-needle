@@ -2,8 +2,9 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { vi } from 'vitest';
 
-const { apiGetMock, pushMock } = vi.hoisted(() => ({
+const { apiGetMock, apiPostMock, pushMock } = vi.hoisted(() => ({
     apiGetMock: vi.fn(),
+    apiPostMock: vi.fn(),
     pushMock: vi.fn(),
 }));
 
@@ -18,6 +19,7 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/lib/api', () => ({
     apiGet: (path) => apiGetMock(path),
+    apiPost: (path, body) => apiPostMock(path, body),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -86,9 +88,14 @@ const OVERVIEW = {
     validation: { thread_count: 9 },
 };
 
+let govtDue = [];
+
 describe('MP dashboard overview', () => {
     beforeEach(() => {
         pushMock.mockReset();
+        govtDue = [3451, 3459, 3428, 3425, 3412];
+        apiPostMock.mockReset();
+        apiPostMock.mockImplementation(async (path) => { govtDue = govtDue.filter((id) => !path.includes(`/${id}/`)); return { success: true }; });
         apiGetMock.mockImplementation(async (path) => {
             if (path === '/api/dashboard/overview') return OVERVIEW;
             if (path === '/api/dashboard/engagements') {
@@ -98,6 +105,19 @@ describe('MP dashboard overview', () => {
                 return { articles: [{ source: 'Belagavi Herald', title: 'Rain floods low-lying lanes', link: 'https://example.com/x' }] };
             }
             if (path === '/api/maps/seat-manifest') return { seat: 'Belagavi South', features: [] };
+            if (path === '/api/dashboard/overview/govt-tracking') {
+                return {
+                    portal: { name: 'CPGRAMS', url: 'https://pgportal.gov.in' }, check_every_days: 14,
+                    check: { due: govtDue.length, open_filed: 14, checked_recently_pct: 57, oldest_filed_days: 58,
+                        items: govtDue.map((id, i) => ({ id, case_ref: `#${id}`, title: `Filed complaint ${id}`, department: 'HESCOM', reference: `G${id}`, filed_days: 58 - i, last_checked_days: i ? 20 : null })) },
+                    departments: { filed: 21, waiting: 14, slowest: 'Public Works Dept', rows: [
+                        { name: 'Public Works Dept', filed: 8, waiting: 6, resolved: 2, oldest_wait_days: 58 },
+                        { name: 'HESCOM', filed: 2, waiting: 1, resolved: 1, oldest_wait_days: 12 }] },
+                    resolved: { window_days: 30, count: 6, previous: 4, avg_days: 22, not_told: 1, items: [
+                        { id: 3398, case_ref: '#3398', title: 'Water supply restored', department: 'City Water Board', days_to_resolve: 19, citizen_told: true },
+                        { id: 3377, case_ref: '#3377', title: 'Pothole patched', department: 'Public Works Dept', days_to_resolve: 34, citizen_told: false }] },
+                };
+            }
             if (path.startsWith('/api/dashboard/overview/metrics/new_contacts')) {
                 return { key: 'new_contacts', total: 1, contacts: [{ label: 'Asha Patil', name: 'Asha Patil', phone: '+91 98000 03535', first_contact: '2026-11-20T10:00:00', case_count: 2,
                     cases: [{ id: 501, case_ref: 'CN-501', preview: 'Street light not working', category: 'Electricity', locality: 'Tilakwadi', age_days: 5 },
@@ -171,5 +191,43 @@ describe('MP dashboard overview', () => {
         expect(await within(drawer).findByText('Pipeline burst')).toBeInTheDocument();
         fireEvent.keyDown(window, { key: 'Escape' });
         expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('Government Tracking: three compact rows that open on click, and recording a status check', async () => {
+        render(<DashboardPage />);
+        const card = await screen.findByRole('region', { name: 'Government Tracking' });
+        const checkRow = await within(card).findByRole('button', { name: /Check status of filed complaints/ });
+        expect(checkRow).toHaveAttribute('aria-expanded', 'false');
+        expect(within(card).getByText(/5 not checked in 14 days · oldest filed 58 days ago/)).toBeInTheDocument();
+        expect(within(card).getByText(/14 waiting across 2 departments · slowest: Public Works Dept/)).toBeInTheDocument();
+        expect(within(card).getByText(/Last 30 days · ↑ 2 vs previous 30 days · 1 citizen not yet told/)).toBeInTheDocument();
+        expect(within(card).queryByText('Filed complaint 3451')).toBeNull();          // closed by default
+
+        fireEvent.click(checkRow);
+        expect(checkRow).toHaveAttribute('aria-expanded', 'true');
+        expect(within(card).getByText('Filed complaint 3451')).toBeInTheDocument();
+        expect(within(card).queryByText('Filed complaint 3412')).toBeNull();          // 4 shown until "See all"
+        expect(within(card).getAllByRole('link', { name: 'CPGRAMS ↗' })[0]).toHaveAttribute('href', 'https://pgportal.gov.in');
+        const first = within(card).getByText('Filed complaint 3451').closest('.gt-chk');
+        fireEvent.click(within(first).getByRole('button', { name: 'Resolved' }));
+        await waitFor(() => expect(apiPostMock).toHaveBeenCalledWith('/api/cases/3451/govt/check', { outcome: 'resolved' }));
+        await waitFor(() => expect(within(card).queryByText('Filed complaint 3451')).toBeNull());
+        expect(within(card).getByRole('status')).toHaveTextContent('#3451: recorded “Resolved”.');
+
+        fireEvent.click(within(card).getByRole('button', { name: /Filed complaints, department-wise/ }));
+        expect(within(card).getByRole('cell', { name: 'Public Works Dept' })).toBeInTheDocument();
+        fireEvent.click(within(card).getByRole('button', { name: /Resolved by Government/ }));
+        expect(within(card).getByText('Tell citizen')).toBeInTheDocument();
+        fireEvent.click(within(card).getByText('Pothole patched'));
+        expect(pushMock).toHaveBeenCalledWith('/dashboard/sansadx?case_id=3377');
+    });
+
+    it('Government Tracking survives an empty or malformed response without breaking the page', async () => {
+        const base = apiGetMock.getMockImplementation();
+        apiGetMock.mockImplementation(async (path) => (path === '/api/dashboard/overview/govt-tracking' ? {} : base(path)));
+        render(<DashboardPage />);
+        const card = await screen.findByRole('region', { name: 'Government Tracking' });
+        expect(await within(card).findByText('Government tracking could not be loaded.')).toBeInTheDocument();
+        expect(screen.getByText('Attention Queue')).toBeInTheDocument();
     });
 });
