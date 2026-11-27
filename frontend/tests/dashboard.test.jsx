@@ -221,4 +221,13 @@ describe('MP dashboard overview', () => {
         fireEvent.click(within(card).getByText('Pothole patched'));
         expect(pushMock).toHaveBeenCalledWith('/dashboard/sansadx?case_id=3377');
     });
+
+    it('Government Tracking survives an empty or malformed response without breaking the page', async () => {
+        const base = apiGetMock.getMockImplementation();
+        apiGetMock.mockImplementation(async (path) => (path === '/api/dashboard/overview/govt-tracking' ? {} : base(path)));
+        render(<DashboardPage />);
+        const card = await screen.findByRole('region', { name: 'Government Tracking' });
+        expect(await within(card).findByText('Government tracking could not be loaded.')).toBeInTheDocument();
+        expect(screen.getByText('Attention Queue')).toBeInTheDocument();
+    });
 });

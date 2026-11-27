@@ -40,7 +40,11 @@ export default function GovtTrackingCard({ syncIssues = 0, issues = [], onOpenCa
 
     const load = useCallback(() => {
         apiGet('/api/dashboard/overview/govt-tracking')
-            .then((res) => { setData(res); setStatus('ready'); })
+            .then((res) => {
+                // Never render from a partial payload: a malformed response must not take the page down.
+                if (res && res.check && res.departments && res.resolved) { setData(res); setStatus('ready'); }
+                else setStatus('error');
+            })
             .catch(() => setStatus('error'));
     }, []);
     useEffect(() => { load(); }, [load]);
