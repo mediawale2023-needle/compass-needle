@@ -99,7 +99,7 @@ describe('MP dashboard overview', () => {
             }
             if (path === '/api/maps/seat-manifest') return { seat: 'Belagavi South', features: [] };
             if (path.startsWith('/api/dashboard/overview/metrics/new_contacts')) {
-                return { key: 'new_contacts', total: 1, contacts: [{ label: 'Asha Patil', first_contact: '2026-11-20T10:00:00', case_count: 2,
+                return { key: 'new_contacts', total: 1, contacts: [{ label: 'Asha Patil', name: 'Asha Patil', phone: '+91 98000 03535', first_contact: '2026-11-20T10:00:00', case_count: 2,
                     cases: [{ id: 501, case_ref: 'CN-501', preview: 'Street light not working', category: 'Electricity', locality: 'Tilakwadi', age_days: 5 },
                             { id: 502, case_ref: 'CN-502', preview: 'Drain overflowing', category: 'Drainage', locality: 'Tilakwadi', age_days: 2 }] }] };
             }
@@ -151,6 +151,8 @@ describe('MP dashboard overview', () => {
         fireEvent.click(within(strip).getByRole('button', { name: /New Contacts: 60/ }));
         const drawer = await screen.findByRole('dialog', { name: /New Contacts/ });
         expect(await within(drawer).findByText('Asha Patil')).toBeInTheDocument();
+        expect(within(drawer).getByRole('link', { name: '+91 98000 03535' })).toHaveAttribute('href', 'tel:+919800003535');
+        expect(within(drawer).queryByText(/Citizen ···/)).toBeNull();
         expect(within(drawer).getByText('Street light not working')).toBeInTheDocument();
         fireEvent.click(within(drawer).getByText('Drain overflowing'));
         expect(pushMock).toHaveBeenCalledWith('/dashboard/sansadx?case_id=502');
