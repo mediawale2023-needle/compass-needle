@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
 import OverviewMetricsStrip from '@/components/dashboard/OverviewMetricsStrip';
+import GovtTrackingCard from '@/components/dashboard/GovtTrackingCard';
 
 // Locked Overview design — approved visual baseline. Do not redesign.
 // Data comes from GET /api/dashboard/overview (+ /api/dashboard/engagements,
@@ -129,42 +130,6 @@ function AttentionQueue({ rows, onOpenCase, onRunAction }) {
                 ))}
             </div>
             <Link className="mobile-queue-footer" href="/dashboard/sansadx">{'View all cases ->'}</Link>
-        </Section>
-    );
-}
-
-function GovernmentTracking({ govt }) {
-    const steps = [
-        ['Ready to file', govt.ready],
-        ['Registered with portal', govt.registered],
-        ['Department Action', govt.department],
-    ];
-
-    return (
-        <Section title="Government Tracking" action={{ href: '/dashboard/sansadx', label: 'Open government cases ->' }}>
-            <div className="journey">
-                {steps.map(([label, value], idx) => (
-                    <div className="journey-step" key={label}>
-                        <div>
-                            <span>{label}</span>
-                            <strong>{value}</strong>
-                        </div>
-                        {idx < steps.length - 1 ? <span className="journey-arrow" aria-hidden="true" /> : null}
-                    </div>
-                ))}
-            </div>
-            <div className="govt-resolved">{govt.resolved} resolved cases kept as quiet context.</div>
-            <div className="sync-box">
-                <div>
-                    <strong>{govt.syncIssues} sync issues</strong>
-                    <span>Review before next portal check.</span>
-                </div>
-                {govt.issues.length ? (
-                    <ul>
-                        {govt.issues.map((issue) => <li key={issue}>{issue}</li>)}
-                    </ul>
-                ) : null}
-            </div>
         </Section>
     );
 }
@@ -380,7 +345,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     <OfficePending items={data.officePending} onNavigate={go} />
                 </div>
                 <div className="overview-col overview-col-right">
-                    <GovernmentTracking govt={data.govt} />
+                    <GovtTrackingCard syncIssues={data.govt.syncIssues} issues={data.govt.issues} onOpenCase={openCase} />
                     <PresenceMap presence={data.presence} />
                     <TodayAgenda items={data.today} />
                     <RecentMovement items={data.movement} />
@@ -630,8 +595,6 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 }
 
                 .issue-cell span,
-                .govt-resolved,
-                .sync-box span,
                 .agenda-row p,
                 .movement-row p,
                 .media-list p {
@@ -721,102 +684,6 @@ export default function OverviewDashboard({ data, onNavigate }) {
 
                 .mobile-queue-footer {
                     display: none;
-                }
-
-                .journey {
-                    position: relative;
-                    display: grid;
-                    gap: 0;
-                    padding: 10px 14px 2px;
-                }
-
-                .journey-step {
-                    position: relative;
-                    display: grid;
-                    grid-template-columns: 1fr;
-                    padding-left: 14px;
-                    align-items: start;
-                }
-
-                .journey-step::before {
-                    content: '';
-                    position: absolute;
-                    left: 0;
-                    top: 15px;
-                    width: 6px;
-                    height: 6px;
-                    border-radius: 999px;
-                    background: ${C.green};
-                }
-
-                .journey-step:not(:last-child)::after {
-                    content: '';
-                    position: absolute;
-                    left: 2.5px;
-                    top: 23px;
-                    bottom: -2px;
-                    width: 1px;
-                    background: rgba(43, 110, 76, 0.22);
-                }
-
-                .journey-step > div {
-                    border: 1px solid ${C.border};
-                    background: ${C.surfaceWarm};
-                    padding: 8px 11px;
-                    display: flex;
-                    align-items: baseline;
-                    justify-content: space-between;
-                    gap: 12px;
-                }
-
-                .journey-step span:first-child {
-                    color: #514B3F;
-                    font-size: 12px;
-                }
-
-                .journey-step strong {
-                    font-family: ${SERIF};
-                    font-size: 22px;
-                    color: ${C.ink};
-                    font-weight: 680;
-                    letter-spacing: -0.04em;
-                    line-height: 1;
-                }
-
-                .journey-arrow {
-                    display: none;
-                }
-
-                .govt-resolved {
-                    margin: 7px 14px 9px;
-                    font-size: 11px;
-                    line-height: 1.35;
-                }
-
-                .sync-box {
-                    margin: 0 14px 12px;
-                    background: ${C.rustSoft};
-                    border: 1px solid rgba(188, 106, 54, 0.28);
-                    padding: 9px 11px;
-                }
-
-                .sync-box strong {
-                    display: block;
-                    color: ${C.ink};
-                    font-size: 12px;
-                    margin-bottom: 2px;
-                }
-
-                .sync-box span,
-                .sync-box li {
-                    font-size: 11px;
-                    line-height: 1.3;
-                }
-
-                .sync-box ul {
-                    margin: 6px 0 0;
-                    padding-left: 15px;
-                    color: #514B3F;
                 }
 
                 .presence-card {
@@ -1277,25 +1144,9 @@ export default function OverviewDashboard({ data, onNavigate }) {
                         transition: color 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
                     }
 
-                    .journey,
                     .presence-card {
                         padding-left: 14px;
                         padding-right: 14px;
-                    }
-
-                    .journey-arrow {
-                        display: none;
-                    }
-
-                    .journey-step {
-                        grid-template-columns: 1fr;
-                        margin-bottom: 8px;
-                    }
-
-                    .sync-box,
-                    .govt-resolved {
-                        margin-left: 14px;
-                        margin-right: 14px;
                     }
 
                     .pressure-row {

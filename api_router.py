@@ -1239,6 +1239,45 @@ def dashboard_overview_metric_rows(
         raise HTTPException(500, "The list could not be loaded. Please try again shortly.")
 
 
+@router.get("/dashboard/overview/govt-tracking")
+def dashboard_govt_tracking(user=Depends(get_current_user)):
+    """Government Tracking card: status checks due, filings by department, resolved by government."""
+    from modules.govt_tracking import govt_tracking
+
+    tid = get_tenant_or_fail(user)
+    try:
+        portal, _state = _resolve_govt_portal_for_tenant(tid)
+    except Exception:
+        portal = None
+    try:
+        return govt_tracking(tid, portal)
+    except Exception:
+        logger.exception("govt tracking card failed tenant=%s", tid)
+        raise HTTPException(500, "Government tracking could not be loaded. Please try again shortly.")
+
+
+class GovtCheckRequest(BaseModel):
+    outcome: str
+
+
+@router.post("/cases/{case_id}/govt/check")
+def record_govt_status_check(case_id: int, body: GovtCheckRequest, user=Depends(get_current_user)):
+    """Staff checked a filed complaint on the portal: record what they found."""
+    from modules.govt_tracking import CHECK_OUTCOMES, record_check
+
+    tid = get_tenant_or_fail(user)
+    outcome = (body.outcome or "").strip().lower()
+    if outcome not in CHECK_OUTCOMES:
+        raise HTTPException(400, "Unknown outcome")
+    try:
+        return record_check(tid, case_id, outcome, user.get("username"))
+    except LookupError:
+        raise HTTPException(404, "Filed complaint not found")
+    except Exception:
+        logger.exception("govt status check record failed tenant=%s case=%s", tid, case_id)
+        raise HTTPException(500, "The check could not be saved. Please try again.")
+
+
 def _parse_iso_date(value: str | None) -> date:
     if not value:
         return _utcnow().date()
