@@ -7,7 +7,7 @@ import { getOverviewIsEmpty, mapOverviewResponse } from '@/lib/dashboard-mappers
 export function useDashboardOverview() {
     const [overview, setOverview] = useState(null);
     const [engagements, setEngagements] = useState({ items: [] });
-    const [localNews, setLocalNews] = useState({ articles: [] });
+    const [localNews, setLocalNews] = useState(null);
     const [seatManifest, setSeatManifest] = useState(null);
     const [overviewLoaded, setOverviewLoaded] = useState(false);
     const [isError, setIsError] = useState(false);
@@ -37,8 +37,8 @@ export function useDashboardOverview() {
         })();
 
         const timer = setTimeout(async () => {
-            const response = await apiGet('/api/news?news_type=local').catch(() => ({ articles: [] }));
-            if (!cancelled) setLocalNews(response || { articles: [] });
+            const response = await apiGet('/api/dashboard/overview/local-signals').catch(() => ({ items: [] }));
+            if (!cancelled) setLocalNews(response || { items: [] });
         }, 400);
 
         return () => {

@@ -88,6 +88,28 @@ const OVERVIEW = {
     validation: { thread_count: 9 },
 };
 
+const SIGNALS = [
+    { source: 'Belagavi Herald', title: 'Shahapur police arrest two in theft case', link: 'https://example.com/a', localities: ['Shahapur'],
+        issue: 'Theft & Safety', linked: '4 Theft & Safety complaints from Shahapur in the last 30 days', relevance: 3 },
+    { source: 'Pudhari', title: 'Corporation meeting on budget', link: 'https://example.com/b', localities: [], issue: null, linked: null, relevance: 0 },
+];
+const ROADS = {
+    issue: 'Roads & Bridges', complaints: 32, previous: 19, people: 27, locality_count: 5, quadrant: 'plank',
+    localities: [{ name: 'Tilakwadi', complaints: 11 }, { name: 'Mahatma Phule Road', complaints: 8 }],
+    open_over_30_days: 22, oldest_open_days: 168, trend: [2, 3, 3, 4, 5, 4, 6, 7], languages: [{ name: 'Marathi', share: 61 }],
+    department: 'Public Works Dept', filed: 8, filed_resolved: 2,
+    quotes: [{ text: 'Mahatma Phule Road cha rasta kharab aahe', locality: 'Mahatma Phule Road', locality_complaints: 8 }],
+};
+const THEFT = {
+    issue: 'Theft & Safety', complaints: 9, previous: 2, people: 9, locality_count: 3, quadrant: 'flash',
+    localities: [{ name: 'Shahapur', complaints: 4 }], open_over_30_days: 6, oldest_open_days: 58, trend: [0, 0, 1, 0, 1, 2, 2, 3],
+    languages: [], department: null, filed: 0, filed_resolved: 0, quotes: [],
+};
+const INSIGHT = { edition: 'aspirant', issues: [ROADS, THEFT] };
+const TODO = { items: [
+    { key: 'unassigned', count: 54, oldest_days: 168 }, { key: 'letters', count: 3, oldest_days: 2 },
+    { key: 'drafts', count: 0, oldest_days: null }, { key: 'citizens_to_update', count: 1, oldest_days: 3 }] };
+
 let govtDue = [];
 
 describe('MP dashboard overview', () => {
@@ -101,9 +123,9 @@ describe('MP dashboard overview', () => {
             if (path === '/api/dashboard/engagements') {
                 return { items: [{ id: 1, title: 'Call sanitation officer', starts_at: null, is_all_day: true }] };
             }
-            if (path === '/api/news?news_type=local') {
-                return { articles: [{ source: 'Belagavi Herald', title: 'Rain floods low-lying lanes', link: 'https://example.com/x' }] };
-            }
+            if (path === '/api/dashboard/overview/local-signals') return { items: SIGNALS };
+            if (path.startsWith('/api/dashboard/overview/issue-insight')) return { ...INSIGHT, period_days: path.includes('days=30') ? 30 : 90 };
+            if (path === '/api/dashboard/overview/office-todo') return TODO;
             if (path === '/api/maps/seat-manifest') return { seat: 'Belagavi South', features: [] };
             if (path === '/api/dashboard/overview/govt-tracking') {
                 return {
@@ -147,7 +169,7 @@ describe('MP dashboard overview', () => {
         expect(screen.getByText('No presence')).toBeInTheDocument();
         expect(screen.getByText('Issue Pressure')).toBeInTheDocument();
         expect(screen.getByText('Today')).toBeInTheDocument();
-        expect(screen.getByText('Office Pending')).toBeInTheDocument();
+        expect(screen.getByText('Office To-do')).toBeInTheDocument();
         expect(screen.getByText('Recent Movement')).toBeInTheDocument();
         expect(screen.getByText('Local Signals')).toBeInTheDocument();
 
@@ -228,6 +250,78 @@ describe('MP dashboard overview', () => {
         render(<DashboardPage />);
         const card = await screen.findByRole('region', { name: 'Government Tracking' });
         expect(await within(card).findByText('Government tracking could not be loaded.')).toBeInTheDocument();
+        expect(screen.getByText('Attention Queue')).toBeInTheDocument();
+    });
+
+    it('Issue Pressure: the read, the matrix, a brief per issue, and actions', async () => {
+        render(<DashboardPage />);
+        const card = await screen.findByRole('region', { name: 'Issue Pressure' });
+        expect(await within(card).findByText('is the issue that unites the constituency', { exact: false })).toBeInTheDocument();
+        expect(within(card).getByText('theft & safety is rising fastest')).toBeInTheDocument();
+        expect(within(card).getByRole('img', { name: /widespread/ })).toBeInTheDocument();
+        const panel = within(card).getByRole('tabpanel');
+        expect(within(panel).getByText('Own this issue')).toBeInTheDocument();
+        expect(within(panel).getByText('+68%')).toBeInTheDocument();
+        expect(within(panel).getByText('Public hearing in Tilakwadi')).toBeInTheDocument();
+        expect(within(panel).getByText(/Mahatma Phule Road cha rasta/)).toBeInTheDocument();
+
+        fireEvent.click(within(card).getByRole('tab', { name: /Theft & Safety/ }));
+        const theft = within(card).getByRole('tabpanel');
+        expect(within(theft).getByText('Be first on the ground')).toBeInTheDocument();
+        expect(within(theft).getByText('2 → 9')).toBeInTheDocument();
+        await waitFor(() => expect(within(theft).getByText('local news stories').previousSibling).toHaveTextContent('1'));
+        fireEvent.click(within(theft).getByRole('button', { name: 'Open 9 complaints' }));
+        expect(pushMock).toHaveBeenCalledWith('/dashboard/sansadx?category=Theft%20%26%20Safety');
+
+        fireEvent.click(within(card).getByRole('tab', { name: /Roads & Bridges/ }));
+        fireEvent.click(within(card).getByRole('button', { name: 'Plan visit to Tilakwadi' }));
+        await waitFor(() => expect(apiPostMock).toHaveBeenCalledWith('/api/dashboard/engagements', expect.objectContaining({ title: 'Visit Tilakwadi — Roads & Bridges', is_all_day: true })));
+        fireEvent.click(within(card).getByRole('button', { name: 'Draft letter to Public Works Dept' }));
+        expect(pushMock.mock.calls.at(-1)[0]).toMatch(/^\/dashboard\/drafter\?subject=Roads/);
+
+        fireEvent.click(within(card).getByRole('button', { name: '30 days' }));
+        await waitFor(() => expect(apiGetMock).toHaveBeenCalledWith('/api/dashboard/overview/issue-insight?days=30'));
+    });
+
+    it('Issue Pressure uses sitting-member wording for elected accounts', async () => {
+        const base = apiGetMock.getMockImplementation();
+        apiGetMock.mockImplementation(async (path) => (path.startsWith('/api/dashboard/overview/issue-insight') ? { ...INSIGHT, edition: 'mla', period_days: 90 } : base(path)));
+        render(<DashboardPage />);
+        const card = await screen.findByRole('region', { name: 'Issue Pressure' });
+        expect(await within(card).findByText('Fix this before it becomes the story')).toBeInTheDocument();
+        expect(within(card).getByText('What to do')).toBeInTheDocument();
+        expect(within(card).getByText('Site visit with Public Works Dept in Tilakwadi')).toBeInTheDocument();
+    });
+
+    it('Office To-do shows four counts with the oldest age and opens the right place', async () => {
+        render(<DashboardPage />);
+        const card = await screen.findByRole('region', { name: 'Office To-do' });
+        const tile = await within(card).findByRole('button', { name: /Complaints with no owner/ });
+        expect(within(tile).getByText('oldest waiting 168 days')).toBeInTheDocument();
+        expect(within(card).getByRole('button', { name: /Drafts awaiting approval/ })).toHaveTextContent('nothing waiting');
+        fireEvent.click(tile);
+        expect(pushMock).toHaveBeenCalledWith('/dashboard/sansadx?assigned_to=unassigned');
+    });
+
+    it('Local Signals: tagged stories, no action buttons or filters, low-relevance stories hidden', async () => {
+        render(<DashboardPage />);
+        const card = await screen.findByRole('region', { name: 'Local Signals' });
+        expect(await within(card).findByText('Shahapur police arrest two in theft case')).toBeInTheDocument();
+        expect(within(card).getByText('Shahapur')).toBeInTheDocument();
+        expect(within(card).getByText(/4 Theft & Safety complaints from Shahapur/)).toBeInTheDocument();
+        expect(within(card).queryByRole('button', { name: /Send to leader|See complaints|Linked to our complaints|Law & order|Civic issues|^All$/ })).toBeNull();
+        expect(within(card).queryByText('Corporation meeting on budget')).toBeNull();
+        fireEvent.click(within(card).getByRole('button', { name: 'Show' }));
+        expect(within(card).getByText('Corporation meeting on budget')).toBeInTheDocument();
+    });
+
+    it('lower Overview cards survive malformed responses', async () => {
+        const base = apiGetMock.getMockImplementation();
+        apiGetMock.mockImplementation(async (path) => (
+            path.startsWith('/api/dashboard/overview/issue-insight') || path === '/api/dashboard/overview/office-todo' ? {} : base(path)));
+        render(<DashboardPage />);
+        expect(await screen.findByText('Issue Pressure could not be loaded.')).toBeInTheDocument();
+        expect(await screen.findByText('Office To-do could not be loaded.')).toBeInTheDocument();
         expect(screen.getByText('Attention Queue')).toBeInTheDocument();
     });
 });

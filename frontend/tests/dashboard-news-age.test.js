@@ -12,11 +12,19 @@ describe('local signals', () => {
         expect(newsAge('not a date', NOW)).toBe('');
     });
 
-    it('maps up to four articles with source, link and age', () => {
-        const articles = Array.from({ length: 6 }, (_, i) => ({ title: `T${i}`, source: 'Pudhari', link: `https://n/${i}`, published: '2026-11-24T06:00:00' }));
-        const { media } = mapOverviewResponse({}, null, { articles });
-        expect(media).toHaveLength(4);
-        expect(media[0]).toMatchObject({ title: 'T0', source: 'Pudhari', href: 'https://n/0' });
+    it('maps up to eight tagged stories with source, link, age and tags', () => {
+        const items = Array.from({ length: 10 }, (_, i) => ({ title: `T${i}`, source: 'Pudhari', link: `https://n/${i}`, published: '2026-11-24T06:00:00',
+            localities: ['Tilakwadi'], issue: 'Roads & Bridges', linked: '3 complaints', relevance: 3 }));
+        const { media, mediaLoaded } = mapOverviewResponse({}, null, { items });
+        expect(mediaLoaded).toBe(true);
+        expect(media).toHaveLength(8);
+        expect(media[0]).toMatchObject({ title: 'T0', source: 'Pudhari', href: 'https://n/0', localities: ['Tilakwadi'], issue: 'Roads & Bridges', linked: '3 complaints', relevance: 3 });
         expect(typeof media[0].age).toBe('string');
+    });
+
+    it('treats untagged stories as relevant and reports when news has not loaded', () => {
+        const { media } = mapOverviewResponse({}, null, { articles: [{ title: 'X', source: 'S' }] });
+        expect(media[0]).toMatchObject({ localities: [], issue: null, linked: null, relevance: 2 });
+        expect(mapOverviewResponse({}, null, null).mediaLoaded).toBe(false);
     });
 });
