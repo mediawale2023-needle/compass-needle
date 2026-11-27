@@ -5,10 +5,13 @@ import Link from 'next/link';
 import { gen2, gen2Fonts } from '@/lib/briefcase-tokens';
 import OverviewMetricsStrip from '@/components/dashboard/OverviewMetricsStrip';
 import GovtTrackingCard from '@/components/dashboard/GovtTrackingCard';
+import IssuePressureCard from '@/components/dashboard/IssuePressureCard';
+import OfficeTodoCard from '@/components/dashboard/OfficeTodoCard';
 
 // Locked Overview design — approved visual baseline. Do not redesign.
 // Data comes from GET /api/dashboard/overview (+ /api/dashboard/engagements,
-// /api/news?news_type=local) via lib/dashboard-mappers → mapOverviewResponse.
+// /api/dashboard/overview/local-signals) via lib/dashboard-mappers → mapOverviewResponse.
+// Issue Pressure, Office To-do and Government Tracking load their own endpoints.
 
 // Canonical Gen 2 tokens, with this view's own shades kept verbatim. The
 // Overview is an approved locked baseline, so the five values that differ
@@ -186,27 +189,6 @@ function PresenceMap({ presence }) {
     );
 }
 
-function IssuePressure({ items }) {
-    return (
-        <Section title="Issue Pressure">
-            <div className="pressure-list">
-                {items.length === 0 ? (
-                    <div className="pressure-row"><div><strong>No issue clusters yet</strong><span>&nbsp;</span></div><b>0</b></div>
-                ) : null}
-                {items.map((item) => (
-                    <div key={item.title} className="pressure-row">
-                        <div>
-                            <strong>{item.title}</strong>
-                            <span>{item.place}</span>
-                        </div>
-                        <b>{item.count}</b>
-                    </div>
-                ))}
-            </div>
-        </Section>
-    );
-}
-
 function TodayAgenda({ items }) {
     return (
         <Section title="Today" action={{ href: '/dashboard', label: 'Open schedule ->' }}>
@@ -219,24 +201,6 @@ function TodayAgenda({ items }) {
                         <span>{item.time}</span>
                         <p>{item.item}</p>
                     </div>
-                ))}
-            </div>
-        </Section>
-    );
-}
-
-function OfficePending({ items, onNavigate }) {
-    return (
-        <Section title="Office Pending">
-            <div className="pending-list">
-                {items.map((item) => (
-                    <button
-                        type="button"
-                        key={item.key || item.label}
-                        onClick={() => (item.href ? onNavigate(item.href) : undefined)}
-                    >
-                        {item.label}
-                    </button>
                 ))}
             </div>
         </Section>
@@ -269,37 +233,50 @@ function RecentMovement({ items }) {
     );
 }
 
-function LocalSignals({ items }) {
+export const SIGNALS_SHOWN = 6;
+
+export function signalRows(items, showLow) {
+    const list = Array.isArray(items) ? items : [];
+    const relevant = list.filter((i) => i.relevance > 0);
+    const low = list.filter((i) => !(i.relevance > 0));
+    return { shown: (showLow ? [...relevant, ...low] : relevant).slice(0, showLow ? 8 : SIGNALS_SHOWN), hidden: showLow ? 0 : low.length };
+}
+
+function LocalSignals({ items, loaded }) {
+    const [showLow, setShowLow] = useState(false);
+    const { shown, hidden } = signalRows(items, showLow);
     return (
-        <section className="media-strip">
+        <section className="media-strip" aria-label="Local Signals">
             <div className="op-section-head">
                 <h2>Local Signals</h2>
             </div>
-            <div className="media-list">
-                {items.length === 0 ? (
-                    <article><span>Local desk</span><p>No local coverage picked up yet.</p></article>
-                ) : null}
-                {items.map((item) => {
-                    const body = (
-                        <>
-                            <span>{item.age ? `${item.source} · ${item.age}` : item.source}</span>
-                            <p>{item.title}</p>
-                        </>
-                    );
-                    return item.href ? (
-                        <a
-                            key={`${item.source}-${item.title}`}
-                            href={item.href}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                        >
-                            {body}
-                        </a>
-                    ) : (
-                        <article key={`${item.source}-${item.title}`}>{body}</article>
-                    );
-                })}
+            <div className="signal-list">
+                {!loaded ? <p className="signal-empty">Loading local news…</p> : null}
+                {loaded && shown.length === 0 && !hidden ? <p className="signal-empty">No local coverage picked up yet.</p> : null}
+                {shown.map((item) => (
+                    <article key={`${item.source}-${item.title}`} className={`signal-row${item.relevance > 0 ? '' : ' low'}`}>
+                        <span className="signal-src">{item.age ? `${item.source} · ${item.age}` : item.source}</span>
+                        {item.href ? (
+                            <a className="signal-title" href={item.href} target="_blank" rel="noreferrer noopener">{item.title}</a>
+                        ) : (
+                            <p className="signal-title">{item.title}</p>
+                        )}
+                        {item.localities.length || item.issue || item.linked ? (
+                            <div className="signal-tags">
+                                {item.localities.map((l) => <span key={l} className="signal-tag loc">{l}</span>)}
+                                {item.issue ? <span className="signal-tag issue">{item.issue}</span> : null}
+                                {item.linked ? <span className="signal-link">● {item.linked}</span> : null}
+                            </div>
+                        ) : null}
+                    </article>
+                ))}
             </div>
+            {hidden ? (
+                <p className="signal-hidden">
+                    {hidden} less relevant {hidden === 1 ? 'story' : 'stories'} hidden (no local place or civic issue).{' '}
+                    <button type="button" onClick={() => setShowLow(true)}>Show</button>
+                </p>
+            ) : null}
         </section>
     );
 }
@@ -341,8 +318,8 @@ export default function OverviewDashboard({ data, onNavigate }) {
             <div className="overview-columns">
                 <div className="overview-col overview-col-left">
                     <AttentionQueue rows={data.queue} onOpenCase={openCase} onRunAction={runAction} />
-                    <IssuePressure items={data.issuePressure} />
-                    <OfficePending items={data.officePending} onNavigate={go} />
+                    <IssuePressureCard signals={data.mediaLoaded ? data.media : null} onNavigate={go} />
+                    <OfficeTodoCard onNavigate={go} />
                 </div>
                 <div className="overview-col overview-col-right">
                     <GovtTrackingCard syncIssues={data.govt.syncIssues} issues={data.govt.issues} onOpenCase={openCase} />
@@ -352,7 +329,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 </div>
             </div>
 
-            <LocalSignals items={data.media} />
+            <LocalSignals items={data.media} loaded={data.mediaLoaded} />
 
             <style>{`
                 .overview-dashboard {
@@ -388,8 +365,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 .action-cell .action-none,
                 .mobile-queue-footer,
                 .movement-row span,
-                .agenda-row span,
-                .media-list span {
+                .agenda-row span {
                     font-family: ${MONO};
                 }
 
@@ -481,8 +457,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
 
                 .op-section-head a:active,
                 .action-cell button:active,
-                .mobile-queue-footer:active,
-                .pending-list button:active {
+                .mobile-queue-footer:active {
                     transform: scale(0.98);
                 }
 
@@ -596,8 +571,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
 
                 .issue-cell span,
                 .agenda-row p,
-                .movement-row p,
-                .media-list p {
+                .movement-row p {
                     color: ${C.muted};
                 }
 
@@ -778,49 +752,14 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     font-size: 11px;
                 }
 
-                .pressure-list,
                 .agenda-list,
                 .movement-list {
                     display: grid;
                 }
 
-                .pressure-row {
-                    display: grid;
-                    grid-template-columns: minmax(160px, 0.78fr) minmax(200px, 1fr) auto;
-                    gap: 14px;
-                    align-items: center;
-                    padding: 11px 16px;
-                    border-bottom: 1px solid ${C.border};
-                }
-
-                .pressure-row:last-child,
                 .agenda-row:last-child,
                 .movement-row:last-child {
                     border-bottom: 0;
-                }
-
-                .pressure-row div {
-                    display: grid;
-                    gap: 3px;
-                }
-
-                .pressure-row strong {
-                    color: ${C.ink};
-                    font-size: 13px;
-                    font-weight: 650;
-                }
-
-                .pressure-row span {
-                    color: ${C.faint};
-                    font-size: 11.5px;
-                }
-
-                .pressure-row b {
-                    font-family: ${SERIF};
-                    color: ${C.greenDeep};
-                    font-size: 22px;
-                    font-weight: 700;
-                    letter-spacing: -0.04em;
                 }
 
                 .agenda-row,
@@ -861,83 +800,105 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     line-height: 1.3;
                 }
 
-                .pending-list {
-                    display: grid;
-                    grid-template-columns: repeat(3, minmax(0, 1fr));
-                    gap: 0;
-                }
-
-                .pending-list button {
-                    min-height: 76px;
-                    border: 0;
-                    border-right: 1px solid ${C.border};
-                    background: transparent;
-                    color: ${C.ink};
-                    cursor: pointer;
-                    font-family: ${SANS};
-                    font-size: 12.5px;
-                    font-weight: 560;
-                    line-height: 1.3;
-                    padding: 13px 16px;
-                    text-align: left;
-                    transition: background 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
-                }
-
-                .pending-list button:last-child {
-                    border-right: 0;
-                }
-
-                @media (hover: hover) and (pointer: fine) {
-                    .pending-list button:hover {
-                        background: ${C.surfaceWarm};
-                    }
-                }
-
                 .media-strip {
                     margin-top: 14px;
                 }
 
-                .media-list {
+                .signal-list {
                     display: grid;
-                    grid-template-columns: repeat(3, minmax(0, 1fr));
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
                 }
 
-                .media-list article,
-                .media-list a {
-                    min-height: 76px;
-                    padding: 13px 16px;
+                .signal-row {
+                    padding: 12px 16px;
+                    border-bottom: 1px solid ${C.border};
+                    min-width: 0;
+                }
+
+                .signal-row:nth-child(odd) {
                     border-right: 1px solid ${C.border};
-                    text-decoration: none;
+                }
+
+                .signal-row.low {
+                    opacity: 0.75;
+                }
+
+                .signal-src {
                     display: block;
-                    transition: background 150ms cubic-bezier(0.23, 1, 0.32, 1);
-                }
-
-                @media (hover: hover) and (pointer: fine) {
-                    .media-list a:hover {
-                        background: ${C.surfaceWarm};
-                    }
-                }
-
-                .media-list article:last-child,
-                .media-list a:last-child {
-                    border-right: 0;
-                }
-
-                .media-list span {
-                    display: block;
-                    color: ${C.faint};
+                    color: ${C.muted};
+                    font-family: ${MONO};
                     font-size: 10px;
-                    letter-spacing: 0.04em;
+                    letter-spacing: 0.08em;
                     text-transform: uppercase;
-                    margin-bottom: 6px;
                 }
 
-                .media-list p {
-                    margin: 0;
+                .signal-title {
+                    display: block;
+                    margin: 3px 0 6px;
                     color: ${C.ink};
-                    font-size: 12.5px;
-                    font-weight: 560;
-                    line-height: 1.3;
+                    font-size: 13.5px;
+                    font-weight: 600;
+                    line-height: 1.35;
+                    text-decoration: none;
+                }
+
+                a.signal-title:hover {
+                    text-decoration: underline;
+                }
+
+                .signal-tags {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 6px;
+                    align-items: center;
+                }
+
+                .signal-tag {
+                    font-size: 11px;
+                    padding: 1px 7px;
+                    border-radius: 999px;
+                    border: 1px solid ${C.border};
+                    color: ${C.ink};
+                }
+
+                .signal-tag.loc {
+                    background: ${C.blueSoft};
+                    border-color: #C8D3DF;
+                    color: ${C.blue};
+                }
+
+                .signal-tag.issue {
+                    background: ${C.amberSoft};
+                    border-color: #E5CF9F;
+                    color: #8A5D12;
+                }
+
+                .signal-link {
+                    font-size: 12px;
+                    color: ${C.red};
+                    font-weight: 600;
+                }
+
+                .signal-empty,
+                .signal-hidden {
+                    margin: 0;
+                    padding: 12px 16px;
+                    color: ${C.muted};
+                    font-size: 12px;
+                }
+
+                .signal-hidden {
+                    border-top: 1px solid ${C.border};
+                }
+
+                .signal-hidden button {
+                    border: 0;
+                    background: none;
+                    padding: 0;
+                    color: ${C.greenDeep};
+                    font: inherit;
+                    font-weight: 600;
+                    cursor: pointer;
                 }
 
                 /* Below ~1440 the fixed 220px app rail leaves too little room for
@@ -970,7 +931,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     .overview-col-right > :nth-child(2) { order: 3; flex: 1 1 calc(50% - 7px); min-width: 0; }  /* Presence Map */
                     .overview-col-left > :nth-child(2) { order: 4; flex: 1 1 100%; }                       /* Issue Pressure */
                     .overview-col-right > :nth-child(3) { order: 5; flex: 1 1 100%; }                      /* Today */
-                    .overview-col-left > :nth-child(3) { order: 6; flex: 1 1 100%; }                       /* Office Pending */
+                    .overview-col-left > :nth-child(3) { order: 6; flex: 1 1 100%; }                       /* Office To-do */
                     .overview-col-right > :nth-child(4) { order: 7; flex: 1 1 100%; }                      /* Recent Movement */
 
                     .queue-empty,
@@ -1149,28 +1110,12 @@ export default function OverviewDashboard({ data, onNavigate }) {
                         padding-right: 14px;
                     }
 
-                    .pressure-row {
-                        grid-template-columns: 1fr auto;
-                        gap: 6px 12px;
-                        padding: 12px 14px;
-                    }
-
-                    .pending-list,
-                    .media-list {
+                    .signal-list {
                         grid-template-columns: 1fr;
                     }
 
-                    .pending-list button,
-                    .media-list article,
-                    .media-list a {
+                    .signal-row:nth-child(odd) {
                         border-right: 0;
-                        border-bottom: 1px solid ${C.border};
-                    }
-
-                    .pending-list button:last-child,
-                    .media-list article:last-child,
-                    .media-list a:last-child {
-                        border-bottom: 0;
                     }
                 }
             `}</style>

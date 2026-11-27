@@ -116,12 +116,17 @@ export function newsAge(published, now = Date.now()) {
 }
 
 function normalizeOverviewMedia(localNews) {
-    const articles = localNews && Array.isArray(localNews.articles) ? localNews.articles : [];
-    return articles.slice(0, 4).map((article) => ({
+    const list = localNews && Array.isArray(localNews.items) ? localNews.items
+        : localNews && Array.isArray(localNews.articles) ? localNews.articles : [];
+    return list.slice(0, 8).map((article) => ({
         source: article.source || 'Local desk',
         title: article.title || '',
         href: article.link || article.url || null,
         age: newsAge(article.published),
+        localities: Array.isArray(article.localities) ? article.localities.filter(Boolean) : [],
+        issue: article.issue || null,
+        linked: article.linked || null,
+        relevance: Number.isFinite(article.relevance) ? article.relevance : 2,
     }));
 }
 
@@ -161,17 +166,7 @@ export function mapOverviewResponse(overview, engagements, localNews) {
         queue: Array.isArray(o.attention_queue) ? o.attention_queue.map(mapOverviewQueueRow) : [],
         govt: mapOverviewGovt(o.government_tracking),
         presence: mapPresence(o.presence_map),
-        issuePressure: Array.isArray(o.issue_pressure)
-            ? o.issue_pressure.map((i) => ({
-                title: i.title || '',
-                place: i.place || '',
-                count: i.count ?? 0,
-            }))
-            : [],
         today: normalizeOverviewToday(engagements),
-        officePending: Array.isArray(o.office_pending)
-            ? o.office_pending.map((p) => ({ key: p.key, label: p.label || '', href: p.href || null }))
-            : [],
         movement: Array.isArray(o.recent_movement)
             ? o.recent_movement.map((m) => ({
                 id: m.id ?? `${m.time}-${m.item}`,
@@ -182,6 +177,7 @@ export function mapOverviewResponse(overview, engagements, localNews) {
             }))
             : [],
         media: normalizeOverviewMedia(localNews),
+        mediaLoaded: localNews !== null && localNews !== undefined,
     };
 }
 

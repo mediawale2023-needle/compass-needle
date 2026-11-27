@@ -49,7 +49,7 @@ export default function useBriefcaseCases(user) {
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [pageSize, setPageSize] = useState(25);
-    const [assignedFilter, setAssignedFilter] = useState('');
+    const [assignedFilter, setAssignedFilter] = useState(() => searchParams.get('assigned_to') || '');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [criticalOnly, setCriticalOnly] = useState(false);
@@ -84,6 +84,7 @@ export default function useBriefcaseCases(user) {
         setLocationFilter(searchParams.get('location') || '');
         setAssemblyFilter(searchParams.get('assembly') || '');
         setDataScope(searchParams.get('data_scope') || 'live');
+        setAssignedFilter(searchParams.get('assigned_to') || '');
         setPage(1);
     }, [searchParams]);
 

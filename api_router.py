@@ -210,6 +210,9 @@ MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
 
 security = HTTPBearer()
+# Briefcase assignee filter value for "no owner" (Overview Office To-do link).
+UNASSIGNED_FILTER = "unassigned"
+
 router = APIRouter()
 
 
@@ -1256,6 +1259,69 @@ def dashboard_govt_tracking(user=Depends(get_current_user)):
         raise HTTPException(500, "Government tracking could not be loaded. Please try again shortly.")
 
 
+def _overview_edition(tid: int) -> str:
+    """aspirant / mla / mp — decides the wording of the Issue Pressure moves."""
+    from modules.partner_report import report_edition
+    from sansadx_backend.db import Tenant
+
+    db = SessionLocal()
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tid).first()
+        return report_edition(tenant, getattr(tenant, "seat_type", None) if tenant is not None else None)
+    except Exception:
+        logger.exception("overview edition lookup failed tenant=%s", tid)
+        return "mla"
+    finally:
+        db.close()
+
+
+@router.get("/dashboard/overview/issue-insight")
+def dashboard_issue_insight(days: int = Query(default=90), user=Depends(get_current_user)):
+    """Issue Pressure card: issues by breadth and growth, with what a brief needs."""
+    from modules.overview_insight import issue_insight
+
+    tid = get_tenant_or_fail(user)
+    try:
+        data = issue_insight(tid, days)
+    except Exception:
+        logger.exception("issue insight failed tenant=%s", tid)
+        raise HTTPException(500, "Issue Pressure could not be loaded. Please try again shortly.")
+    data["edition"] = _overview_edition(tid)
+    return data
+
+
+@router.get("/dashboard/overview/office-todo")
+def dashboard_office_todo(user=Depends(get_current_user)):
+    """Office To-do card: unassigned complaints, letters, drafts, citizens to update."""
+    from modules.overview_insight import office_todo
+
+    tid = get_tenant_or_fail(user)
+    try:
+        return office_todo(tid)
+    except Exception:
+        logger.exception("office todo failed tenant=%s", tid)
+        raise HTTPException(500, "Office To-do could not be loaded. Please try again shortly.")
+
+
+@router.get("/dashboard/overview/local-signals")
+def dashboard_local_signals(user=Depends(get_current_user)):
+    """Local Signals: local news tagged with the tenant's localities and issues."""
+    from modules.news_intel import fetch_local_signals
+    from modules.overview_insight import annotate_local_signals
+
+    tid = get_tenant_or_fail(user)
+    try:
+        articles = fetch_local_signals(tid, limit=8)
+    except Exception:
+        logger.exception("local signals fetch failed tenant=%s", tid)
+        articles = []
+    try:
+        return {"items": annotate_local_signals(tid, articles)}
+    except Exception:
+        logger.exception("local signals tagging failed tenant=%s", tid)
+        return {"items": [{**a, "localities": [], "issue": None, "linked": None, "relevance": 2} for a in articles]}
+
+
 class GovtCheckRequest(BaseModel):
     outcome: str
 
@@ -1801,7 +1867,9 @@ def get_cases(
             ")"
         )
         params["search"] = f"%{search}%"
-    if assigned_to:
+    if assigned_to == UNASSIGNED_FILTER:
+        conditions.append("NULLIF(TRIM(CAST(c.assigned_to AS TEXT)), '') IS NULL")
+    elif assigned_to:
         conditions.append("c.assigned_to = :assigned_to")
         params["assigned_to"] = assigned_to
     if date_from:
@@ -2187,7 +2255,9 @@ def export_cases(
             ")"
         )
         params["search"] = f"%{search}%"
-    if assigned_to:
+    if assigned_to == UNASSIGNED_FILTER:
+        conditions.append("NULLIF(TRIM(CAST(assigned_to AS TEXT)), '') IS NULL")
+    elif assigned_to:
         conditions.append("assigned_to = :assigned_to")
         params["assigned_to"] = assigned_to
     if date_from:

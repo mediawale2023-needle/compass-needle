@@ -238,7 +238,7 @@ export default function BriefcaseFiltersBar(props) {
                             ['Category', categoryFilter, onCategoryChange, filterOptions.categories],
                             ['Location', locationFilter, onLocationChange, filterOptions.locations],
                             ['Assembly', assemblyFilter, onAssemblyChange, filterOptions.assemblies],
-                            ['Assignee', assignedFilter, onAssignedChange, staff.map((member) => ({ value: member.username, count: null }))],
+                            ['Assignee', assignedFilter, onAssignedChange, [{ value: 'unassigned', count: null }, ...staff.map((member) => ({ value: member.username, count: null }))]],
                         ].map(([label, value, onChange, options]) => (
                             <select
                                 key={label}
@@ -258,7 +258,7 @@ export default function BriefcaseFiltersBar(props) {
                                 <option value="">{label}</option>
                                 {options.map((option) => (
                                     <option key={option.value} value={option.value}>
-                                        {label === 'Assignee' ? option.value : optionLabel(option)}
+                                        {label === 'Assignee' ? (option.value === 'unassigned' ? 'No owner' : option.value) : optionLabel(option)}
                                     </option>
                                 ))}
                             </select>
