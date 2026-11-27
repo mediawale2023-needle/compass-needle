@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { vi } from 'vitest';
 
 const { apiGetMock, pushMock } = vi.hoisted(() => ({
@@ -98,6 +98,20 @@ describe('MP dashboard overview', () => {
                 return { articles: [{ source: 'Belagavi Herald', title: 'Rain floods low-lying lanes', link: 'https://example.com/x' }] };
             }
             if (path === '/api/maps/seat-manifest') return { seat: 'Belagavi South', features: [] };
+            if (path.startsWith('/api/dashboard/overview/metrics/new_contacts')) {
+                return { key: 'new_contacts', total: 1, contacts: [{ label: 'Asha Patil', first_contact: '2026-11-20T10:00:00', case_count: 2,
+                    cases: [{ id: 501, case_ref: 'CN-501', preview: 'Street light not working', category: 'Electricity', locality: 'Tilakwadi', age_days: 5 },
+                            { id: 502, case_ref: 'CN-502', preview: 'Drain overflowing', category: 'Drainage', locality: 'Tilakwadi', age_days: 2 }] }] };
+            }
+            if (path.startsWith('/api/dashboard/overview/metrics/pending')) {
+                return { key: 'pending', total: 1, cases: [{ id: 101, case_ref: 'CN-101', preview: 'Pipeline burst', category: 'Water', locality: 'Whitefield', age_days: 1 }] };
+            }
+            if (path.startsWith('/api/dashboard/overview/metrics')) {
+                return { window: { kind: 'days', days: path.includes('days=7') ? 7 : 30 }, metrics: [
+                    { key: 'complaints', value: 146, previous: 124 }, { key: 'filed', value: 12, previous: 31 },
+                    { key: 'resolved', value: 9, previous: 7 }, { key: 'other_actions', value: 38, previous: 35 },
+                    { key: 'pending', value: 96, previous: 71 }, { key: 'new_contacts', value: 60, previous: 99 }] };
+            }
             return {};
         });
     });
@@ -121,5 +135,39 @@ describe('MP dashboard overview', () => {
         expect(screen.getByText('Review case')).toBeInTheDocument();
 
         expect(apiGetMock).toHaveBeenCalledWith('/api/dashboard/overview');
+    });
+
+    it('shows six clickable numbers; New Contacts opens people with their cases', async () => {
+        render(<DashboardPage />);
+        const strip = await screen.findByRole('region', { name: 'Key numbers' });
+        for (const label of ['Complaints', 'Filed with Government', 'Resolved by Government', 'Other Actions', 'Pending', 'New Contacts']) {
+            expect(within(strip).getByText(label)).toBeInTheDocument();
+        }
+        await within(strip).findByText('146');
+        expect(within(strip).getByText('↓ 61%')).toHaveClass('bad');      // fewer filings is bad
+        expect(within(strip).getByText('↑ 35%')).toHaveClass('bad');      // more pending is bad
+        expect(screen.queryByText('Ready to file', { selector: '.attention-label' })).toBeNull();
+
+        fireEvent.click(within(strip).getByRole('button', { name: /New Contacts: 60/ }));
+        const drawer = await screen.findByRole('dialog', { name: /New Contacts/ });
+        expect(await within(drawer).findByText('Asha Patil')).toBeInTheDocument();
+        expect(within(drawer).getByText('Street light not working')).toBeInTheDocument();
+        fireEvent.click(within(drawer).getByText('Drain overflowing'));
+        expect(pushMock).toHaveBeenCalledWith('/dashboard/sansadx?case_id=502');
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('changes period and closes the list with Escape', async () => {
+        render(<DashboardPage />);
+        const strip = await screen.findByRole('region', { name: 'Key numbers' });
+        fireEvent.click(within(strip).getByRole('button', { name: '7 days' }));
+        await waitFor(() => expect(apiGetMock).toHaveBeenCalledWith('/api/dashboard/overview/metrics?days=7'));
+        await within(strip).findByText('146');
+        fireEvent.click(within(strip).getByRole('button', { name: /Pending: 96/ }));
+        const drawer = await screen.findByRole('dialog', { name: /Pending/ });
+        expect(apiGetMock).toHaveBeenCalledWith('/api/dashboard/overview/metrics/pending?days=7&limit=100');
+        expect(await within(drawer).findByText('Pipeline burst')).toBeInTheDocument();
+        fireEvent.keyDown(window, { key: 'Escape' });
+        expect(screen.queryByRole('dialog')).toBeNull();
     });
 });

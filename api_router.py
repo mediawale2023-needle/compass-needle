@@ -1184,6 +1184,61 @@ def dashboard_overview(user=Depends(get_current_user)):
     return build_mp_overview(tid, user, _overview_deps())
 
 
+def _overview_window(days, range_, from_, to):
+    from modules.partners import WindowError, resolve_window
+
+    if days is None and range_ is None and from_ is None and to is None:
+        days = 30
+    try:
+        return resolve_window(days=days, range_=range_, from_=from_, to=to)
+    except WindowError as exc:
+        raise HTTPException(422, str(exc))
+
+
+@router.get("/dashboard/overview/metrics")
+def dashboard_overview_metrics(
+    days: Optional[int] = Query(None, ge=1, le=3650),
+    range_: Optional[str] = Query(None, alias="range", pattern="^all$"),
+    from_: Optional[date] = Query(None, alias="from"),
+    to: Optional[date] = Query(None),
+    user=Depends(get_current_user),
+):
+    """Top strip: complaints, filed, resolved by government, other actions, pending, new contacts."""
+    from modules.overview_metrics import overview_metrics
+
+    tid = get_tenant_or_fail(user)
+    window = _overview_window(days, range_, from_, to)
+    try:
+        return overview_metrics(tid, window)
+    except Exception:
+        logger.exception("overview metrics failed tenant=%s", tid)
+        raise HTTPException(500, "The numbers could not be loaded. Please try again shortly.")
+
+
+@router.get("/dashboard/overview/metrics/{key}")
+def dashboard_overview_metric_rows(
+    key: str,
+    days: Optional[int] = Query(None, ge=1, le=3650),
+    range_: Optional[str] = Query(None, alias="range", pattern="^all$"),
+    from_: Optional[date] = Query(None, alias="from"),
+    to: Optional[date] = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+    user=Depends(get_current_user),
+):
+    """The cases (or, for new_contacts, the people and their cases) behind one strip number."""
+    from modules.overview_metrics import METRIC_KEYS, overview_metric_rows
+
+    if key not in METRIC_KEYS:
+        raise HTTPException(404, "Unknown metric")
+    tid = get_tenant_or_fail(user)
+    window = _overview_window(days, range_, from_, to)
+    try:
+        return overview_metric_rows(tid, window, key, limit)
+    except Exception:
+        logger.exception("overview metric rows failed tenant=%s key=%s", tid, key)
+        raise HTTPException(500, "The list could not be loaded. Please try again shortly.")
+
+
 def _parse_iso_date(value: str | None) -> date:
     if not value:
         return _utcnow().date()

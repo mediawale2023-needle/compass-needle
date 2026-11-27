@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Pencil } from 'lucide-react';
@@ -73,6 +73,10 @@ export default function CreateAccountPage() {
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(INITIAL_ACCOUNT_FORM);
 
+    // The post-create redirect must not fire after this page unmounts (e.g. the user navigated away).
+    const redirectTimer = useRef(null);
+    useEffect(() => () => clearTimeout(redirectTimer.current), []);
+
     useEffect(() => {
         apiGet('/api/admin/constituencies')
             .then((r) => { setConstituencies(r.constituencies || []); setConstituencyState('ready'); })
@@ -122,7 +126,7 @@ export default function CreateAccountPage() {
             const result = await apiPost('/api/admin/mps', buildCreatePayload(form));
             setSuccess(`Created ${form.name}${isPartner && selectedPartner ? `, attributed to ${selectedPartner.name}` : ''}. The account must set a new password on first login — redirecting to setup checklist…`);
             const tid = result?.tenant_id;
-            setTimeout(() => router.push(tid ? `/dashboard/mps/${tid}/setup` : '/dashboard'), 1500);
+            redirectTimer.current = setTimeout(() => router.push(tid ? `/dashboard/mps/${tid}/setup` : '/dashboard'), 1500);
         } catch (err) {
             setError(err.message);
         } finally {
