@@ -27,8 +27,19 @@ function timeoutForPath(path, options) {
     return REQUEST_TIMEOUT;
 }
 
+// Only reads are retried automatically. A write that timed out may still have
+// reached the server (a citizen message sent, a case updated), so retrying it
+// could do it twice; the caller shows the error and staff decide.
+export function isRetrySafeMethod(method) {
+    const m = String(method || 'GET').toUpperCase();
+    return m === 'GET' || m === 'HEAD';
+}
+
 function maxRetriesForPath(path, options) {
     if (options.noRetry) return 0;
+    // Sign-in is a POST but repeating it is harmless.
+    if (path.includes('/auth/login')) return options.maxRetries ?? LOGIN_MAX_RETRIES;
+    if (!isRetrySafeMethod(options.method)) return 0;
     if (options.maxRetries != null) return options.maxRetries;
     // Do not retry Playwright session start — a timed-out client still leaves
     // the backend browser running, and a retry would open a second one.

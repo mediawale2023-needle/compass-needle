@@ -87,10 +87,23 @@ docker compose -f "$COMPOSE_FILE" exec -T "$POSTGRES_SERVICE" sh -lc "$create_db
 
 restore_command=$(cat <<EOF
 export PGPASSWORD="\${POSTGRES_PASSWORD}"
-psql -U "\${POSTGRES_USER}" -d "${target_db}"
+psql -X -q -v ON_ERROR_STOP=1 -U "\${POSTGRES_USER}" -d "${target_db}" > /dev/null
 EOF
 )
 
+if [[ -f "${source_path}.sha256" ]]; then
+  (cd "$(dirname "$source_path")" && sha256sum -c "$(basename "$source_path").sha256")
+elif [[ "$source_path" == s3://* ]] && aws s3 cp "${source_path}.sha256" "${tmp_dir}/restore.sql.gz.sha256" >/dev/null 2>&1; then
+  expected="$(cut -d' ' -f1 "${tmp_dir}/restore.sql.gz.sha256")"
+  actual="$(sha256sum "$local_backup_path" | cut -d' ' -f1)"
+  if [[ "$expected" != "$actual" ]]; then
+    echo "checksum mismatch for ${source_path}" >&2
+    exit 1
+  fi
+fi
+gzip -t "$local_backup_path"
+
+# ON_ERROR_STOP: stop at the first failing statement instead of reporting success.
 gzip -dc "$local_backup_path" | docker compose -f "$COMPOSE_FILE" exec -T "$POSTGRES_SERVICE" sh -lc "$restore_command"
 
 echo "restore completed into database ${target_db}"

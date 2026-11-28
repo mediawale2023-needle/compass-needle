@@ -1,27 +1,16 @@
 name: Deploy Backend To AWS EC2
 
+# Production deploys only run for a commit whose "Product Tests" run passed:
+#  - automatically, when Product Tests completes successfully on main;
+#  - manually (workflow_dispatch), after the same check for the commit being deployed.
+# Only the current tip of main is deployed; an older commit whose tests finish late
+# is skipped (the newer commit deploys itself). The host skips the rebuild when no
+# backend file changed since the commit it is running.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "Dockerfile"
-      - "requirements.txt"
-      - "main.py"
-      - "api_router.py"
-      - "admin_api.py"
-      - "partner_api.py"
-      - "core/**"
-      - "modules/**"
-      - "sansadx_backend/**"
-      - "jobs/**"
-      - "scripts/**"
-      - "data/**"
-      - "deploy/ec2/**"
-      - "tenant_overrides.json"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/deploy-aws-ec2.yml"
+  workflow_run:
+    workflows: ["Product Tests"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -29,8 +18,53 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate:
+    name: Require Passing Tests
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+      deploy: ${{ steps.check.outputs.deploy }}
+    steps:
+      - name: Check Product Tests And Tip Of Main
+        id: check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT" == "workflow_run" ]]; then
+            sha="$RUN_SHA"
+            if [[ "$RUN_CONCLUSION" != "success" ]]; then
+              echo "::warning::Product Tests concluded '$RUN_CONCLUSION' for $sha — not deploying."
+              echo "deploy=false" >> "$GITHUB_OUTPUT"; echo "sha=$sha" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          else
+            sha="$(gh api "repos/$REPO/commits/main" --jq .sha)"
+          fi
+          passed="$(gh api "repos/$REPO/actions/workflows/product-tests.yml/runs?head_sha=$sha&status=success&per_page=1" --jq '.total_count')"
+          if [[ "$passed" == "0" ]]; then
+            echo "::error::No successful Product Tests run for $sha — refusing to deploy."
+            exit 1
+          fi
+          tip="$(gh api "repos/$REPO/commits/main" --jq .sha)"
+          if [[ "$tip" != "$sha" ]]; then
+            echo "::notice::$sha is no longer the tip of main ($tip); the newer commit deploys after its own tests."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"; echo "sha=$sha" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "Tests passed for $sha; deploying."
+          echo "deploy=true" >> "$GITHUB_OUTPUT"; echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
   deploy:
     name: Pull Latest Code And Restart Backend
+    needs: gate
+    if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -111,8 +145,18 @@ jobs:
           script: |
             set -e
             cd /opt/compass-needle/app
+            DEPLOY_SHA="${{ needs.gate.outputs.sha }}"
+            PREVIOUS_SHA="$(git rev-parse HEAD)"
             git fetch origin main
-            git reset --hard ${{ github.sha }}
+            git reset --hard "$DEPLOY_SHA"
+            # Rebuild only when a backend file changed since the commit the host was running.
+            BACKEND_PATHS="Dockerfile requirements.txt main.py api_router.py admin_api.py partner_api.py core modules sansadx_backend jobs scripts data deploy/ec2 tenant_overrides.json package.json package-lock.json"
+            if git cat-file -e "${PREVIOUS_SHA}^{commit}" 2>/dev/null && [ -z "$(git diff --name-only "$PREVIOUS_SHA" "$DEPLOY_SHA" -- $BACKEND_PATHS)" ]; then
+              BACKEND_CHANGED=0
+              echo "No backend changes since ${PREVIOUS_SHA}; containers are left running."
+            else
+              BACKEND_CHANGED=1
+            fi
             sudo apt-get update -y
             sudo apt-get install -y cron
             if ! command -v aws >/dev/null 2>&1; then
@@ -128,7 +172,7 @@ jobs:
             sudo install -m 0755 /opt/compass-needle/app/deploy/ec2/backup_postgres_to_s3.sh /opt/compass-needle/scripts/backup_postgres_to_s3.sh
             sudo install -m 0755 /opt/compass-needle/app/deploy/ec2/restore_postgres_backup.sh /opt/compass-needle/scripts/restore_postgres_backup.sh
             sudo install -m 0755 /opt/compass-needle/app/deploy/ec2/install_backup_cron.sh /opt/compass-needle/scripts/install_backup_cron.sh
-            /opt/compass-needle/scripts/install_backup_cron.sh || true
+            /opt/compass-needle/scripts/install_backup_cron.sh
             sudo install -m 0755 /opt/compass-needle/app/deploy/ec2/install_jobs_cron.sh /opt/compass-needle/scripts/install_jobs_cron.sh
             /opt/compass-needle/scripts/install_jobs_cron.sh || true
             sudo install -m 0644 /opt/compass-needle/app/deploy/ec2/Caddyfile /opt/compass-needle/Caddyfile
@@ -139,8 +183,10 @@ jobs:
             # against a stale copy.
             sudo install -d -m 0755 /opt/compass-needle/deploy/ec2
             sudo install -m 0644 /opt/compass-needle/app/deploy/ec2/docker-compose.yml /opt/compass-needle/deploy/ec2/docker-compose.yml
-            docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend backend_govt_live
-            docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --force-recreate caddy
+            if [ "$BACKEND_CHANGED" = "1" ]; then
+              docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend backend_govt_live
+              docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --force-recreate caddy
+            fi
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml ps
 
       - name: Verify Backend Health
