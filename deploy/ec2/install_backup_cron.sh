@@ -9,9 +9,17 @@ LOG_PATH="/var/log/compass-needle-postgres-backup.log"
 schedule="17 2 * * *"
 if [[ -f "$BACKUP_ENV_PATH" ]]; then
   schedule_from_env="$(grep -E '^BACKUP_CRON_SCHEDULE=' "$BACKUP_ENV_PATH" | tail -n 1 | cut -d= -f2- || true)"
+  # backup.env is also sourced by bash, so the value is usually quoted
+  # (BACKUP_CRON_SCHEDULE="17 2 * * *"). Strip the quotes: a quoted schedule makes
+  # the cron line invalid and cron silently never runs the backup.
+  schedule_from_env="$(printf '%s' "$schedule_from_env" | sed -E "s/^[[:space:]]*['\"]?//; s/['\"]?[[:space:]]*$//")"
   if [[ -n "$schedule_from_env" ]]; then
     schedule="$schedule_from_env"
   fi
+fi
+if [[ ! "$schedule" =~ ^[0-9*/,-]+[[:space:]]+[0-9*/,-]+[[:space:]]+[0-9*/,-]+[[:space:]]+[0-9*/,-]+[[:space:]]+[0-9*/,-]+$ ]]; then
+  echo "invalid BACKUP_CRON_SCHEDULE: ${schedule}" >&2
+  exit 1
 fi
 
 cat <<EOF | sudo tee "$CRON_PATH" > /dev/null

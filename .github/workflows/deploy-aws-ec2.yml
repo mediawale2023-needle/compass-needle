@@ -66,7 +66,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
       AWS_REGION: ap-south-1
       EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
@@ -141,7 +141,7 @@ jobs:
           username: ${{ secrets.AWS_EC2_USER }}
           key: ${{ secrets.AWS_EC2_SSH_KEY }}
           port: 22
-          command_timeout: 20m
+          command_timeout: 40m
           script: |
             set -e
             cd /opt/compass-needle/app
@@ -188,6 +188,12 @@ jobs:
               docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --force-recreate caddy
             fi
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml ps
+            # Settings report (secrets only as set / not set) in every deploy log.
+            bash /opt/compass-needle/app/deploy/ec2/production_checks.sh config || echo "WARNING: production settings report failed"
+            # Re-prove backup and restore whenever the backup tooling itself changes.
+            if ! git cat-file -e "${PREVIOUS_SHA}^{commit}" 2>/dev/null || [ -n "$(git diff --name-only "$PREVIOUS_SHA" "$DEPLOY_SHA" -- deploy/ec2/backup_postgres_to_s3.sh deploy/ec2/restore_postgres_backup.sh deploy/ec2/install_backup_cron.sh deploy/ec2/production_checks.sh)" ]; then
+              bash /opt/compass-needle/app/deploy/ec2/production_checks.sh restore-drill || echo "WARNING: RESTORE DRILL FAILED — see output above"
+            fi
 
       - name: Verify Backend Health
         shell: bash
