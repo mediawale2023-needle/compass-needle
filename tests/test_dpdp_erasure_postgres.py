@@ -21,7 +21,9 @@ if not PG_URL.startswith("postgresql"):
     pytest.skip("NEEDLE_PG_TEST_URL not set to a PostgreSQL URL", allow_module_level=True)
 
 TEST_JWT_SECRET = "test-secret-key-32-characters-minimum-ok"
-os.environ.setdefault("DATABASE_URL", PG_URL)
+# Import-time migrations must run on this PostgreSQL database (CI sets a SQLite DATABASE_URL
+# globally), so tables created there, such as wa_text_buffer, exist as in production.
+os.environ["DATABASE_URL"] = PG_URL
 os.environ.setdefault("ENV", "test")
 os.environ.setdefault("JWT_SECRET", TEST_JWT_SECRET)
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-fake-key-for-testing")
