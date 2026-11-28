@@ -1198,15 +1198,12 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             # grievance acknowledgement.
             personal_request_category = infer_personal_request_category(effective_user_message.lower())
             silent_log_preview = infer_silent_log_category(effective_user_message.lower())
-            # TEMP DIAGNOSTIC (grep: INTENT_DIAG) — remove once voice-note intent
-            # routing is verified in production. Records exactly what the intent
-            # detectors saw and the status gate at this point.
             logger.info(
-                "INTENT_DIAG status_before=%s personal_request=%s silent_log=%s msg=%r",
+                "Intent detectors status_before=%s personal_request=%s silent_log=%s msg_chars=%d",
                 str(data.get("status", "")).lower(),
                 personal_request_category,
                 silent_log_preview,
-                effective_user_message[:240],
+                len(effective_user_message or ""),
             )
             if (
                 personal_request_category

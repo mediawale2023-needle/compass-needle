@@ -76,7 +76,10 @@ async function mockAdminApi(page) {
 test('Admin can sign in and reach the overview dashboard', async ({ page }) => {
     await mockAdminApi(page);
 
+    // /health is probed from a mount effect: wait for it so the click lands after hydration.
+    const hydrated = page.waitForRequest((r) => new URL(r.url()).pathname === '/health');
     await page.goto('/');
+    await hydrated;
     await page.getByPlaceholder('Enter your username').fill('sysadmin');
     await page.getByPlaceholder('Enter your password').fill('AdminPass1!');
     await page.getByRole('button', { name: 'Sign in' }).click();

@@ -33,6 +33,10 @@ jobs:
 
     env:
       NEEDLE_PARTNER_PG_URL: postgresql://postgres:ci@localhost:5432/ci
+      # Real-PostgreSQL suites (erasure, Delhi reference race, tenant 9). Separate
+      # databases: the lifecycle race test drops and recreates its own tables.
+      NEEDLE_PG_TEST_URL: postgresql://postgres:ci@localhost:5432/ci_pg
+      NEEDLE_LIFECYCLE_PG_URL: postgresql://postgres:ci@localhost:5432/ci_lifecycle
       ENV: test
       DATABASE_URL: sqlite:///./ci_test.db
       JWT_SECRET: ci-test-secret-key-32-characters-minimum-ok
@@ -48,6 +52,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Create PostgreSQL Test Databases
+        env:
+          PGPASSWORD: ci
+        run: |
+          psql -h localhost -U postgres -d ci -c "CREATE DATABASE ci_pg"
+          psql -h localhost -U postgres -d ci -c "CREATE DATABASE ci_lifecycle"
 
       - name: Set Up Python
         uses: actions/setup-python@v5
@@ -85,13 +96,15 @@ jobs:
 
       - name: Install Playwright Browser
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        # Retried once: the browser download is a network fetch that intermittently fails on runners.
+        run: npx playwright install --with-deps chromium || (sleep 20 && npx playwright install --with-deps chromium)
 
       - name: Run Full Product Test Suite
         run: npm run test:all
 
+      # Builds fetch Google Fonts over the network (next/font); retry once on a transient fetch failure.
       - name: Build MP Frontend
-        run: npm run build:mp
+        run: npm run build:mp || (sleep 15 && npm run build:mp)
 
       - name: Build Admin Frontend
-        run: npm run build:admin
+        run: npm run build:admin || (sleep 15 && npm run build:admin)

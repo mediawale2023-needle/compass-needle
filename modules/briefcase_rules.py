@@ -464,8 +464,8 @@ def arbitrate_category(
     if rule_hit:
         if ai_domain_valid and ai_domain_clean != rule_hit["problem_domain"]:
             logger.info(
-                "CATEGORY_ARBITER model_disagreement rule=%s rule_domain=%r ai_domain=%r msg=%r",
-                rule_hit["rule_id"], rule_hit["problem_domain"], ai_domain_clean, raw_message[:160],
+                "CATEGORY_ARBITER model_disagreement rule=%s rule_domain=%r ai_domain=%r msg_chars=%d",
+                rule_hit["rule_id"], rule_hit["problem_domain"], ai_domain_clean, len(raw_message or ""),
             )
         return {
             "problem_domain": rule_hit["problem_domain"],
@@ -491,8 +491,8 @@ def arbitrate_category(
             inferred_domain, inferred_subdomain = _infer_subdomain_from_text(stripped)
             if inferred_domain:
                 logger.info(
-                    "CATEGORY_ARBITER venue_suppressed ai_domain=%r -> %r via landmark venues %s msg=%r",
-                    ai_domain_clean, inferred_domain, landmark_venues, raw_message[:160],
+                    "CATEGORY_ARBITER venue_suppressed ai_domain=%r -> %r via landmark venues %s msg_chars=%d",
+                    ai_domain_clean, inferred_domain, landmark_venues, len(raw_message or ""),
                 )
                 return {
                     "problem_domain": inferred_domain,

@@ -5293,7 +5293,8 @@ def dpdp_erase_citizen(req: DPDPErasureRequest, admin_user=Depends(get_admin_use
 
     Redacts free text and phone on cases and WhatsApp ledgers (keeping
     category/status/location for aggregate analytics), deletes contact
-    profiles and attached source media. Irreversible.
+    profiles, pending text buffers and attached source media. Irreversible.
+    One transaction: on any error nothing is changed.
     """
     digits = re.sub(r"\D", "", req.phone or "")
     if len(digits) < 10:
@@ -5325,7 +5326,8 @@ def dpdp_erase_citizen(req: DPDPErasureRequest, admin_user=Depends(get_admin_use
                         SET user_phone = 'ERASED',
                             raw_message = '[erased under DPDP request]',
                             response_to_citizen = NULL,
-                            case_metadata = NULL
+                            case_metadata = NULL,
+                            govt_submission_worksheet = NULL
                         WHERE id = ANY(:ids)
                         """
                     ),
@@ -5342,10 +5344,15 @@ def dpdp_erase_citizen(req: DPDPErasureRequest, admin_user=Depends(get_admin_use
                 text(
                     """
                     UPDATE wa_inbound_messages
-                    SET sender_phone = 'ERASED', payload_snapshot = NULL
+                    SET sender_phone = 'ERASED', raw_payload = '{}', last_error = NULL
                     WHERE sender_phone LIKE :suffix
                     """
                 ),
+                {"suffix": f"%{last10}"},
+            ).rowcount
+            # Debounced citizen texts not yet turned into a case.
+            counts["wa_text_buffer"] = conn.execute(
+                text("DELETE FROM wa_text_buffer WHERE sender_phone LIKE :suffix"),
                 {"suffix": f"%{last10}"},
             ).rowcount
             counts["wa_outbound_messages"] = conn.execute(

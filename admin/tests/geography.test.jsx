@@ -167,13 +167,17 @@ describe('Admin geography page', () => {
         expect(await screen.findByText('Tenant Geography Setup')).toBeInTheDocument();
         expect(await screen.findByText('1. Core Geography')).toBeInTheDocument();
         expect(await screen.findByText('Manual Matching Corrections')).toBeInTheDocument();
-        expect(screen.getByText('Shared geography already present')).toBeInTheDocument();
+        // Tenant detail, shared assemblies and overrides arrive from separate requests;
+        // wait for all of them instead of asserting on whichever landed first (CI flake).
+        await waitFor(() => {
+            expect(screen.getByText('Shared geography already present')).toBeInTheDocument();
+            expect(screen.getByText('teacher colony')).toBeInTheDocument();
+            expect(screen.getByText('2 manual corrections')).toBeInTheDocument();
+        });
         expect(screen.getByRole('link', { name: 'Back to launch readiness' })).toHaveAttribute('href', '/dashboard/mps/7/setup');
         expect(screen.getByText('Aspirant A')).toBeInTheDocument();
         expect(screen.getAllByText('Belagavi').length).toBeGreaterThan(0);
         expect(screen.getByRole('button', { name: 'Use existing geography' })).toBeInTheDocument();
-        expect(screen.getByText('teacher colony')).toBeInTheDocument();
-        expect(screen.getByText('2 manual corrections')).toBeInTheDocument();
         expect(screen.getAllByRole('button', { name: 'Edit' }).length).toBeGreaterThan(0);
         expect(screen.getByRole('button', { name: 'Bulk Add' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Delete All' })).toBeInTheDocument();

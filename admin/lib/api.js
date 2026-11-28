@@ -63,7 +63,11 @@ export async function api(path, options = {}) {
 
     const isLogin = path.includes('auth/login');
     const timeout = options.timeout ?? (isLogin ? LOGIN_TIMEOUT : REQUEST_TIMEOUT);
-    const maxRetries = options.maxRetries ?? (isLogin ? LOGIN_MAX_RETRIES : MAX_RETRIES);
+    // Only reads (and sign-in) are retried: a timed-out write may already have
+    // happened server-side, and repeating it could do it twice.
+    const method = String(options.method || 'GET').toUpperCase();
+    const retrySafe = isLogin || method === 'GET' || method === 'HEAD';
+    const maxRetries = retrySafe ? (options.maxRetries ?? (isLogin ? LOGIN_MAX_RETRIES : MAX_RETRIES)) : 0;
     const retryDelayBase = isLogin ? LOGIN_RETRY_DELAY : RETRY_DELAY;
     let lastError = null;
 

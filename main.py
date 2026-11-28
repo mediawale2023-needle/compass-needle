@@ -145,6 +145,9 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 logger = logging.getLogger("needle.backend")
+# Citizen phone numbers are masked in every log line (handlers of root + uvicorn).
+from core.log_redaction import install as _install_log_redaction, mask_phone  # noqa: E402
+_install_log_redaction("uvicorn", "uvicorn.error", "uvicorn.access")
 
 # ─────────────────────────────────────────
 # APP
@@ -2611,9 +2614,46 @@ def _schedule_buffered_release(case_id: int | None, release_after_epoch: int | N
     timer.start()
 
 
+# A release claims the case first, so the in-process timer, the startup sweep and
+# the periodic sweep (on every worker) can never release the same case twice. A
+# claim older than this is treated as abandoned (the worker died mid-release).
+_CONTACT_BUFFER_CLAIM_STALE_SECONDS = 600
+
+
+def _claim_buffered_contact_case(case_id: int, now_epoch: int) -> bool:
+    """Atomically mark a held case as being released by this process."""
+    try:
+        with engine.begin() as conn:
+            claimed = conn.execute(
+                text(
+                    """
+                    UPDATE cases
+                    SET case_metadata = CAST(jsonb_set(COALESCE(CAST(case_metadata AS jsonb), '{}'::jsonb),
+                                                       '{contact_buffer_claimed_epoch}',
+                                                       to_jsonb(CAST(:now_epoch AS bigint))) AS json)
+                    WHERE id = :cid
+                      AND status = :buffer_status
+                      AND COALESCE((CAST(case_metadata AS jsonb) ->> 'contact_buffer_claimed_epoch')::bigint, 0) <= :stale_before
+                    RETURNING id
+                    """
+                ),
+                {"cid": int(case_id), "now_epoch": now_epoch, "buffer_status": _CONTACT_BUFFER_STATUS,
+                 "stale_before": now_epoch - _CONTACT_BUFFER_CLAIM_STALE_SECONDS},
+            ).first()
+        return claimed is not None
+    except Exception as exc:
+        logger.warning("Buffered contact-case claim failed for case %s: %s", case_id, exc)
+        return False
+
+
 def _release_due_buffered_contact_cases(case_id: int | None = None) -> None:
+    """Release held (contact-buffered) cases whose hold has expired.
+
+    Called by the per-case in-process timer, and by the startup and periodic
+    sweeps so a case held when the process restarts is still released.
+    """
     now_epoch = int(datetime.now(timezone.utc).timestamp())
-    params = {"now_epoch": now_epoch}
+    params = {"now_epoch": now_epoch, "stale_before": now_epoch - _CONTACT_BUFFER_CLAIM_STALE_SECONDS}
     where_case = ""
     if case_id is not None:
         params["case_id"] = int(case_id)
@@ -2630,6 +2670,7 @@ def _release_due_buffered_contact_cases(case_id: int | None = None) -> None:
                     FROM cases
                     WHERE status = :buffer_status
                       AND COALESCE((case_metadata::jsonb ->> 'contact_release_after_epoch')::bigint, 0) <= :now_epoch
+                      AND COALESCE((case_metadata::jsonb ->> 'contact_buffer_claimed_epoch')::bigint, 0) <= :stale_before
                       AND (is_deleted = false OR is_deleted IS NULL)
                       {where_case}
                     ORDER BY created_at ASC
@@ -2644,7 +2685,10 @@ def _release_due_buffered_contact_cases(case_id: int | None = None) -> None:
 
     for row in rows:
         _cancel_buffered_release(row["id"])
+        if not _claim_buffered_contact_case(row["id"], now_epoch):
+            continue  # another worker is releasing it
         meta = _parse_case_meta(row.get("case_metadata"))
+        meta.pop("contact_buffer_claimed_epoch", None)
         if meta.get("contact_buffer_overflow_flagged"):
             try:
                 with engine.begin() as conn:
@@ -4823,17 +4867,15 @@ def _run_citizen_case_enrichment(
             reason="localized_template_unavailable",
         )
 
-    # TEMP DIAGNOSTIC (grep: INTENT_DIAG) — remove once voice-note intent routing
-    # is verified in production. Ties the message source to the final ack decision.
     logger.info(
-        "INTENT_DIAG source=%s media_type=%s status=%s category=%s is_personal=%s ack=%r msg=%r",
+        "Intake decision source=%s media_type=%s status=%s category=%s is_personal=%s ack_chars=%d msg_chars=%d",
         "media" if media_source else "text",
         media_source.get("media_type") if media_source else "",
         status,
         category,
         is_personal_request,
-        (citizen_ack_message or "")[:120],
-        (message_body or "")[:240],
+        len(citizen_ack_message or ""),
+        len(message_body or ""),
     )
 
     _classification_shadow = grievance.get("classification_shadow") or {}
@@ -5254,8 +5296,8 @@ def _process_incoming_message(
 
     if staff_row:
         logger.info(
-            "Staff message from %s (user_id=%s, tenant=%s): %r",
-            sender, staff_row["id"], current_tenant, message_body[:80],
+            "Staff message from %s (user_id=%s, tenant=%s): %d chars",
+            mask_phone(sender), staff_row["id"], current_tenant, len(message_body or ""),
         )
 
         # Check for emergency cluster acknowledgment (ACK <id> or ACK)
@@ -6824,8 +6866,11 @@ def _sweep_pending_inbound_ledger_rows(limit: int = 25) -> int:
 
 def _schedule_inbound_ledger_sweep() -> None:
     try:
-        _sweep_pending_inbound_ledger_rows()
-        _sweep_stale_text_buffers()
+        for sweep in (_sweep_pending_inbound_ledger_rows, _sweep_stale_text_buffers, _release_due_buffered_contact_cases):
+            try:
+                sweep()
+            except Exception:
+                logger.exception("Inbound sweep step %s failed", sweep.__name__)
     finally:
         timer = threading.Timer(_INBOUND_SWEEP_INTERVAL_SECONDS, _schedule_inbound_ledger_sweep)
         timer.daemon = True
@@ -7094,6 +7139,8 @@ async def startup_jobs():
     await run_in_threadpool(_send_due_case_clarification_followups)
     await run_in_threadpool(_sweep_pending_inbound_ledger_rows)
     await run_in_threadpool(_sweep_stale_text_buffers)
+    # Held contact cases whose in-process release timer died with the old process.
+    await run_in_threadpool(_release_due_buffered_contact_cases)
     _start_inbound_ledger_sweeper()
     _start_govt_sync_poller()
     _start_govt_sync_live_session_sweeper()

@@ -88,15 +88,24 @@ async function mockMpApi(page) {
 }
 
 test('MP can sign in and reach the dashboard', async ({ page }) => {
+    test.setTimeout(150_000);
     await mockMpApi(page);
+    // `next dev` compiles a route on its first visit, which on a cold CI runner can take
+    // longer than the URL assertion waits. Compile /dashboard before the sign-in starts.
+    await page.request.get('/dashboard', { timeout: 120_000 });
 
+    // The login page probes /health from a mount effect, so this request means React has
+    // hydrated. Clicking before that submits the server-rendered form natively and the
+    // page never leaves "/" (the CI flake on slow runners).
+    const hydrated = page.waitForRequest((r) => new URL(r.url()).pathname === '/health');
     await page.goto('/');
+    await hydrated;
     await page.getByPlaceholder('Enter your username').fill('mp_arun');
     await page.getByPlaceholder('Enter your password').fill('ValidPass1!');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 30_000 });
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('heading', { name: 'Attention Queue' })).toBeVisible();
 
     const token = await page.evaluate(() => sessionStorage.getItem('needle_token'));

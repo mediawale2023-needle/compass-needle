@@ -1,4 +1,4 @@
-import { Geist, Geist_Mono, Noto_Sans_Devanagari } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import './styles/admin-tokens.css';
 import './styles/admin-legacy-bridge.css';
@@ -9,9 +9,30 @@ import { AuthProvider } from '@/lib/auth';
 // Geist is the Admin typeface. It has no Devanagari glyphs, so Hindi and
 // Marathi text (citizen messages, local-script names) falls back to Noto Sans
 // Devanagari rather than an arbitrary system font.
-const geist = Geist({ subsets: ['latin'], variable: '--font-geist', display: 'swap' });
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono', display: 'swap' });
-const devanagari = Noto_Sans_Devanagari({ subsets: ['devanagari'], weight: ['400', '500', '600'], variable: '--font-devanagari', display: 'swap' });
+// The files are self-hosted (app/fonts, OFL-1.1, from Fontsource) so the
+// production build never depends on reaching Google Fonts — that fetch was the
+// main cause of red CI builds, and red builds now block deploys.
+const geist = localFont({
+    src: './fonts/geist-latin-wght.woff2',
+    weight: '100 900',
+    variable: '--font-geist',
+    display: 'swap',
+});
+const geistMono = localFont({
+    src: './fonts/geist-mono-latin-wght.woff2',
+    weight: '100 900',
+    variable: '--font-geist-mono',
+    display: 'swap',
+});
+const devanagari = localFont({
+    src: [
+        { path: './fonts/noto-sans-devanagari-400.woff2', weight: '400', style: 'normal' },
+        { path: './fonts/noto-sans-devanagari-500.woff2', weight: '500', style: 'normal' },
+        { path: './fonts/noto-sans-devanagari-600.woff2', weight: '600', style: 'normal' },
+    ],
+    variable: '--font-devanagari',
+    display: 'swap',
+});
 
 export const metadata = {
     title: 'Needle Command Center',
