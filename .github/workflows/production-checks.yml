@@ -7,6 +7,9 @@ name: Production Checks
 #                   /opt/compass-needle/backups/restore_drills.log and printed here.
 # Neither check changes production data, containers or settings.
 on:
+  # Weekly restore drill (Sunday 21:13 UTC / Monday 02:43 IST), plus on demand.
+  schedule:
+    - cron: "13 21 * * 0"
   workflow_dispatch:
     inputs:
       check:
@@ -24,7 +27,7 @@ permissions:
 
 jobs:
   check:
-    name: Run ${{ inputs.check }} on production
+    name: Run ${{ inputs.check || 'restore-drill' }} on production
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -62,7 +65,7 @@ jobs:
           command_timeout: 40m
           script: |
             set -e
-            bash /opt/compass-needle/app/deploy/ec2/production_checks.sh "${{ inputs.check }}"
+            bash /opt/compass-needle/app/deploy/ec2/production_checks.sh "${{ inputs.check || 'restore-drill' }}"
 
       - name: Remove GitHub Runner SSH Access
         if: always() && steps.ssh_ip.outputs.runner_ip != ''
